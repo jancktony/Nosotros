@@ -1,0 +1,29 @@
+name: Publicar versión Android
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - name: Secretos
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          KS: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          echo "$GS" > app/google-services.json
+          echo "$KS" | base64 -d > app/nosotros.keystore
+      - run: chmod +x gradlew && ./gradlew assembleRelease -PghRepo=${{ github.repository }}
+        env:
+          KS_PASS: ${{ secrets.KS_PASS }}
+      - run: cp app/build/outputs/apk/release/app-release.apk Nosotros-${{ github.ref_name }}.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: Nosotros-${{ github.ref_name }}.apk
+          body: "Mejoras y correcciones."

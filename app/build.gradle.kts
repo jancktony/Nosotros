@@ -48,9 +48,9 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("nosotros.keystore")
-            storePassword = "nosotros123"
+            storePassword = System.getenv("KS_PASS") ?: "nosotros123"
             keyAlias = "nosotros"
-            keyPassword = "nosotros123"
+            keyPassword = System.getenv("KS_PASS") ?: "nosotros123"
         }
     }
 
