@@ -1,0 +1,377 @@
+package com.tony.nosotros.ui
+
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TimePickerDefaults
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.tony.nosotros.data.Mode
+import com.tony.nosotros.util.TimeFmt
+import com.tony.nosotros.util.Together
+import com.tony.nosotros.widget.DistanceWidget
+import com.tony.nosotros.widget.TogetherWidget
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+const val INDEFINITE = 4_102_444_800_000L  // año 2100 = "hasta que la reanude"
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
+    val ctx = LocalContext.current
+    val me by vm.me.collectAsState()
+    val partner by vm.partner.collectAsState()
+    val since by vm.since.collectAsState()
+    val theme by vm.theme.collectAsState()
+    val p = vm.prefs
+    var name by remember { mutableStateOf(p.myName) }
+    var vehicle by remember { mutableStateOf(p.vehicle) }
+    var nArrive by remember { mutableStateOf(p.notifyArrive) }
+    var nLeave by remember { mutableStateOf(p.notifyLeave) }
+    var nPause by remember { mutableStateOf(p.notifyPause) }
+    var extreme by remember { mutableStateOf(p.extremeSaving) }
+    var confirmUnlink by remember { mutableStateOf(false) }
+    var pickDate by remember { mutableStateOf(false) }
+    var pickTime by remember { mutableStateOf<Long?>(null) }
+    val paused = me?.paused == true
+
+    Column(
+        Modifier.fillMaxSize().background(C.bg).statusBarsPadding().verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Ic.Left, "Volver", tint = C.text) }
+            Text("Ajustes", style = MaterialTheme.typography.headlineMedium, color = C.text)
+        }
+
+        // Cabecera con los dos
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+                .background(Brush.linearGradient(listOf(C.me.copy(alpha = 0.22f), C.partner.copy(alpha = 0.22f))))
+                .border(1.dp, C.line, RoundedCornerShape(22.dp)).padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Avatar(initialOf(p.myName, "Yo"), C.me, C.meInk, 48.dp)
+            Spacer(Modifier.width(6.dp))
+            Icon(Ic.Heart, null, tint = C.partner, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(6.dp))
+            Avatar(initialOf(partner?.name ?: "", "P"), C.partner, C.partnerInk, 48.dp)
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text("${p.myName.ifBlank { "Tú" }} y ${partner?.name?.ifBlank { null } ?: "tu pareja"}",
+                    fontWeight = FontWeight.Bold, fontSize = 17.sp, color = C.text)
+                val s = Together.span(since)
+                Text(if (s != null) "${s.totalDays} días juntos" else "Agrega su fecha de aniversario", color = C.sub, fontSize = 14.sp)
+            }
+        }
+
+        // ---------- Apariencia ----------
+        Section(Ic.Palette, "Apariencia") {
+            Text("Tema", color = C.sub, fontSize = 14.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ThemeTile("Noche", Palettes.Night, theme == "night", Modifier.weight(1f)) { vm.setTheme("night") }
+                ThemeTile("Rosa", Palettes.Pink, theme == "pink", Modifier.weight(1f)) { vm.setTheme("pink") }
+            }
+        }
+
+        // ---------- Nosotros ----------
+        Section(Ic.Calendar, "Nuestro aniversario") {
+            val fmt = SimpleDateFormat("d 'de' MMMM 'de' yyyy · H:mm", Locale("es"))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(if (since > 0) fmt.format(Date(since)) else "Sin fecha", fontWeight = FontWeight.SemiBold, color = C.text)
+                    Text("La ven los dos. Se usa en el contador, los widgets y los avisos de aniversario.",
+                        color = C.sub, fontSize = 13.sp)
+                }
+            }
+            ActionButton(if (since > 0) "Cambiar fecha" else "Elegir fecha", C.partner) { pickDate = true }
+        }
+
+        // ---------- Perfil ----------
+        Section(Ic.User, "Perfil") {
+            OutlinedTextField(name, { name = it }, label = { Text("Tu nombre") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            if (name != p.myName && name.isNotBlank()) ActionButton("Guardar nombre", C.me) { vm.setName(name) }
+            Text("Tu vehículo habitual", color = C.sub, fontSize = 14.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("Carro", vehicle == Mode.CAR, icon = Ic.Car) { vehicle = Mode.CAR; vm.setVehicle(Mode.CAR) }
+                Chip("Moto", vehicle == Mode.MOTO, icon = Ic.Moto) { vehicle = Mode.MOTO; vm.setVehicle(Mode.MOTO) }
+            }
+            Text("Se usa cuando el teléfono detecta “en vehículo”. Los buses se reconocen por sus paradas.",
+                color = C.sub, fontSize = 13.sp)
+        }
+
+        // ---------- Compartir ----------
+        Section(Ic.Pin, "Compartir ubicación") {
+            if (paused) {
+                val until = me?.pausedUntil ?: 0
+                Text(if (until >= INDEFINITE) "En pausa hasta que la reanudes" else "En pausa hasta las ${TimeFmt.hour(until)}",
+                    fontWeight = FontWeight.SemiBold, color = C.warn)
+                ActionButton("Reanudar ahora", C.me) { vm.resume() }
+            } else {
+                Text("Compartiendo con tu pareja", fontWeight = FontWeight.SemiBold, color = C.ok)
+                Text("Pausar (tu pareja verá “en pausa” y recibirá un aviso):", color = C.sub, fontSize = 14.sp)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val now = System.currentTimeMillis()
+                    Chip("1 hora", false, icon = Ic.Pause) { vm.pause(now + 3_600_000) }
+                    Chip("4 horas", false, icon = Ic.Pause) { vm.pause(now + 4 * 3_600_000) }
+                    Chip("Hasta mañana", false, icon = Ic.Pause) { vm.pause(TimeFmt.tomorrowAt(7)) }
+                    Chip("Indefinido", false, icon = Ic.Pause) { vm.pause(INDEFINITE) }
+                }
+            }
+        }
+
+        // ---------- Avisos ----------
+        Section(Ic.Bell, "Avisos que recibo") {
+            Toggle("Cuando llega a un lugar", nArrive) { nArrive = it; p.notifyArrive = it }
+            Divider()
+            Toggle("Cuando sale de un lugar", nLeave) { nLeave = it; p.notifyLeave = it }
+            Divider()
+            Toggle("Cuando pausa o reanuda", nPause) { nPause = it; p.notifyPause = it }
+        }
+
+        // ---------- Batería ----------
+        Section(Ic.Battery, "Batería y precisión") {
+            Toggle("Ahorro extremo con batería < 20 %", extreme) { extreme = it; p.extremeSaving = it; vm.refreshTracking() }
+            Divider()
+            val ignoring = isIgnoringBattery(ctx)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(if (ignoring) C.ok else C.warn))
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    if (ignoring) "Funciona en segundo plano sin restricciones"
+                    else "El teléfono puede cerrar la app en segundo plano",
+                    color = C.text, fontSize = 14.sp,
+                )
+            }
+            if (!ignoring) ActionButton("Quitar restricción de batería", C.me) { requestIgnoreBattery(ctx) }
+            ActionButton("Abrir ajustes de la app", C.sub) {
+                ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")))
+            }
+            Text("En Xiaomi activa también “Inicio automático”; en Samsung pon la app en “Sin restricciones”.",
+                color = C.sub, fontSize = 13.sp)
+        }
+
+        // ---------- Widgets ----------
+        Section(Ic.Widget, "Widgets") {
+            Text("Pon en tu pantalla de inicio la distancia entre ustedes o el contador de tiempo juntos.",
+                color = C.sub, fontSize = 14.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ActionButton("Distancia", C.me, Modifier.weight(1f)) { pinWidget(ctx, DistanceWidget::class.java) }
+                ActionButton("Juntos", C.partner, Modifier.weight(1f)) { pinWidget(ctx, TogetherWidget::class.java) }
+            }
+            Text("Si no aparece la opción: mantén presionado el fondo de pantalla → Widgets → Nosotros.",
+                color = C.sub, fontSize = 13.sp)
+        }
+
+        // ---------- Pareja ----------
+        Section(Ic.Link, "Vinculación") {
+            Text("Conectado con ${partner?.name?.ifBlank { null } ?: "tu pareja"}", color = C.text, fontSize = 14.sp)
+            ActionButton("Desvincular", C.danger) { confirmUnlink = true }
+        }
+
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) {
+            Text("Nosotros v1.1 · hecho con ♥", color = C.sub, fontSize = 13.sp)
+        }
+        Spacer(Modifier.height(30.dp))
+    }
+
+    if (pickDate) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = if (since > 0) toUtcDay(since) else null)
+        DatePickerDialog(
+            onDismissRequest = { pickDate = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickDate = false
+                    state.selectedDateMillis?.let { pickTime = it }
+                }) { Text("Siguiente", color = C.me) }
+            },
+            dismissButton = { TextButton(onClick = { pickDate = false }) { Text("Cancelar", color = C.sub) } },
+            colors = DatePickerDefaults.colors(containerColor = C.surface),
+        ) { DatePicker(state, title = { Text("¿Cuándo empezaron?", Modifier.padding(16.dp)) }) }
+    }
+
+    pickTime?.let { utcDay ->
+        val prev = Calendar.getInstance().apply { timeInMillis = since }
+        val tState = rememberTimePickerState(
+            initialHour = if (since > 0) prev.get(Calendar.HOUR_OF_DAY) else 20,
+            initialMinute = if (since > 0) prev.get(Calendar.MINUTE) else 0, is24Hour = false,
+        )
+        AlertDialog(
+            onDismissRequest = { pickTime = null },
+            containerColor = C.surface,
+            title = { Text("¿A qué hora? (opcional)") },
+            text = { TimePicker(tState, colors = TimePickerDefaults.colors(clockDialColor = C.surface2)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.setSince(fromUtcDay(utcDay, tState.hour, tState.minute)); pickTime = null
+                }) { Text("Guardar", color = C.me) }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.setSince(fromUtcDay(utcDay, 0, 0)); pickTime = null }) { Text("Sin hora", color = C.sub) }
+            },
+        )
+    }
+
+    if (confirmUnlink) AlertDialog(
+        onDismissRequest = { confirmUnlink = false },
+        containerColor = C.surface,
+        title = { Text("¿Desvincular?") },
+        text = { Text("Dejarán de ver su ubicación. Para volver a conectarse necesitarán un código nuevo.") },
+        confirmButton = { TextButton(onClick = { confirmUnlink = false; vm.unlink(); onBack() }) { Text("Desvincular", color = C.danger) } },
+        dismissButton = { TextButton(onClick = { confirmUnlink = false }) { Text("Cancelar", color = C.sub) } },
+    )
+}
+
+/** El DatePicker trabaja en UTC; convertimos a la hora local elegida. */
+private fun toUtcDay(local: Long): Long {
+    val l = Calendar.getInstance().apply { timeInMillis = local }
+    return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        clear(); set(l.get(Calendar.YEAR), l.get(Calendar.MONTH), l.get(Calendar.DAY_OF_MONTH))
+    }.timeInMillis
+}
+
+private fun fromUtcDay(utc: Long, hour: Int, minute: Int): Long {
+    val u = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = utc }
+    return Calendar.getInstance().apply {
+        clear(); set(u.get(Calendar.YEAR), u.get(Calendar.MONTH), u.get(Calendar.DAY_OF_MONTH), hour, minute)
+    }.timeInMillis
+}
+
+private fun pinWidget(ctx: Context, cls: Class<*>) {
+    val mgr = AppWidgetManager.getInstance(ctx)
+    if (mgr.isRequestPinAppWidgetSupported) mgr.requestPinAppWidget(ComponentName(ctx, cls), null, null)
+}
+
+@Composable
+private fun Section(icon: ImageVector, title: String, content: @Composable () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.surface)
+            .border(1.dp, C.line, RoundedCornerShape(20.dp)).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(C.me.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = C.me, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = C.text)
+        }
+        content()
+    }
+}
+
+@Composable
+private fun ThemeTile(label: String, pal: Palette, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.clip(RoundedCornerShape(16.dp)).background(pal.bg)
+            .border(if (selected) 2.5.dp else 1.dp, if (selected) C.me else C.line, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.size(22.dp).clip(CircleShape).background(pal.me))
+            Box(Modifier.size(22.dp).clip(CircleShape).background(pal.partner))
+        }
+        Box(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(pal.surface2))
+        Box(Modifier.fillMaxWidth(0.6f).height(10.dp).clip(RoundedCornerShape(5.dp)).background(pal.surface2))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, color = pal.text, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            if (selected) Icon(Ic.Check, null, tint = pal.me, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun ActionButton(text: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.clip(RoundedCornerShape(14.dp)).background(color.copy(alpha = 0.14f))
+            .border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(text, color = if (color == C.sub) C.text else color, fontWeight = FontWeight.Bold, fontSize = 15.sp) }
+}
+
+@Composable
+private fun Divider() = HorizontalDivider(color = C.line)
+
+@Composable
+private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), fontSize = 15.sp, color = C.text)
+        Switch(value, onChange, colors = SwitchDefaults.colors(
+            checkedTrackColor = C.me, checkedThumbColor = C.meInk,
+            uncheckedTrackColor = C.surface2, uncheckedThumbColor = C.sub, uncheckedBorderColor = C.sub,
+        ))
+    }
+}
+
+fun isIgnoringBattery(ctx: Context): Boolean =
+    ctx.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(ctx.packageName)
+
+@android.annotation.SuppressLint("BatteryLife")
+fun requestIgnoreBattery(ctx: Context) {
+    runCatching {
+        ctx.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${ctx.packageName}")))
+    }
+}

@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.Nosotros" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+    </style>
+    <color name="bg">#0B0F14</color>
+    <color name="accent">#5EEAD4</color>
+</resources>
