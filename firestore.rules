@@ -3,9 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() { return request.auth != null; }
+    function allowed(data) {
+      return request.auth.uid in data.members || request.auth.uid in data.get('webUids', []);
+    }
     function isMember(pairId) {
-      return signedIn() &&
-        request.auth.uid in get(/databases/$(database)/documents/pairs/$(pairId)).data.members;
+      return signedIn() && allowed(get(/databases/$(database)/documents/pairs/$(pairId)).data);
     }
 
     // Códigos de vinculación de 6 dígitos (duran 24 h)
@@ -14,13 +16,20 @@ service cloud.firestore {
       allow delete: if signedIn();
     }
 
+    // Códigos para vincular el panel web de administrador
+    match /weblinks/{code} {
+      allow get: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if signedIn() && request.resource.data.uid == resource.data.uid;
+    }
+
     match /pairs/{pairId} {
       allow create: if signedIn()
         && request.resource.data.members == [request.auth.uid];
-      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      allow read: if signedIn() && allowed(resource.data);
       // Un miembro puede modificar; o un nuevo integrante puede unirse con el código correcto
       allow update: if signedIn() && (
-        request.auth.uid in resource.data.members ||
+        allowed(resource.data) ||
         (resource.data.members.size() == 1
           && request.resource.data.members.size() == 2
           && request.resource.data.members.hasAll(resource.data.members)
@@ -28,7 +37,7 @@ service cloud.firestore {
           && request.resource.data.joinCode == resource.data.code)
       );
 
-      // Todo lo de adentro (ubicaciones, lugares, eventos, trayectos) solo para la pareja
+      // Todo lo de adentro (ubicaciones, lugares, eventos, trayectos, fotos) solo para la pareja
       match /{document=**} {
         allow read, write: if isMember(pairId);
       }

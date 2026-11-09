@@ -92,6 +92,17 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
             Text("En la pestaña Lugares puedes editar y borrar también los lugares de $pName.", color = C.sub, fontSize = 14.sp)
         }
 
+        Section(Ic.Layers, "Panel web") {
+            val webMsg by vm.webMsg.collectAsState()
+            var code by remember { mutableStateOf("") }
+            Text("Abre tu panel web en el computador y escribe aquí el código que te muestra.", color = C.sub, fontSize = 14.sp)
+            androidx.compose.material3.OutlinedTextField(code, { code = it.uppercase().take(8) }, singleLine = true,
+                label = { Text("Código de 8 letras") }, modifier = Modifier.fillMaxWidth())
+            ActionButton("Dar acceso a ese navegador", C.me) { if (code.length == 8) { vm.linkWeb(code); code = "" } }
+            ActionButton("Cerrar el acceso web", C.danger) { vm.unlinkWeb() }
+            webMsg?.let { Text(it, color = C.text, fontSize = 14.sp) }
+        }
+
         Section(Ic.Link, "Vinculación") {
             Text("Si $pName cambia de teléfono, genera un código nuevo. El teléfono anterior deja de ver la ubicación.",
                 color = C.sub, fontSize = 14.sp)

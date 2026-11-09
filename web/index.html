@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Nosotros · Admin</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+:root{--bg:#0b0f14;--card:#141a22;--line:#263040;--text:#f1f5f9;--sub:#9aa7b8;--me:#5eead4;--her:#f9a8d4;--warn:#fbbf24;--bad:#fca5a5}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:16px;display:grid;gap:14px}
+h1{font-size:22px;margin:6px 0}h2{font-size:16px;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.row{display:flex;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}.row:first-of-type{border-top:0}
+.grow{flex:1;min-width:0}.sub{color:var(--sub);font-size:13px}.big{font-size:26px;font-weight:700}
+button{background:transparent;color:var(--me);border:1px solid var(--line);border-radius:10px;padding:7px 12px;font:inherit;font-weight:600;cursor:pointer}
+button.bad{color:var(--bad)}button:hover{border-color:currentColor}
+.ok{color:var(--me);font-weight:700}.code{font-size:38px;font-weight:800;letter-spacing:6px;color:var(--me)}
+#map{height:340px;border-radius:14px;overflow:hidden}
+.photos{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.photos figure{margin:0;background:var(--bg);border-radius:12px;overflow:hidden}.photos img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+.photos figcaption{padding:8px;font-size:12px}
+.center{min-height:80vh;display:grid;place-items:center;text-align:center}
+</style>
+</head>
+<body>
+<main id="app"><div class="center"><p class="sub">Cargando…</p></div></main>
+<script src="config.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, orderBy, limit, arrayRemove }
+  from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const REPO = "jancktony/Nosotros";
+const app = document.getElementById("app");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ago = t => { if (!t) return "nunca"; const m = Math.round((Date.now() - t) / 60000);
+  return m < 1 ? "ahora" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d`; };
+const MODES = {STILL:"Quieto",WALK:"A pie",BIKE:"En bici",CAR:"En carro",MOTO:"En moto",BUS:"En bus",VEHICLE:"En vehículo",UNKNOWN:"—"};
+const km = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lng - a.lng);
+  const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+
+const fb = initializeApp(window.FB);
+const db = getFirestore(fb);
+const uid = (await signInAnonymously(getAuth(fb))).user.uid;
+const S = { pair: null, members: [], places: [], photos: [], releases: null };
+let pairId = localStorage.getItem("pairId"), map, markers = {}, unsub = [];
+
+function linkScreen() {
+  unsub.forEach(u => u()); unsub = []; localStorage.removeItem("pairId"); pairId = null;
+  const code = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
+  app.innerHTML = `<div class="center"><div class="card" style="max-width:420px">
+    <h1>Nosotros · Admin</h1><p class="sub">Este panel es privado. Para entrar, abre la app en tu teléfono:<br>
+    <b>Ajustes → Administrador → Panel web</b> y escribe este código:</p>
+    <p class="code">${code}</p><p class="sub">Esperando a que lo confirmes en tu teléfono…</p></div></div>`;
+  const ref = doc(db, "weblinks", code);
+  setDoc(ref, { uid, at: Date.now() }).catch(() => app.querySelector(".sub:last-child").textContent =
+    "No se pudo crear el código. Falta actualizar las reglas de Firebase.");
+  const stop = onSnapshot(ref, s => { const p = s.data()?.pairId; if (p) { stop(); localStorage.setItem("pairId", p); pairId = p; start(); } }, () => {});
+}
+
+function start() {
+  const p = doc(db, "pairs", pairId);
+  unsub.push(onSnapshot(p, s => { S.pair = s.data(); render(); }, linkScreen));
+  unsub.push(onSnapshot(collection(p, "members"), s => { S.members = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {}));
+  unsub.push(onSnapshot(collection(p, "places"), s => { S.places = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {}));
+  unsub.push(onSnapshot(query(collection(p, "photos"), orderBy("at", "desc"), limit(24)),
+    s => { S.photos = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {}));
+  fetch(`https://api.github.com/repos/${REPO}/releases?per_page=15`).then(r => r.json()).then(j => {
+    S.releases = (Array.isArray(j) ? j : []).map(r => ({ version: r.tag_name.replace(/^v/, ""), date: (r.published_at || "").slice(0, 10),
+      notes: r.body || "", url: (r.assets.find(a => a.name.endsWith(".apk")) || {}).browser_download_url })).filter(r => r.url);
+    render(); }).catch(() => { S.releases = []; render(); });
+}
+
+const name = m => m?.name || "Sin nombre";
+function render() {
+  if (!S.pair) return;
+  const admin = S.pair.admin || (S.pair.members || [])[0];
+  const me = S.members.find(m => m.id === admin), her = S.members.find(m => m.id !== admin);
+  const hasLoc = m => m && (m.lat || m.lng);
+  const dist = hasLoc(me) && hasLoc(her) ? km(me, her) : null;
+  const person = (m, color) => !m ? `<p class="sub">Sin datos todavía.</p>` : `
+    <div class="big" style="color:${color}">${esc(name(m))}</div>
+    <div class="sub">${m.pausedUntil > Date.now() ? "Ubicación en pausa" : esc(m.placeName ? "En " + m.placeName : MODES[m.mode] || "—")}
+      ${m.speedKmh >= 3 ? " · " + Math.round(m.speedKmh) + " km/h" : ""}</div>
+    <div class="row"><span class="grow sub">Última señal</span>${ago(m.updatedAt)}</div>
+    <div class="row"><span class="grow sub">Batería</span>${m.battery >= 0 ? m.battery + "%" + (m.charging ? " ⚡" : "") : "—"}</div>
+    <div class="row"><span class="grow sub">Precisión</span>${m.acc ? "±" + Math.round(m.acc) + " m" : "—"}</div>
+    <div class="row"><span class="grow sub">Versión de la app</span>${esc(m.appVersion || "desconocida")}</div>`;
+  const places = S.places.filter(p => !p.suggested && p.name);
+  app.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px"><h1 class="grow">Nosotros · Admin</h1>
+      <span class="sub">${dist != null ? "Están a " + (dist < 1 ? Math.round(dist * 1000) + " m" : dist.toFixed(1) + " km") : ""}</span>
+      <button class="bad" data-act="logout">Salir</button></div>
+    <div class="grid"><div class="card">${person(me, "var(--me)")}</div><div class="card">${person(her, "var(--her)")}</div></div>
+    <div class="card"><h2>Mapa</h2><div id="map"></div></div>
+    <div class="card"><h2>Versiones</h2>
+      <p class="sub">Liberada para ${esc(name(her))}: <b>${esc(S.pair.relVersion || "la última (sin control)")}</b></p>
+      ${S.releases == null ? `<p class="sub">Cargando…</p>` : S.releases.map(r => `<div class="row"><div class="grow"><b>Versión ${esc(r.version)}</b>
+        <div class="sub">${esc(r.date)} · ${esc(r.notes.split("\n").find(l => l.trim()) || "")}</div></div>
+        <a href="${esc(r.url)}"><button>Descargar</button></a>
+        ${S.pair.relVersion === r.version ? `<span class="ok">Liberada</span>` : `<button data-act="release" data-v="${esc(r.version)}">Liberar</button>`}</div>`).join("") || `<p class="sub">No hay versiones.</p>`}
+    </div>
+    <div class="card"><h2>Lugares</h2>${places.map(p => `<div class="row"><div class="grow"><b>${esc(p.name)}</b>
+        <div class="sub">${p.owner === admin ? "Tuyo" : "De " + esc(name(her))} · ${p.visits || 0} visitas · radio ${Math.round(p.radius || 100)} m</div></div>
+        <button data-act="rename" data-id="${esc(p.id)}">Renombrar</button><button class="bad" data-act="delplace" data-id="${esc(p.id)}">Borrar</button></div>`).join("") || `<p class="sub">Sin lugares.</p>`}
+    </div>
+    <div class="card"><h2>Fotos</h2><div class="photos">${S.photos.map(f => `<figure><img alt="" src="data:image/jpeg;base64,${f.thumb?.toBase64?.() || ""}">
+        <figcaption>${esc(f.caption || "")}<div class="sub">${f.uid === admin ? "Tú" : esc(name(her))}${f.place ? " · " + esc(f.place) : ""} · ${ago(f.at)}</div>
+        <button class="bad" data-act="delphoto" data-id="${esc(f.id)}">Borrar</button></figcaption></figure>`).join("") || `<p class="sub">Sin fotos.</p>`}</div>
+    </div>`;
+  drawMap([[me, "#5eead4"], [her, "#f9a8d4"]].filter(([m]) => hasLoc(m)));
+}
+
+function drawMap(people) {
+  map?.remove(); markers = {};
+  if (!people.length) return;
+  map = new maplibregl.Map({ container: "map", style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+    center: [people[0][0].lng, people[0][0].lat], zoom: 13 });
+  const b = new maplibregl.LngLatBounds();
+  for (const [m, color] of people) { new maplibregl.Marker({ color }).setLngLat([m.lng, m.lat]).addTo(map); b.extend([m.lng, m.lat]); }
+  if (people.length > 1) map.fitBounds(b, { padding: 60, maxZoom: 15, animate: false });
+}
+
+app.addEventListener("click", async e => {
+  const t = e.target.closest("[data-act]"); if (!t) return;
+  const p = doc(db, "pairs", pairId), id = t.dataset.id;
+  try {
+    if (t.dataset.act === "release") { const r = S.releases.find(x => x.version === t.dataset.v);
+      await updateDoc(p, { relVersion: r.version, relUrl: r.url, relNotes: r.notes }); }
+    if (t.dataset.act === "rename") { const n = prompt("Nuevo nombre del lugar:"); if (n?.trim()) await updateDoc(doc(p, "places", id), { name: n.trim() }); }
+    if (t.dataset.act === "delplace" && confirm("¿Borrar este lugar?")) await deleteDoc(doc(p, "places", id));
+    if (t.dataset.act === "delphoto" && confirm("¿Borrar esta foto para los dos?")) {
+      await deleteDoc(doc(p, "photos", id, "full", "img")); await deleteDoc(doc(p, "photos", id)); }
+    if (t.dataset.act === "logout" && confirm("¿Cerrar el panel en este navegador?")) {
+      await updateDoc(p, { webUids: arrayRemove(uid) }).catch(() => {}); linkScreen(); }
+  } catch (err) { alert("No se pudo: " + err.message); }
+});
+
+pairId ? start() : linkScreen();
+</script>
+</body>
+</html>

@@ -8,3 +8,5 @@ app/google-services.json
 app/google-services.json
 app/*.keystore
 KEYSTORE_B64.txt
+web/config.js
+.vercel

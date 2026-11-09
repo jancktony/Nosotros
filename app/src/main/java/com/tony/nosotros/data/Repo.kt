@@ -116,6 +116,16 @@ object Repo {
         return code
     }
 
+    /** Da acceso al navegador que muestra este código en el panel web. */
+    suspend fun linkWeb(pairId: String, code: String) {
+        val ref = db.collection("weblinks").document(code.trim().uppercase())
+        val webUid = ref.get().await().getString("uid") ?: error("Código no encontrado")
+        pair(pairId).update("webUids", FieldValue.arrayUnion(webUid)).await()
+        ref.update("pairId", pairId).await()
+    }
+
+    fun unlinkWeb(pairId: String) { pair(pairId).update("webUids", FieldValue.delete()) }
+
     // ---------- Fotos ----------
 
     suspend fun addPhoto(pairId: String, thumb: ByteArray, full: ByteArray, caption: String, place: String?, lat: Double, lng: Double) {

@@ -68,6 +68,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         runCatching { Repo.resetPartner(p, partnerUid.value) }.onSuccess { newCode.value = it }
     }
 
+    val webMsg = MutableStateFlow<String?>(null)
+    fun linkWeb(code: String) = viewModelScope.launch {
+        val p = pairId.value ?: return@launch
+        runCatching { Repo.linkWeb(p, code) }
+            .onSuccess { webMsg.value = "Listo, el panel web ya tiene acceso." }
+            .onFailure { webMsg.value = "No se pudo: revisa el código (y que las reglas de Firebase estén actualizadas)." }
+    }
+    fun unlinkWeb() { pairId.value?.let { Repo.unlinkWeb(it) }; webMsg.value = "Se cerró el acceso de todos los navegadores." }
+
     val photos: StateFlow<List<com.tony.nosotros.data.Photo>> = StateFlowOf(
         pairId.flatMapLatest { it?.let { Repo.photosFlow(it) } ?: flowOf(emptyList()) }, emptyList()
     )
