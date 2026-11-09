@@ -20,8 +20,6 @@ jobs:
         uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - if: steps.v.outputs.skip != '1'
-        uses: android-actions/setup-android@v3
-      - if: steps.v.outputs.skip != '1'
         name: Secretos
         env:
           GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
