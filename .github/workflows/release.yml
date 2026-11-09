@@ -1,7 +1,8 @@
 name: Publicar versión Android
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
@@ -9,21 +10,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Versión
+        id: v
+        run: |
+          V=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          echo "tag=v$V" >> $GITHUB_OUTPUT
+          if git ls-remote --tags origin "v$V" | grep -q .; then echo "skip=1" >> $GITHUB_OUTPUT; fi
+      - if: steps.v.outputs.skip != '1'
+        uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
-      - uses: android-actions/setup-android@v3
-      - name: Secretos
+      - if: steps.v.outputs.skip != '1'
+        uses: android-actions/setup-android@v3
+      - if: steps.v.outputs.skip != '1'
+        name: Secretos
         env:
           GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
           KS: ${{ secrets.KEYSTORE_B64 }}
         run: |
           echo "$GS" > app/google-services.json
           echo "$KS" | base64 -d > app/nosotros.keystore
-      - run: chmod +x gradlew && ./gradlew assembleRelease -PghRepo=${{ github.repository }}
+      - if: steps.v.outputs.skip != '1'
+        run: chmod +x gradlew && ./gradlew assembleRelease -PghRepo=${{ github.repository }}
         env:
           KS_PASS: ${{ secrets.KS_PASS }}
-      - run: cp app/build/outputs/apk/release/app-release.apk Nosotros-${{ github.ref_name }}.apk
-      - uses: softprops/action-gh-release@v2
+      - if: steps.v.outputs.skip != '1'
+        run: cp app/build/outputs/apk/release/app-release.apk Nosotros-${{ steps.v.outputs.tag }}.apk
+      - if: steps.v.outputs.skip != '1'
+        uses: softprops/action-gh-release@v2
         with:
-          files: Nosotros-${{ github.ref_name }}.apk
+          tag_name: ${{ steps.v.outputs.tag }}
+          files: Nosotros-${{ steps.v.outputs.tag }}.apk
           body: "Mejoras y correcciones."
