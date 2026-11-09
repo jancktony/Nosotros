@@ -44,7 +44,7 @@ object Repo {
         val me = ensureSignedIn()
         val code = Random.nextInt(100000, 999999).toString()
         val ref = db.collection("pairs").document()
-        ref.set(mapOf("members" to listOf(me), "code" to code, "createdAt" to System.currentTimeMillis())).await()
+        ref.set(mapOf("members" to listOf(me), "code" to code, "admin" to me, "createdAt" to System.currentTimeMillis())).await()
         db.collection("codes").document(code).set(
             mapOf("pairId" to ref.id, "owner" to me, "expiresAt" to System.currentTimeMillis() + 24 * 3600_000L)
         ).await()
@@ -78,6 +78,68 @@ object Repo {
 
     fun setSince(pairId: String, millis: Long) {
         pair(pairId).update("since", millis)
+    }
+
+    private fun info(s: com.google.firebase.firestore.DocumentSnapshot?): PairInfo {
+        @Suppress("UNCHECKED_CAST")
+        val members = (s?.get("members") as? List<String>) ?: emptyList()
+        return PairInfo(
+            admin = s?.getString("admin") ?: members.firstOrNull() ?: "",
+            relVersion = s?.getString("relVersion"), relUrl = s?.getString("relUrl") ?: "", relNotes = s?.getString("relNotes") ?: "",
+        )
+    }
+
+    fun pairInfoFlow(pairId: String): Flow<PairInfo> = callbackFlow {
+        val reg = pair(pairId).addSnapshotListener { s, _ -> trySend(info(s)) }
+        awaitClose { reg.remove() }
+    }
+
+    suspend fun pairInfo(pairId: String): PairInfo = info(pair(pairId).get().await())
+
+    /** El administrador elige qué versión recibe la pareja. */
+    fun setRelease(pairId: String, version: String, url: String, notes: String) {
+        pair(pairId).update(mapOf("relVersion" to version, "relUrl" to url, "relNotes" to notes))
+    }
+
+    fun setAdmin(pairId: String, uid: String) { pair(pairId).update("admin", uid) }
+
+    /** Saca al otro teléfono y crea un código nuevo para volver a vincular. */
+    suspend fun resetPartner(pairId: String, partnerUid: String?): String {
+        val me = ensureSignedIn()
+        val code = Random.nextInt(100000, 999999).toString()
+        val changes = HashMap<String, Any>(mapOf("code" to code, "admin" to me))
+        if (partnerUid != null) changes["members"] = FieldValue.arrayRemove(partnerUid)
+        pair(pairId).update(changes).await()
+        db.collection("codes").document(code).set(
+            mapOf("pairId" to pairId, "owner" to me, "expiresAt" to System.currentTimeMillis() + 24 * 3600_000L)
+        ).await()
+        return code
+    }
+
+    // ---------- Fotos ----------
+
+    suspend fun addPhoto(pairId: String, thumb: ByteArray, full: ByteArray, caption: String, place: String?, lat: Double, lng: Double) {
+        val me = ensureSignedIn()
+        val ref = pair(pairId).collection("photos").document()
+        ref.collection("full").document("img").set(mapOf("img" to com.google.firebase.firestore.Blob.fromBytes(full))).await()
+        ref.set(mapOf("uid" to me, "at" to System.currentTimeMillis(), "caption" to caption, "place" to place,
+            "lat" to lat, "lng" to lng, "thumb" to com.google.firebase.firestore.Blob.fromBytes(thumb))).await()
+        addEvent(pairId, "photo", caption.ifBlank { null })
+    }
+
+    fun photosFlow(pairId: String): Flow<List<Photo>> = callbackFlow {
+        val reg = pair(pairId).collection("photos").orderBy("at", Query.Direction.DESCENDING).limit(40)
+            .addSnapshotListener { s, _ -> trySend(s?.documents?.map { Photo.from(it) } ?: emptyList()) }
+        awaitClose { reg.remove() }
+    }
+
+    suspend fun fullPhoto(pairId: String, id: String): ByteArray? = runCatching {
+        pair(pairId).collection("photos").document(id).collection("full").document("img").get().await().getBlob("img")?.toBytes()
+    }.getOrNull()
+
+    fun deletePhoto(pairId: String, id: String) {
+        val ref = pair(pairId).collection("photos").document(id)
+        ref.collection("full").document("img").delete(); ref.delete()
     }
 
     suspend fun cleanupCode(pairId: String) {

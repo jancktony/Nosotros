@@ -56,6 +56,33 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         pairId.flatMapLatest { it?.let { Repo.placesFlow(it) } ?: flowOf(emptyList()) }, emptyList()
     )
 
+    val pairInfo: StateFlow<com.tony.nosotros.data.PairInfo> = StateFlowOf(
+        pairId.flatMapLatest { it?.let { Repo.pairInfoFlow(it) } ?: flowOf(com.tony.nosotros.data.PairInfo()) }, com.tony.nosotros.data.PairInfo()
+    )
+    val isAdmin: StateFlow<Boolean> = StateFlowOf(combine(pairInfo, uid) { i, u -> u != null && i.admin == u }, false)
+    val newCode = MutableStateFlow<String?>(null)
+    fun release(r: com.tony.nosotros.update.Updater.Release) { pairId.value?.let { Repo.setRelease(it, r.version, r.apkUrl, r.notes) } }
+    fun giveAdmin() { val p = pairId.value ?: return; partnerUid.value?.let { Repo.setAdmin(p, it) } }
+    fun resetPartner() = viewModelScope.launch {
+        val p = pairId.value ?: return@launch
+        runCatching { Repo.resetPartner(p, partnerUid.value) }.onSuccess { newCode.value = it }
+    }
+
+    val photos: StateFlow<List<com.tony.nosotros.data.Photo>> = StateFlowOf(
+        pairId.flatMapLatest { it?.let { Repo.photosFlow(it) } ?: flowOf(emptyList()) }, emptyList()
+    )
+    val sending = MutableStateFlow(false)
+    fun sendPhoto(thumb: ByteArray, full: ByteArray, caption: String) = viewModelScope.launch {
+        val p = pairId.value ?: return@launch
+        val m = me.value
+        sending.value = true
+        runCatching { Repo.addPhoto(p, thumb, full, caption, m?.placeName, m?.lat ?: 0.0, m?.lng ?: 0.0) }
+            .onFailure { error.value = "No se pudo enviar la foto" }
+        sending.value = false
+    }
+    fun deletePhoto(id: String) { pairId.value?.let { Repo.deletePhoto(it, id) } }
+    suspend fun fullPhoto(id: String): ByteArray? = pairId.value?.let { Repo.fullPhoto(it, id) }
+
     val since: StateFlow<Long> = StateFlowOf(
         pairId.flatMapLatest { it?.let { Repo.sinceFlow(it) } ?: flowOf(0L) }, prefs.since
     )
@@ -91,7 +118,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         if (App.firebaseConfigured) viewModelScope.launch {
-            runCatching { uid.value = Repo.ensureSignedIn() }
+            runCatching { uid.value = Repo.ensureSignedIn(); pushProfile() }
                 .onFailure { error.value = "No se pudo conectar con Firebase: ${it.message}" }
         }
     }
@@ -131,7 +158,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun pushProfile() {
         val p = pairId.value ?: return
-        Repo.updateMe(p, mapOf("name" to prefs.myName))
+        Repo.updateMe(p, mapOf("name" to prefs.myName, "appVersion" to com.tony.nosotros.BuildConfig.VERSION_NAME))
     }
 
     // ---------- Acciones ----------

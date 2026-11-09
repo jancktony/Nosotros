@@ -1,1 +1,1 @@
-<paths><external-files-path name="dl" path="Download/" /></paths>
+<paths><cache-path name="cam" path="cam/" /><external-files-path name="dl" path="Download/" /></paths>

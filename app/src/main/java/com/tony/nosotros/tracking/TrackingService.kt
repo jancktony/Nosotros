@@ -437,6 +437,7 @@ class TrackingService : Service() {
                         prefs.partnerUpdated = m.updatedAt
                         prefs.partnerMode = if (m.paused) "" else m.mode.name
                         prefs.partnerPlace = m.placeName
+                        updateNotification()
                         Widgets.updateAll(this@TrackingService)
                     }
                 }
@@ -449,6 +450,7 @@ class TrackingService : Service() {
             while (true) {
                 checkAnniversary()
                 Widgets.updateAll(this@TrackingService)
+                autoUpdate()
                 delay(30 * 60_000L)
             }
         }
@@ -499,6 +501,15 @@ class TrackingService : Service() {
         runCatching { getSystemService(NotificationManager::class.java).notify(99, n) }
     }
 
+    /** Instala sola la versión que toca, una vez por versión y solo con Wi-Fi. */
+    private suspend fun autoUpdate() {
+        if (!prefs.autoUpdate || !com.tony.nosotros.update.Updater.onWifi(this)) return
+        val r = com.tony.nosotros.update.Updater.target(pairId) ?: return
+        if (prefs.autoUpdateTried == r.version) return
+        prefs.autoUpdateTried = r.version
+        com.tony.nosotros.update.Updater.install(applicationContext, r)
+    }
+
     private fun notifyPartnerEvent(e: EventItem) {
         val text = when (e.type) {
             "arrive" -> if (prefs.notifyArrive) "$partnerName llegó a ${e.placeName}" else null
@@ -508,12 +519,29 @@ class TrackingService : Service() {
                 else "$partnerName pausó su ubicación hasta las ${TimeFmt.hour(e.until)}"
             } else null
             "resume" -> if (prefs.notifyPause) "$partnerName volvió a compartir su ubicación" else null
+            "photo" -> "$partnerName te mandó una foto" + (e.placeName?.let { ": $it" } ?: "")
             else -> null
         } ?: return
+        postEvent(e, text, TimeFmt.hour(e.at))
+        // Al salir de un lugar: a dónde va probablemente y a qué hora llega
+        if (e.type == "leave") scope.launch {
+            val all = engine.allPlaces.filter { !it.suggested && it.name.isNotBlank() }
+            val from = all.firstOrNull { it.name == e.placeName } ?: return@launch
+            val dest = com.tony.nosotros.util.Eta.fallback(all.filter { it.id != from.id }, e.uid) ?: return@launch
+            val r = com.tony.nosotros.util.Eta.compute(com.tony.nosotros.util.Pt(from.lat, from.lng), dest, Mode.VEHICLE) ?: return@launch
+            postEvent(e, text, "Salió a las ${TimeFmt.hour(e.at)}. Si va a ${dest.name}, llega aprox. a las " +
+                "${TimeFmt.hour(e.at + (r.seconds * 1000).toLong())} (${com.tony.nosotros.util.Eta.mins(r.seconds)} en vehículo)")
+        }
+    }
+
+    private fun postEvent(e: EventItem, title: String, text: String) {
         val n = NotificationCompat.Builder(this, App.CH_ALERTS)
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle(text)
-            .setContentText(TimeFmt.hour(e.at))
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOnlyAlertOnce(true)
             .setColor(0xFFF9A8D4.toInt())
             .setAutoCancel(true)
             .setContentIntent(openAppIntent())
@@ -535,9 +563,14 @@ class TrackingService : Service() {
             lowBattery -> "Ahorro extremo · ${displayMode().label}"
             else -> "Compartiendo · ${displayMode().label}"
         }
+        // Se ve también en la pantalla de bloqueo: distancia y dónde está la pareja
+        val hasBoth = prefs.partnerUpdated > 0 && (prefs.myLat != 0.0 || prefs.myLng != 0.0) && (prefs.partnerLat != 0.0 || prefs.partnerLng != 0.0)
+        val title = if (hasBoth) "A ${TimeFmt.km(com.tony.nosotros.util.Geo.dist(prefs.myLat, prefs.myLng, prefs.partnerLat, prefs.partnerLng))} de $partnerName" +
+            (prefs.partnerPlace?.let { " · en $it" } ?: "") else "Nosotros"
         return NotificationCompat.Builder(this, App.CH_TRACKING)
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle("Nosotros")
+            .setContentTitle(title)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setContentText(status)
             .setOngoing(true)
             .setSilent(true)

@@ -19,6 +19,13 @@ class Prefs(ctx: Context) {
     var vehicle: Mode
         get() = Mode.of(p.getString("vehicle", Mode.CAR.name))
         set(v) = p.edit().putString("vehicle", v.name).apply()
+    var autoUpdate: Boolean
+        get() = p.getBoolean("autoUpdate", true)
+        set(v) = p.edit().putBoolean("autoUpdate", v).apply()
+    /** Última versión que se intentó instalar sola (para no repetir la descarga). */
+    var autoUpdateTried: String
+        get() = p.getString("autoUpdateTried", "") ?: ""
+        set(v) = p.edit().putString("autoUpdateTried", v).apply()
     var notifyArrive: Boolean
         get() = p.getBoolean("nArrive", true)
         set(v) = p.edit().putBoolean("nArrive", v).apply()

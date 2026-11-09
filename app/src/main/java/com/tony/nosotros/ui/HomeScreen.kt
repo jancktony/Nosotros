@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tony.nosotros.data.Member
 import com.tony.nosotros.data.Place
+import com.tony.nosotros.util.Eta
 import com.tony.nosotros.util.Geo
 import com.tony.nosotros.util.Pt
 import com.tony.nosotros.util.TimeFmt
@@ -76,6 +77,20 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
     var selectedPerson by remember { mutableStateOf<String?>(null) }
     var selectedPlace by remember { mutableStateOf<String?>(null) }
     val sheet = rememberBottomSheetScaffoldState()
+    // Hora estimada de llegada de la pareja mientras se mueve
+    var eta by remember { mutableStateOf<Eta.Result?>(null) }
+    val partnerMoving = partner?.let { !it.paused && it.mode.moving && it.speedKmh >= 3 } == true
+    val lastLeft = visits.filter { it.uid == partnerUid && (it.end ?: 0L) > System.currentTimeMillis() - 3 * 3600_000L }.maxByOrNull { it.end!! }
+    androidx.compose.runtime.LaunchedEffect(partnerMoving, partnerUid) {
+        if (!partnerMoving) { eta = null; return@LaunchedEffect }
+        while (true) {
+            vm.partner.value?.let { p ->
+                val dest = Eta.destination(p, vm.places.value, lastLeft?.placeName)
+                eta = dest?.let { Eta.compute(Pt(p.lat, p.lng), it, p.mode) }
+            }
+            kotlinx.coroutines.delay(120_000)
+        }
+    }
     val density = LocalDensity.current
     val distance = distanceBetween(me, partner)
 
@@ -111,7 +126,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
             PartnerSheet(
                 partner = partner, partnerUid = partnerUid, distance = distance, since = since,
                 timeline = buildTimeline(visits, trips, partnerUid),
-                liveRequested = liveRequested,
+                liveRequested = liveRequested, eta = eta, leftName = lastLeft?.placeName, leftAt = lastLeft?.end ?: 0L,
                 onLive = { vm.requestLive(); liveRequested = System.currentTimeMillis(); focus = Focus.PARTNER; fitKey++ },
             )
         },
@@ -272,7 +287,7 @@ private fun statusLine(m: Member): String = when {
 @Composable
 private fun PartnerSheet(
     partner: Member?, partnerUid: String?, distance: Double?, since: Long, timeline: List<TimelineItem>,
-    liveRequested: Long, onLive: () -> Unit,
+    liveRequested: Long, eta: Eta.Result?, leftName: String?, leftAt: Long, onLive: () -> Unit,
 ) {
     Column(
         Modifier.fillMaxWidth().height(600.dp).verticalScroll(rememberScrollState())
@@ -303,6 +318,10 @@ private fun PartnerSheet(
                 }
             }
         }
+
+        if (eta != null && !paused) InfoBanner(Ic.Clock,
+            (if (leftName != null) "Salió de $leftName a las ${TimeFmt.hour(leftAt)}. " else "") +
+                "Llega a ${eta.place.name} aprox. a las ${TimeFmt.hour(eta.arriveAt)} (en ${Eta.mins(eta.seconds)})", C.partner)
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MiniStat("Distancia", distance?.let { TimeFmt.km(it) } ?: "—", C.me, Modifier.weight(1f))

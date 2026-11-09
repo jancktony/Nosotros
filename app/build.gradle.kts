@@ -36,8 +36,8 @@ android {
         applicationId = "com.tony.nosotros"
         minSdk = 29
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
         buildConfigField("String", "GH_REPO", "\"${(project.findProperty("ghRepo") as String?) ?: ""}\"")
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         buildConfigField("String", "FB_API_KEY", "\"${fb.apiKey}\"")

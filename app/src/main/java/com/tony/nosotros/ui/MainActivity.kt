@@ -39,6 +39,7 @@ import com.tony.nosotros.tracking.TrackingService
 import com.tony.nosotros.util.Pt
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val vm: MainViewModel by viewModels()
@@ -75,15 +76,20 @@ private fun Root(vm: MainViewModel) {
     if (!App.firebaseConfigured) { FirebaseMissing(); return }
     val ctx = LocalContext.current
     var update by remember { mutableStateOf<com.tony.nosotros.update.Updater.Release?>(null) }
-    LaunchedEffect(Unit) { update = com.tony.nosotros.update.Updater.check() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(Unit) { update = com.tony.nosotros.update.Updater.target(vm.pairId.value) }
     update?.let { r ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { update = null }, containerColor = C.surface,
             title = { Text("Nueva versión ${r.version}") },
             text = { Text(r.notes.ifBlank { "Hay mejoras disponibles." }) },
             confirmButton = { androidx.compose.material3.TextButton(onClick = {
-                com.tony.nosotros.update.Updater.downloadAndInstall(ctx, r); update = null
-                Toast.makeText(ctx, "Descargando… se abrirá el instalador", Toast.LENGTH_LONG).show()
+                update = null
+                Toast.makeText(ctx, "Descargando… se instalará sola", Toast.LENGTH_LONG).show()
+                scope.launch {
+                    if (!com.tony.nosotros.update.Updater.install(ctx.applicationContext, r))
+                        Toast.makeText(ctx, "No se pudo descargar. Revisa tu internet.", Toast.LENGTH_LONG).show()
+                }
             }) { Text("Actualizar", color = C.me) } },
             dismissButton = { androidx.compose.material3.TextButton(onClick = { update = null }) { Text("Luego", color = C.sub) } },
         )
@@ -98,6 +104,7 @@ private fun MainShell(vm: MainViewModel) {
     var tab by remember { mutableIntStateOf(0) }
     var settings by remember { mutableStateOf(false) }
     var nav by remember { mutableStateOf(false) }
+    var admin by remember { mutableStateOf(false) }
     /** Lugar en edición (nuevo o existente). */
     var editing by remember { mutableStateOf<Place?>(null) }
     /** Si no es null, se está eligiendo el punto exacto para este lugar. */
@@ -117,9 +124,14 @@ private fun MainShell(vm: MainViewModel) {
         NavScreen(vm) { nav = false }
         return
     }
+    if (admin) {
+        BackHandler { admin = false }
+        AdminScreen(vm) { admin = false }
+        return
+    }
     if (settings) {
         BackHandler { settings = false }
-        SettingsScreen(vm) { settings = false }
+        SettingsScreen(vm, onAdmin = { admin = true }) { settings = false }
         return
     }
     BackHandler(enabled = tab != 0) { tab = 0 }
@@ -135,6 +147,7 @@ private fun MainShell(vm: MainViewModel) {
                 NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Ic.Map, null) }, label = { Text("Mapa", fontWeight = FontWeight.SemiBold) }, colors = colors)
                 NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Ic.Clock, null) }, label = { Text("Historial", fontWeight = FontWeight.SemiBold) }, colors = colors)
                 NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Ic.Pin, null) }, label = { Text("Lugares", fontWeight = FontWeight.SemiBold) }, colors = colors)
+                NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Ic.Heart, null) }, label = { Text("Fotos", fontWeight = FontWeight.SemiBold) }, colors = colors)
             }
         },
     ) { pad ->
@@ -144,6 +157,7 @@ private fun MainShell(vm: MainViewModel) {
                     onAddPlace = { lat, lng -> editing = Place(lat = lat, lng = lng) },
                     onEditPlace = { editing = it })
                 1 -> HistoryScreen(vm)
+                3 -> PhotosScreen(vm)
                 else -> PlacesScreen(vm, onAdd = { picking = Place() }, onEdit = { editing = it })
             }
         }

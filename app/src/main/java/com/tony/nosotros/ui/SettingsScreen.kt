@@ -77,7 +77,9 @@ const val INDEFINITE = 4_102_444_800_000L  // año 2100 = "hasta que la reanude"
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
+fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
+    val isAdmin by vm.isAdmin.collectAsState()
+    var autoUpdate by remember { mutableStateOf(vm.prefs.autoUpdate) }
     val ctx = LocalContext.current
     val me by vm.me.collectAsState()
     val partner by vm.partner.collectAsState()
@@ -214,7 +216,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
 
         // ---------- Widgets ----------
         Section(Ic.Widget, "Widgets") {
-            Text("Pon en tu pantalla de inicio la distancia entre ustedes o el contador de tiempo juntos.",
+            Text("Pon en tu pantalla de inicio (o de bloqueo, si tu teléfono lo permite) la distancia entre ustedes o el contador de tiempo juntos.",
                 color = C.sub, fontSize = 14.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ActionButton("Distancia", C.me, Modifier.weight(1f)) { pinWidget(ctx, DistanceWidget::class.java) }
@@ -224,6 +226,18 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 color = C.sub, fontSize = 13.sp)
         }
 
+        Section(Ic.Sparkle, "Actualizaciones") {
+            Toggle("Instalar versiones nuevas sola (con Wi-Fi)", autoUpdate) { autoUpdate = it; p.autoUpdate = it }
+            Text("Se instalan encima de la app, sin borrar nada ni volver a vincular.", color = C.sub, fontSize = 13.sp)
+        }
+
+        Section(Ic.User, "Administrador") {
+            if (isAdmin) {
+                Text("Eres el administrador: liberas versiones, gestionas todos los lugares y la vinculación.", color = C.sub, fontSize = 14.sp)
+                ActionButton("Abrir panel de administrador", C.me, onClick = onAdmin)
+            } else Text("Administra: ${partner?.name?.ifBlank { null } ?: "tu pareja"}", color = C.text, fontSize = 14.sp)
+        }
+
         // ---------- Pareja ----------
         Section(Ic.Link, "Vinculación") {
             Text("Conectado con ${partner?.name?.ifBlank { null } ?: "tu pareja"}", color = C.text, fontSize = 14.sp)
@@ -231,7 +245,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
         }
 
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) {
-            Text("Nosotros v1.1 · hecho con ♥", color = C.sub, fontSize = 13.sp)
+            Text("Nosotros v${com.tony.nosotros.BuildConfig.VERSION_NAME} · hecho con ♥", color = C.sub, fontSize = 13.sp)
         }
         Spacer(Modifier.height(30.dp))
     }
@@ -304,7 +318,7 @@ private fun pinWidget(ctx: Context, cls: Class<*>) {
 }
 
 @Composable
-private fun Section(icon: ImageVector, title: String, content: @Composable () -> Unit) {
+fun Section(icon: ImageVector, title: String, content: @Composable () -> Unit) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.surface)
             .border(1.dp, C.line, RoundedCornerShape(20.dp)).padding(16.dp),
@@ -343,7 +357,7 @@ private fun ThemeTile(label: String, pal: Palette, selected: Boolean, modifier: 
 }
 
 @Composable
-private fun ActionButton(text: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun ActionButton(text: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
         modifier.clip(RoundedCornerShape(14.dp)).background(color.copy(alpha = 0.14f))
             .border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
@@ -353,10 +367,10 @@ private fun ActionButton(text: String, color: Color, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun Divider() = HorizontalDivider(color = C.line)
+fun Divider() = HorizontalDivider(color = C.line)
 
 @Composable
-private fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
+fun Toggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.weight(1f), fontSize = 15.sp, color = C.text)
         Switch(value, onChange, colors = SwitchDefaults.colors(

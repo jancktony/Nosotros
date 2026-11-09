@@ -32,6 +32,7 @@ data class Member(
     val route: String = "",
     val placeName: String? = null,
     val saving: Boolean = false,
+    val appVersion: String = "",
 ) {
     val hasLocation get() = updatedAt > 0 && (lat != 0.0 || lng != 0.0)
     val paused get() = pausedUntil > System.currentTimeMillis()
@@ -53,6 +54,7 @@ data class Member(
             route = d.getString("route") ?: "",
             placeName = d.getString("placeName"),
             saving = d.getBoolean("saving") ?: false,
+            appVersion = d.getString("appVersion") ?: "",
         )
     }
 }
@@ -114,6 +116,24 @@ data class Visit(
         fun from(d: DocumentSnapshot) = Visit(
             d.id, d.getString("uid") ?: "", d.getString("placeId") ?: "",
             d.getString("placeName") ?: "", d.getLong("start") ?: 0L, d.getLong("end"),
+        )
+    }
+}
+
+/** Datos compartidos de la pareja: quién administra y qué versión está liberada. */
+data class PairInfo(
+    val admin: String = "", val relVersion: String? = null, val relUrl: String = "", val relNotes: String = "",
+)
+
+data class Photo(
+    val id: String, val uid: String, val at: Long, val caption: String,
+    val place: String?, val lat: Double, val lng: Double, val thumb: ByteArray,
+) {
+    companion object {
+        fun from(d: DocumentSnapshot) = Photo(
+            d.id, d.getString("uid") ?: "", d.getLong("at") ?: 0L, d.getString("caption") ?: "",
+            d.getString("place"), d.getDouble("lat") ?: 0.0, d.getDouble("lng") ?: 0.0,
+            d.getBlob("thumb")?.toBytes() ?: ByteArray(0),
         )
     }
 }

@@ -41,6 +41,7 @@ fun PlacesScreen(vm: MainViewModel, onAdd: () -> Unit, onEdit: (Place) -> Unit) 
     val places by vm.places.collectAsState()
     val uid by vm.uid.collectAsState()
     val partner by vm.partner.collectAsState()
+    val isAdmin by vm.isAdmin.collectAsState()
 
     val mine = places.filter { it.owner == uid && !it.suggested }.sortedByDescending { it.visits }
     val theirs = places.filter { it.owner != uid && !it.suggested }.sortedByDescending { it.visits }
@@ -80,7 +81,7 @@ fun PlacesScreen(vm: MainViewModel, onAdd: () -> Unit, onEdit: (Place) -> Unit) 
             items(mine, key = { it.id }) { PlaceRow(it, C.me, onEdit = { onEdit(it) }, onDelete = { vm.deletePlace(it.id) }) }
             item { SectionLabel("Lugares de $partnerName", Modifier.padding(top = 10.dp)) }
             if (theirs.isEmpty()) item { Text("Aún no tiene lugares.", color = C.sub, fontSize = 14.sp) }
-            items(theirs, key = { it.id }) { PlaceRow(it, C.partner, onEdit = null, onDelete = null) }
+            items(theirs, key = { it.id }) { PlaceRow(it, C.partner, onEdit = if (isAdmin) ({ onEdit(it) }) else null, onDelete = if (isAdmin) ({ vm.deletePlace(it.id) }) else null) }
             item { Spacer(Modifier.padding(40.dp)) }
         }
         ExtendedFloatingActionButton(
