@@ -39,26 +39,43 @@ object Routing {
 
     /** Ruta entre dos puntos. [foot] = a pie (prioriza calles peatonales). */
     suspend fun route(from: Pt, to: Pt, foot: Boolean): Route? = withContext(Dispatchers.IO) {
-        runCatching {
-            val profile = if (foot) "foot" else "driving"
-            val url = "https://router.project-osrm.org/route/v1/$profile/" +
-                "${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=polyline&steps=true&annotations=false"
-            val o = JSONObject(get(url))
-            if (o.getString("code") != "Ok") return@runCatching null
-            val r = o.getJSONArray("routes").getJSONObject(0)
-            val pts = Geo.decode(r.getString("geometry"))
-            val steps = ArrayList<Step>()
-            val legs = r.getJSONArray("legs")
-            for (i in 0 until legs.length()) {
-                val st = legs.getJSONObject(i).getJSONArray("steps")
-                for (j in 0 until st.length()) {
-                    val s = st.getJSONObject(j)
-                    val man = s.getJSONObject("maneuver")
-                    steps.add(Step(describe(man, s.optString("name")), s.getDouble("distance")))
-                }
-            }
-            Route(pts, r.getDouble("distance"), r.getDouble("duration"), steps)
-        }.getOrNull()
+        val path = "${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=polyline&steps=true&alternatives=3"
+        val urls = if (foot) listOf(
+            "https://routing.openstreetmap.de/routed-foot/route/v1/foot/$path",
+            "https://router.project-osrm.org/route/v1/foot/$path",
+        ) else listOf(
+            "https://router.project-osrm.org/route/v1/driving/$path",
+            "https://routing.openstreetmap.de/routed-car/route/v1/driving/$path",
+        )
+        urls.firstNotNullOfOrNull { url -> runCatching { parse(JSONObject(get(url)), foot) }.getOrNull() }
+    }
+
+    private fun parse(o: JSONObject, foot: Boolean): Route? {
+        if (o.getString("code") != "Ok") return null
+        val arr = o.getJSONArray("routes")
+        val all = (0 until arr.length()).map { arr.getJSONObject(it) }
+        if (all.isEmpty()) return null
+        // A pie: entre las alternativas, la que más va por calles con nombre (más transitadas),
+        // siempre que no alargue el camino más de un 30 %.
+        val shortest = all.minOf { it.getDouble("distance") }
+        val r = if (!foot) all[0] else all.filter { it.getDouble("distance") <= shortest * 1.3 }.maxBy { namedShare(it) }
+        val steps = ArrayList<Step>()
+        forEachStep(r) { s -> steps.add(Step(describe(s.getJSONObject("maneuver"), s.optString("name")), s.getDouble("distance"))) }
+        return Route(Geo.decode(r.getString("geometry")), r.getDouble("distance"), r.getDouble("duration"), steps)
+    }
+
+    private fun forEachStep(r: JSONObject, f: (JSONObject) -> Unit) {
+        val legs = r.getJSONArray("legs")
+        for (i in 0 until legs.length()) {
+            val st = legs.getJSONObject(i).getJSONArray("steps")
+            for (j in 0 until st.length()) f(st.getJSONObject(j))
+        }
+    }
+
+    private fun namedShare(r: JSONObject): Double {
+        var named = 0.0
+        forEachStep(r) { if (it.optString("name").isNotBlank()) named += it.getDouble("distance") }
+        return named / r.getDouble("distance").coerceAtLeast(1.0)
     }
 
     private fun describe(man: JSONObject, road: String): String {

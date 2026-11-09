@@ -59,7 +59,7 @@ private enum class Focus { BOTH, ME, PARTNER }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onAddPlace: (Double, Double) -> Unit, onEditPlace: (Place) -> Unit) {
+fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit, onAddPlace: (Double, Double) -> Unit, onEditPlace: (Place) -> Unit) {
     val me by vm.me.collectAsState()
     val partner by vm.partner.collectAsState()
     val places by vm.places.collectAsState()
@@ -81,10 +81,10 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onAddPlace: (Double, D
 
     val people = buildList {
         me?.takeIf { it.hasLocation }?.let {
-            add(MapPerson(it.uid, initialOf(it.name, "Yo"), C.me.toArgb(), C.meInk.toArgb(), it.lat, it.lng, it.mode, it.paused))
+            add(MapPerson(it.uid, initialOf(it.name, "Yo"), C.me.toArgb(), C.meInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt()))
         }
         partner?.takeIf { it.hasLocation }?.let {
-            add(MapPerson(it.uid, initialOf(it.name, "P"), C.partner.toArgb(), C.partnerInk.toArgb(), it.lat, it.lng, it.mode, it.paused))
+            add(MapPerson(it.uid, initialOf(it.name, "P"), C.partner.toArgb(), C.partnerInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt()))
         }
     }
     val routes = buildList {
@@ -141,6 +141,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onAddPlace: (Double, D
                 Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 266.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                RoundButton(Ic.Nav, "Buscar dirección y ruta", onNavigate)
                 RoundButton(if (satellite) Ic.Map else Ic.Layers, if (satellite) "Mapa" else "Satélite") { vm.toggleSatellite() }
                 RoundButton(Ic.Locate, "Centrar") { fitKey++ }
             }

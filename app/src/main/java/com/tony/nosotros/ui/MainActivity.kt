@@ -97,6 +97,7 @@ private fun Root(vm: MainViewModel) {
 private fun MainShell(vm: MainViewModel) {
     var tab by remember { mutableIntStateOf(0) }
     var settings by remember { mutableStateOf(false) }
+    var nav by remember { mutableStateOf(false) }
     /** Lugar en edición (nuevo o existente). */
     var editing by remember { mutableStateOf<Place?>(null) }
     /** Si no es null, se está eligiendo el punto exacto para este lugar. */
@@ -109,6 +110,11 @@ private fun MainShell(vm: MainViewModel) {
             onPick = { lat, lng -> editing = pl.copy(lat = lat, lng = lng); picking = null },
             onCancel = { picking = null; editing = pl.takeIf { it.id.isNotEmpty() || it.name.isNotEmpty() } },
         )
+        return
+    }
+    if (nav) {
+        BackHandler { nav = false }
+        NavScreen(vm) { nav = false }
         return
     }
     if (settings) {
@@ -134,7 +140,7 @@ private fun MainShell(vm: MainViewModel) {
     ) { pad ->
         Box(Modifier.fillMaxSize().padding(bottom = pad.calculateBottomPadding())) {
             when (tab) {
-                0 -> HomeScreen(vm, onSettings = { settings = true },
+                0 -> HomeScreen(vm, onSettings = { settings = true }, onNavigate = { nav = true },
                     onAddPlace = { lat, lng -> editing = Place(lat = lat, lng = lng) },
                     onEditPlace = { editing = it })
                 1 -> HistoryScreen(vm)

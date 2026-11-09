@@ -62,8 +62,10 @@ private val OUR_LAYERS = setOf("route-glow", "route-line", "place-area", "place-
 
 data class MapPerson(
     val uid: String, val initial: String, val color: Int, val ink: Int,
-    val lat: Double, val lng: Double, val mode: Mode, val paused: Boolean,
-)
+    val lat: Double, val lng: Double, val mode: Mode, val paused: Boolean, val speed: Int = 0,
+) {
+    val inMotion get() = !paused && mode.moving && speed >= 3
+}
 
 data class MapRoute(val id: String, val points: List<Pt>, val color: Int)
 
@@ -176,6 +178,27 @@ fun LiveMap(
     LaunchedEffect(style, people, places, routes) {
         val s = style ?: return@LaunchedEffect
         updateData(ctx, s, palette, people, places, routes)
+    }
+
+    // Pulso animado alrededor de quien se está moviendo
+    val anyMoving = people.any { it.inMotion }
+    LaunchedEffect(style, anyMoving) {
+        val halo = style?.getLayer("people-halo") ?: return@LaunchedEffect
+        val isMoving = Expression.eq(Expression.get("moving"), Expression.literal(true))
+        if (!anyMoving) {
+            halo.setProperties(PropertyFactory.circleRadius(32f), PropertyFactory.circleOpacity(0.22f))
+            return@LaunchedEffect
+        }
+        var t = 0
+        while (true) {
+            val ph = (t % 20) / 20f
+            halo.setProperties(
+                PropertyFactory.circleRadius(Expression.switchCase(isMoving, Expression.literal(26f + 30f * ph), Expression.literal(32f))),
+                PropertyFactory.circleOpacity(Expression.switchCase(isMoving, Expression.literal(0.45f * (1f - ph)), Expression.literal(0.22f))),
+            )
+            t++
+            kotlinx.coroutines.delay(70)
+        }
     }
 
     var fitted by remember { mutableStateOf<Any?>(if (initialCenter != null) fitKey else null) }
@@ -306,53 +329,77 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
 
     (s.getSource("people") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(
         people.map { p ->
-            val id = "av_${pal.id}_${p.uid}_${p.mode}_${p.paused}_${p.initial}_${p.color}"
+            val id = "av_${pal.id}_${p.uid}_${p.mode}_${p.paused}_${p.initial}_${p.color}_${if (p.inMotion) p.speed else 0}"
             if (s.getImage(id) == null) s.addImage(id, avatarBitmap(ctx, pal, p))
             Feature.fromGeometry(Point.fromLngLat(p.lng, p.lat)).apply {
                 addStringProperty("icon", id)
                 addStringProperty("uid", p.uid)
+                addBooleanProperty("moving", p.inMotion)
                 addStringProperty("color", hex(if (p.paused) 0x6B7280 else p.color))
             }
         }
     ))
 }
 
-/** Avatar circular con inicial y una insignia con el medio de transporte. */
+/** Avatar: quieto = inicial + insignia; en movimiento = vehículo grande + velocidad debajo. */
 private fun avatarBitmap(ctx: Context, pal: Palette, p: MapPerson): Bitmap {
     val d = ctx.resources.displayMetrics.density
-    val size = (64 * d).toInt()
-    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val w = (72 * d).toInt()
+    val h = (100 * d).toInt()
+    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     bmp.density = ctx.resources.displayMetrics.densityDpi
     val c = Canvas(bmp)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    val cx = size / 2f
-    val cy = size / 2f + 4 * d
+    val bold = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    val cx = w / 2f
+    val cy = h / 2f
     val r = 22 * d
     val bg = if (p.paused) 0xFF6B7280.toInt() else p.color
+    val ink = if (p.paused) 0xFFFFFFFF.toInt() else p.ink
     paint.color = 0xFFFFFFFF.toInt(); c.drawCircle(cx, cy, r + 3 * d, paint)
     paint.color = bg; c.drawCircle(cx, cy, r, paint)
-    paint.color = if (p.paused) 0xFFFFFFFF.toInt() else p.ink
-    paint.textSize = 18 * d; paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-    paint.textAlign = Paint.Align.CENTER
-    c.drawText(p.initial, cx, cy - (paint.descent() + paint.ascent()) / 2, paint)
 
-    // insignia con el medio de transporte
+    fun icon(paths: List<String>, x: Float, y: Float, sizeDp: Float, color: Int) {
+        val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE; strokeWidth = 2.4f; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
+            this.color = color
+        }
+        c.save()
+        c.translate(x - sizeDp * d / 2, y - sizeDp * d / 2); c.scale(sizeDp * d / 24f, sizeDp * d / 24f)
+        paths.forEach { runCatching { c.drawPath(PathParser.createPathFromPathData(it), stroke) } }
+        c.restore()
+    }
+    fun letter(x: Float, y: Float, size: Float, color: Int) {
+        paint.style = Paint.Style.FILL; paint.color = color
+        paint.textSize = size * d; paint.typeface = bold; paint.textAlign = Paint.Align.CENTER
+        c.drawText(p.initial, x, y - (paint.descent() + paint.ascent()) / 2, paint)
+    }
+    fun badge(x: Float, y: Float) {
+        paint.style = Paint.Style.FILL; paint.color = pal.surface.toArgb(); c.drawCircle(x, y, 12 * d, paint)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.5f * d; paint.color = bg
+        c.drawCircle(x, y, 12 * d, paint)
+    }
     val bx = cx + r * 0.8f
     val by = cy - r * 0.8f
-    val br = 12 * d
-    paint.color = pal.surface.toArgb(); c.drawCircle(bx, by, br, paint)
-    paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.5f * d; paint.color = bg
-    c.drawCircle(bx, by, br, paint)
-    val iconPaths = if (p.paused) Ic.P_PAUSE else p.mode.paths()
-    val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE; strokeWidth = 2.4f; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
-        color = if (p.paused) 0xFF6B7280.toInt() else pal.text.toArgb()
+
+    if (p.inMotion) {
+        icon(p.mode.paths(), cx, cy, 30f, ink)
+        badge(bx, by); letter(bx, by, 12f, pal.text.toArgb())
+        // píldora con la velocidad
+        val txt = "${p.speed} km/h"
+        paint.style = Paint.Style.FILL; paint.textSize = 11.5f * d; paint.typeface = bold; paint.textAlign = Paint.Align.CENTER
+        val tw = paint.measureText(txt)
+        val pill = RectF(cx - tw / 2 - 7 * d, cy + r + 5 * d, cx + tw / 2 + 7 * d, cy + r + 24 * d)
+        paint.color = pal.surface.toArgb(); c.drawRoundRect(pill, 10 * d, 10 * d, paint)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.5f * d; paint.color = bg
+        c.drawRoundRect(pill, 10 * d, 10 * d, paint)
+        paint.style = Paint.Style.FILL; paint.color = pal.text.toArgb()
+        c.drawText(txt, cx, pill.centerY() - (paint.descent() + paint.ascent()) / 2, paint)
+    } else {
+        letter(cx, cy, 18f, ink)
+        badge(bx, by)
+        icon(if (p.paused) Ic.P_PAUSE else p.mode.paths(), bx, by, 15f, if (p.paused) 0xFF6B7280.toInt() else pal.text.toArgb())
     }
-    c.save()
-    val scale = (15 * d) / 24f
-    c.translate(bx - 7.5f * d, by - 7.5f * d); c.scale(scale, scale)
-    iconPaths.forEach { runCatching { c.drawPath(PathParser.createPathFromPathData(it), stroke) } }
-    c.restore()
     return bmp
 }
 
