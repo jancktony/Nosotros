@@ -178,8 +178,8 @@ private fun PairStep(vm: MainViewModel) {
 
     Text("Vincular", style = MaterialTheme.typography.headlineMedium)
 
-    // Si ya se unió con código, terminar
-    if (pairId != null && code == null && mode == "join") {
+    // Cuenta recuperada (ya tenía pareja) o recién unido con código: terminar
+    if (pairId != null && code == null) {
         Text("¡Listo! Ya están conectados.", color = C.me, fontWeight = FontWeight.SemiBold)
         PrimaryButton("Empezar") { vm.finishOnboarding() }
         return

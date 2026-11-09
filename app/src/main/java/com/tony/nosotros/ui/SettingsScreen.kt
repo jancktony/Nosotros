@@ -152,6 +152,8 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
 
         // ---------- Perfil ----------
         Section(Ic.User, "Perfil") {
+            val account by vm.account.collectAsState()
+            Text(account?.let { "Cuenta: $it" } ?: "Sin cuenta de correo: ciérrala y ábrela para crearla.", color = C.sub, fontSize = 14.sp)
             OutlinedTextField(name, { name = it }, label = { Text("Tu nombre") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             if (name != p.myName && name.isNotBlank()) ActionButton("Guardar nombre", C.me) { vm.setName(name) }
             Text("Tu vehículo habitual", color = C.sub, fontSize = 14.sp)
@@ -241,6 +243,11 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
         // ---------- Pareja ----------
         Section(Ic.Link, "Vinculación") {
             Text("Conectado con ${partner?.name?.ifBlank { null } ?: "tu pareja"}", color = C.text, fontSize = 14.sp)
+            val newCode by vm.newCode.collectAsState()
+            Text("Si tu pareja reinstaló la app o cambió de teléfono sin tener cuenta, crea un código nuevo para que vuelva a entrar.",
+                color = C.sub, fontSize = 13.sp)
+            newCode?.let { Text("Código nuevo: $it  (dura 24 h)", color = C.me, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+            ActionButton("Crear código para mi pareja", C.warn) { vm.resetPartner() }
             ActionButton("Desvincular", C.danger) { confirmUnlink = true }
         }
 

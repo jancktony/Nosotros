@@ -74,6 +74,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun Root(vm: MainViewModel) {
     if (!App.firebaseConfigured) { FirebaseMissing(); return }
+    val hasSession by vm.hasSession.collectAsState()
+    val account by vm.account.collectAsState()
+    val skipped by vm.authSkipped.collectAsState()
+    if (!hasSession) { AuthScreen(vm, upgrade = false); return }
+    if (account == null && !skipped) { AuthScreen(vm, upgrade = true); return }
     val ctx = LocalContext.current
     var update by remember { mutableStateOf<com.tony.nosotros.update.Updater.Release?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()

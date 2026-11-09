@@ -127,9 +127,48 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         if (App.firebaseConfigured) viewModelScope.launch {
-            runCatching { uid.value = Repo.ensureSignedIn(); pushProfile() }
-                .onFailure { error.value = "No se pudo conectar con Firebase: ${it.message}" }
+            Repo.uid?.let { uid.value = it; runCatching { restore() } }
         }
+    }
+
+    // ---------- Cuenta ----------
+    val account = MutableStateFlow(if (App.firebaseConfigured) Repo.email else null)
+    val hasSession = MutableStateFlow(App.firebaseConfigured && Repo.uid != null)
+    val authSkipped = MutableStateFlow(false)
+    val authBusy = MutableStateFlow(false)
+    val authError = MutableStateFlow<String?>(null)
+
+    fun auth(email: String, pass: String, create: Boolean) = viewModelScope.launch {
+        authBusy.value = true; authError.value = null
+        runCatching { if (create) Repo.register(email, pass) else Repo.login(email, pass) }
+            .onSuccess { uid.value = it; hasSession.value = true; account.value = Repo.email; runCatching { restore() } }
+            .onFailure { authError.value = authMessage(it) }
+        authBusy.value = false
+    }
+
+    fun forgot(email: String) = viewModelScope.launch {
+        runCatching { Repo.resetPassword(email) }
+            .onSuccess { authError.value = "Te enviamos un correo para cambiar la contraseña." }
+            .onFailure { authError.value = authMessage(it) }
+    }
+
+    private fun authMessage(e: Throwable): String = when {
+        e is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "Ese correo ya tiene cuenta. Usa “iniciar sesión”."
+        e is com.google.firebase.auth.FirebaseAuthWeakPasswordException -> "La contraseña debe tener al menos 6 caracteres."
+        e is com.google.firebase.auth.FirebaseAuthInvalidUserException -> "No hay ninguna cuenta con ese correo."
+        e is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException -> "Correo o contraseña incorrectos."
+        e.message.orEmpty().contains("not allowed", true) || e.message.orEmpty().contains("disabled", true) ->
+            "Falta activar el acceso con correo en Firebase."
+        else -> "No se pudo. Revisa tu internet e inténtalo de nuevo."
+    }
+
+    /** Tras iniciar sesión en una instalación nueva, recupera la pareja y el nombre de esta cuenta. */
+    private suspend fun restore() {
+        if (prefs.pairId == null) Repo.findMyPair()?.let { id ->
+            Repo.myName(id)?.takeIf { it.isNotBlank() }?.let { prefs.myName = it }
+            prefs.pairId = id; pairId.value = id
+        }
+        pushProfile()
     }
 
     // ---------- Vinculación ----------

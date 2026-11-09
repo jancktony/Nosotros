@@ -31,8 +31,36 @@ object Repo {
     val uid: String? get() = auth.currentUser?.uid
 
     suspend fun ensureSignedIn(): String {
-        auth.currentUser?.let { return it.uid }
-        return auth.signInAnonymously().await().user!!.uid
+        return auth.currentUser?.uid ?: error("Inicia sesión primero")
+    }
+
+    // ---------- Cuenta ----------
+
+    val email: String? get() = auth.currentUser?.email?.ifBlank { null }
+
+    /** Crea la cuenta. Si el teléfono ya se usaba sin cuenta, conserva su identidad y solo le añade el correo. */
+    suspend fun register(email: String, pass: String): String {
+        val cur = auth.currentUser
+        val user = if (cur != null && cur.isAnonymous)
+            cur.linkWithCredential(com.google.firebase.auth.EmailAuthProvider.getCredential(email, pass)).await().user
+        else auth.createUserWithEmailAndPassword(email, pass).await().user
+        return user!!.uid
+    }
+
+    suspend fun login(email: String, pass: String): String =
+        auth.signInWithEmailAndPassword(email, pass).await().user!!.uid
+
+    suspend fun resetPassword(email: String) { auth.sendPasswordResetEmail(email).await() }
+
+    /** La pareja a la que ya pertenece esta cuenta (para recuperarla tras reinstalar). */
+    suspend fun findMyPair(): String? {
+        val me = uid ?: return null
+        return db.collection("pairs").whereArrayContains("members", me).limit(1).get().await().documents.firstOrNull()?.id
+    }
+
+    suspend fun myName(pairId: String): String? {
+        val me = uid ?: return null
+        return runCatching { pair(pairId).collection("members").document(me).get().await().getString("name") }.getOrNull()
     }
 
     private fun pair(pairId: String) = db.collection("pairs").document(pairId)
@@ -59,6 +87,17 @@ object Repo {
         if ((c.getLong("expiresAt") ?: 0L) < System.currentTimeMillis()) error("El código expiró, genera uno nuevo")
         val pairId = c.getString("pairId")!!
         pair(pairId).update(mapOf("members" to FieldValue.arrayUnion(me), "joinCode" to code.trim())).await()
+        // Si reemplazo a un teléfono anterior, heredo sus lugares y su rol de administrador
+        runCatching {
+            val snap = pair(pairId).get().await()
+            val old = snap.getString("replaced") ?: return@runCatching
+            val batch = db.batch()
+            pair(pairId).collection("places").whereEqualTo("owner", old).get().await().documents.forEach { batch.update(it.reference, "owner", me) }
+            val changes = HashMap<String, Any>(mapOf("replaced" to FieldValue.delete()))
+            if (snap.getString("admin") == old) changes["admin"] = me
+            batch.update(pair(pairId), changes)
+            batch.commit().await()
+        }
         return pairId
     }
 
@@ -107,8 +146,11 @@ object Repo {
     suspend fun resetPartner(pairId: String, partnerUid: String?): String {
         val me = ensureSignedIn()
         val code = Random.nextInt(100000, 999999).toString()
-        val changes = HashMap<String, Any>(mapOf("code" to code, "admin" to me))
-        if (partnerUid != null) changes["members"] = FieldValue.arrayRemove(partnerUid)
+        val snap = pair(pairId).get().await()
+        @Suppress("UNCHECKED_CAST")
+        val admin = snap.getString("admin") ?: (snap.get("members") as? List<String>)?.firstOrNull() ?: me
+        val changes = HashMap<String, Any>(mapOf("code" to code, "admin" to admin))
+        if (partnerUid != null) { changes["members"] = FieldValue.arrayRemove(partnerUid); changes["replaced"] = partnerUid }
         pair(pairId).update(changes).await()
         db.collection("codes").document(code).set(
             mapOf("pairId" to pairId, "owner" to me, "expiresAt" to System.currentTimeMillis() + 24 * 3600_000L)

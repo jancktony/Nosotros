@@ -80,7 +80,8 @@ const name = m => m?.name || "Sin nombre";
 function render() {
   if (!S.pair) return;
   const admin = S.pair.admin || (S.pair.members || [])[0];
-  const me = S.members.find(m => m.id === admin), her = S.members.find(m => m.id !== admin);
+  const live = S.members.filter(m => (S.pair.members || []).includes(m.id));
+  const me = live.find(m => m.id === admin), her = live.find(m => m.id !== admin);
   const hasLoc = m => m && (m.lat || m.lng);
   const dist = hasLoc(me) && hasLoc(her) ? km(me, her) : null;
   const person = (m, color) => !m ? `<p class="sub">Sin datos todavía.</p>` : `
