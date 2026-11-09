@@ -5,3 +5,6 @@ local.properties
 .idea/
 app/google-services.json
 *.apk
+app/google-services.json
+app/*.keystore
+KEYSTORE_B64.txt
