@@ -1,4 +1,5 @@
 import groovy.json.JsonSlurper
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -28,7 +29,7 @@ fun readFirebaseConfig(): FbConfig {
 
 val fb = readFirebaseConfig()
 // Local development: ignored root secrets.properties. CI: MAPS3D_API_KEY secret.
-val mapSecrets = java.util.Properties().apply {
+val mapSecrets = Properties().apply {
     rootProject.file("secrets.properties").takeIf { it.isFile }?.inputStream()?.use { load(it) }
 }
 val maps3dKey = (System.getenv("MAPS3D_API_KEY") ?: mapSecrets.getProperty("MAPS3D_API_KEY", "")).trim()
