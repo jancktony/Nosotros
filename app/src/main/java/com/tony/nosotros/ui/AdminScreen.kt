@@ -83,12 +83,11 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
         }
 
         Section(Ic.Sparkle, "Versiones") {
-            Text("Puedes fijar la versión de $pName o permitir que reciba automáticamente la última. La instalación respeta sus ajustes y la confirmación de Android.",
+            Text("Tú recibes las versiones de prueba. $pName solo recibe una versión cuando pulsas Liberar. La descarga puede ser automática después de tu aprobación y Android puede pedir confirmación.",
                 color = C.sub, fontSize = 14.sp)
             Line("Tu versión", BuildConfig.VERSION_NAME)
             Line("Versión de $pName", partner?.appVersion?.ifBlank { null } ?: "desconocida")
-            Line("Liberada para $pName", info.relVersion ?: "Automático: última versión")
-            if (info.relVersion != null) ActionButton("Activar versiones automáticas para mi pareja", C.me) { vm.allowAutomaticPartnerUpdates() }
+            Line("Liberada para $pName", info.relVersion ?: "Ninguna: requiere tu aprobación")
             ActionButton("Recargar versiones", C.sub) { scope.launch { releases = null; releases = runCatching { Updater.releases() }.getOrDefault(emptyList()) } }
             adminMessage?.let { Text(it, color = C.me, fontSize = 13.sp) }
             Divider()
@@ -132,7 +131,7 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
                     "Última señal: ${partner?.updatedAt?.let { TimeFmt.ago(it) } ?: "sin datos"}\n" +
                     "Batería de la pareja: ${partner?.battery ?: -1}%\n" +
                     "Ubicación en pausa: ${partner?.paused == true}\n" +
-                    "Actualizaciones: ${info.relVersion ?: "automáticas"}"
+                    "Actualizaciones: ${info.relVersion ?: "pendiente de aprobación"}"
                 ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND)
                     .setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, report), "Compartir diagnóstico"))
             }

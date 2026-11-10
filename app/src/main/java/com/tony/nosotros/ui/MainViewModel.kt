@@ -254,14 +254,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val adminMessage = MutableStateFlow<String?>(null)
-    fun allowAutomaticPartnerUpdates() = viewModelScope.launch {
-        if (!isAdmin.value) return@launch
-        val id = pairId.value ?: return@launch
-        runCatching { Repo.automaticPartnerUpdates(id) }
-            .onSuccess { adminMessage.value = "Tu pareja recibirá las versiones nuevas automáticamente si tiene activada la opción en su teléfono." }
-            .onFailure { adminMessage.value = "No se pudo cambiar la política de versiones." }
-    }
-
     // ---------- Perfil ----------
     fun setName(name: String) { prefs.myName = name.trim(); pushProfile() }
     fun setVehicle(m: Mode) { prefs.vehicle = m }

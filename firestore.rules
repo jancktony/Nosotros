@@ -75,6 +75,8 @@ service cloud.firestore {
         // Solo el administrador gestiona miembros y versiones. webUids solo puede borrarse.
         (request.auth.uid in resource.data.members && resource.data.admin == request.auth.uid
           && changedOnly(['members', 'admin', 'code', 'replaced', 'since', 'relVersion', 'relUrl', 'relNotes', 'webUids', 'featureFlags'])
+          && (!('relVersion' in resource.data) || ('relVersion' in request.resource.data
+            && request.resource.data.relVersion is string && request.resource.data.relVersion.size() > 0))
           && (!('webUids' in request.resource.data) || request.resource.data.webUids == resource.data.get('webUids', []))
           && resource.data.members.hasAll(request.resource.data.members)) ||
         // Ambos pueden cambiar la fecha de la relación.

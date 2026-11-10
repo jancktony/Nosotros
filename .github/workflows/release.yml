@@ -36,9 +36,10 @@ jobs:
       - if: steps.v.outputs.skip != '1'
         uses: softprops/action-gh-release@v2
         with:
+          draft: true
           tag_name: ${{ steps.v.outputs.tag }}
           files: Nosotros-${{ steps.v.outputs.tag }}.apk
-          body: "Mejoras y correcciones."
+          body: "Versión de prueba para el administrador. No liberada para la pareja."
       - if: steps.v.outputs.skip != '1'
         uses: actions/setup-node@v4
         with: { node-version: '22', cache: npm }

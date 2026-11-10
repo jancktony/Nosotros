@@ -88,10 +88,6 @@ object Repo {
     suspend fun myAvatar(pairId: String): String =
         uid?.let { pair(pairId).collection("members").document(it).get().await().getString("avatar") }.orEmpty()
 
-    suspend fun automaticPartnerUpdates(pairId: String) {
-        pair(pairId).update(mapOf("relVersion" to FieldValue.delete(), "relUrl" to FieldValue.delete(), "relNotes" to FieldValue.delete())).await()
-    }
-
     suspend fun resetPassword(email: String) { auth.sendPasswordResetEmail(email).await() }
 
     /** La pareja a la que ya pertenece esta cuenta (para recuperarla tras reinstalar). */

@@ -94,7 +94,7 @@ test('foto de perfil solo propia y tamaño limitado; política de versiones solo
   const { deleteField } = require('firebase/firestore');
   await env.withSecurityRulesDisabled(ctx => updateDoc(p(ctx), { relVersion: '1.7', relUrl: 'gs://bucket/old', relNotes: 'vieja' }));
   await assertFails(updateDoc(p(bob()), { relVersion: deleteField(), relUrl: deleteField(), relNotes: deleteField() }));
-  await assertSucceeds(updateDoc(p(alice()), { relVersion: deleteField(), relUrl: deleteField(), relNotes: deleteField() }));
+  await assertFails(updateDoc(p(alice()), { relVersion: deleteField(), relUrl: deleteField(), relNotes: deleteField() }));
 });
 
 const enableVoice = async (flags = {walkie: 'all', voiceNotes: 'all'}) => {
