@@ -84,7 +84,11 @@ object TimeFmt {
             niceDay.format(c.time).replaceFirstChar { it.uppercase() }
         }
     }
-    fun hour(t: Long): String = hourFmt.format(Date(t))
+    fun hour(t: Long, zone: java.util.TimeZone = java.util.TimeZone.getDefault()): String {
+        val c = Calendar.getInstance(zone).apply { timeInMillis = t }
+        val h = c.get(Calendar.HOUR).takeIf { it != 0 } ?: 12
+        return "$h:${c.get(Calendar.MINUTE).toString().padStart(2, '0')} ${if (c.get(Calendar.AM_PM) == Calendar.AM) "a. m." else "p. m."}"
+    }
     fun ago(t: Long): String {
         if (t <= 0) return "sin datos"
         val s = (System.currentTimeMillis() - t) / 1000

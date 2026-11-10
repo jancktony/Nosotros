@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /** PCM over encrypted WebRTC data channel. AudioRecord exists only while pressed. */
-class PushAudio(private val channel: DataChannel) {
+class PushAudio(private val channel: DataChannel, private val activity: () -> Unit = {}) {
     private val queue = ArrayBlockingQueue<ByteArray>(10)
     @Volatile private var alive = true
     @Volatile private var talking = false
@@ -30,6 +30,7 @@ class PushAudio(private val channel: DataChannel) {
     }
     fun receive(buffer: DataChannel.Buffer) {
         if (!alive || !buffer.binary || buffer.data.remaining() !in 2..1280 || buffer.data.remaining() % 2 != 0) return
+        activity()
         val bytes = ByteArray(buffer.data.remaining()); buffer.data.get(bytes)
         if (!queue.offer(bytes)) { queue.poll(); queue.offer(bytes) }
     }
@@ -50,7 +51,7 @@ class PushAudio(private val channel: DataChannel) {
                     val size = rec.read(bytes, 0, bytes.size)
                     if (size <= 0) break
                     if (talking && channel.state() == DataChannel.State.OPEN && channel.bufferedAmount() < 16000)
-                        channel.send(DataChannel.Buffer(ByteBuffer.wrap(bytes.copyOf(size)), true))
+                        { channel.send(DataChannel.Buffer(ByteBuffer.wrap(bytes.copyOf(size)), true)); activity() }
                 }
             } finally {
                 talking = false

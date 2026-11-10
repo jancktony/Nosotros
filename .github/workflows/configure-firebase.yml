@@ -21,3 +21,12 @@ jobs:
           ONLY_RULES: ${{ inputs.configure_emails && '0' || '1' }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node security/configure-firebase.cjs
+      - name: Publicar panel web con acceso privado (Hosting gratuito)
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/nosotros-hosting-credentials.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          node security/prepare-web.cjs
+          npx firebase deploy --only hosting --project nosotros-1e43a --non-interactive

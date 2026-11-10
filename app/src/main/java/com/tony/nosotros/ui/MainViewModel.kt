@@ -74,10 +74,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } catch (_: Exception) { adminMessage.value = "No se pudo guardar. Revisa conexión y reglas de Firebase." }
         finally { featureBusy.value = false }
     }
+    val releaseReviews = StateFlowOf(combine(pairId, isAdmin) { id, admin -> if (admin) id else null }
+        .flatMapLatest { id -> if (id != null) Repo.reviewsFlow(id) else flowOf(emptyMap()) }, emptyMap())
+    val releaseBusy = MutableStateFlow(false)
+    fun testRelease(release: com.tony.nosotros.update.Updater.Release) = viewModelScope.launch {
+        val id = pairId.value ?: return@launch
+        if (!isAdmin.value || releaseBusy.value) return@launch
+        releaseBusy.value = true
+        try {
+            Repo.selectTest(id, release.version)
+            val started = com.tony.nosotros.update.Updater.install(getApplication(), release)
+            adminMessage.value = if (started) "Actualización enviada a tu teléfono. Tu pareja conserva su versión." else "No se pudo instalar. Revisa conexión y permisos de instalación."
+        } catch (_: Exception) { adminMessage.value = "No se pudo iniciar la prueba." }
+        finally { releaseBusy.value = false }
+    }
+    fun reviewRelease(version: String, state: String, notes: String = "") = viewModelScope.launch {
+        val id = pairId.value ?: return@launch
+        if (!isAdmin.value || releaseBusy.value) return@launch
+        releaseBusy.value = true
+        try { Repo.reviewRelease(id, version, state, notes); adminMessage.value = if (state == "approved") "Prueba aprobada. Ahora puedes liberar para tu pareja." else "Correcciones anotadas. Esta prueba no libera una actualización para tu pareja." }
+        catch (_: Exception) { adminMessage.value = "No se pudo guardar. Debes instalar la versión antes de aprobarla." }
+        finally { releaseBusy.value = false }
+    }
+    fun setCreatorBrand(brand: String) = viewModelScope.launch {
+        val id = pairId.value ?: return@launch
+        if (!isAdmin.value) return@launch
+        runCatching { Repo.setCreatorBrand(id, brand) }.onSuccess { adminMessage.value = "Marca guardada." }
+            .onFailure { adminMessage.value = "No se pudo guardar la marca." }
+    }
     val newCode = MutableStateFlow<String?>(null)
     fun release(r: com.tony.nosotros.update.Updater.Release) = viewModelScope.launch {
         val id = pairId.value ?: return@launch
         if (!isAdmin.value) return@launch
+        if (releaseReviews.value[r.version]?.state != "approved") { adminMessage.value = "Aprueba tu prueba primero."; return@launch }
         runCatching { Repo.setRelease(id, r.version, r.apkUrl, r.notes) }
             .onSuccess { adminMessage.value = "Versión ${r.version} habilitada para tu pareja." }
             .onFailure { adminMessage.value = "No se pudo liberar la versión. Revisa la conexión." }
@@ -228,6 +257,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun signOut() {
+        com.tony.nosotros.voice.WalkieHub.disable(getApplication())
         TrackingService.stop(getApplication())
         Repo.signOut()
         pairId.value = null; uid.value = null; onboarded.value = false

@@ -16,6 +16,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,12 +50,25 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
     val adminMessage by vm.adminMessage.collectAsState()
     val partner by vm.partner.collectAsState()
     val info by vm.pairInfo.collectAsState()
+    val reviews by vm.releaseReviews.collectAsState()
+    val releaseBusy by vm.releaseBusy.collectAsState()
+    var corrections by remember { mutableStateOf<String?>(null) }
+    var correctionText by remember { mutableStateOf("") }
+    var creatorBrand by remember(info.creatorBrand) { mutableStateOf(info.creatorBrand) }
     val newCode by vm.newCode.collectAsState()
     val pName = partner?.name?.ifBlank { null } ?: "tu pareja"
     var releases by remember { mutableStateOf<List<Updater.Release>?>(null) }
     var confirm by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
     LaunchedEffect(Unit) { releases = runCatching { Updater.releases() }.getOrDefault(emptyList()) }
 
+    corrections?.let { version ->
+        AlertDialog(onDismissRequest = { corrections = null }, title = { Text("Qué debemos corregir en $version") },
+            text = { OutlinedTextField(correctionText, { correctionText = it.take(2000) }, label = { Text("Tus observaciones") }) },
+            confirmButton = { TextButton(enabled = correctionText.trim().isNotEmpty() && !releaseBusy, onClick = {
+                vm.reviewRelease(version, "changes_requested", correctionText.trim()); corrections = null
+            }) { Text("Guardar correcciones") } },
+            dismissButton = { TextButton(onClick = { corrections = null }) { Text("Cancelar") } })
+    }
     Column(
         Modifier.fillMaxSize().background(C.bg).statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -64,6 +78,11 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
             Text("Administrador", style = MaterialTheme.typography.headlineMedium)
         }
 
+        Section(Ic.User, "Mi marca de creador") {
+            OutlinedTextField(creatorBrand, { creatorBrand = it.take(60) }, label = { Text("Nombre o marca") }, modifier = Modifier.fillMaxWidth())
+            Text("Aparecerá como creador en la app y la web.", color = C.sub, fontSize = 13.sp)
+            ActionButton("Guardar mi marca", C.me) { vm.setCreatorBrand(creatorBrand) }
+        }
         Section(Ic.Sparkle, "Funciones") {
             Text("Desactivar, probar solo en tu cuenta o liberar para ambos. Tu pareja necesita una versión compatible y conexión para recibir los cambios.", color = C.sub, fontSize = 13.sp)
             val busy by vm.featureBusy.collectAsState()
@@ -83,7 +102,7 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
         }
 
         Section(Ic.Sparkle, "Versiones") {
-            Text("Tú recibes las versiones de prueba. $pName solo recibe una versión cuando pulsas Liberar. La descarga puede ser automática después de tu aprobación y Android puede pedir confirmación.",
+            Text("Primero instalas solo en tu teléfono. Después decides si pedir correcciones o aprobar la prueba. Solo entonces liberas para $pName. Ninguna prueba actualiza su teléfono.",
                 color = C.sub, fontSize = 14.sp)
             Line("Tu versión", BuildConfig.VERSION_NAME)
             Line("Versión de $pName", partner?.appVersion?.ifBlank { null } ?: "desconocida")
@@ -96,14 +115,26 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
                 releases!!.isEmpty() -> Text("No pude leer las versiones. Revisa tu internet.", color = C.sub, fontSize = 14.sp)
                 else -> releases!!.forEach { r ->
                     val live = info.relVersion == r.version
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Versión ${r.version}", fontWeight = FontWeight.Bold, color = C.text)
-                            Text(listOf(r.date, r.notes.lines().firstOrNull { it.isNotBlank() } ?: "").filter { it.isNotBlank() }.joinToString(" · "),
-                                color = C.sub, fontSize = 13.sp, maxLines = 2)
+                    val installed = r.version == BuildConfig.VERSION_NAME
+                    val review = reviews[r.version]
+                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Text("Versión ${r.version}", fontWeight = FontWeight.Bold, color = C.text)
+                        Text(r.notes.lines().firstOrNull { it.isNotBlank() }.orEmpty(), color = C.sub, fontSize = 13.sp, maxLines = 2)
+                        Text(when { live -> "Liberada para tu pareja"; review?.state == "approved" -> "Tu prueba está aprobada";
+                            review?.state == "changes_requested" -> "Correcciones pendientes"; installed -> "Instalada solo en tu teléfono";
+                            info.testVersion == r.version -> "Seleccionada para tu prueba"; else -> "Candidata sin probar" },
+                            color = if (live || review?.state == "approved") C.ok else C.sub, fontSize = 13.sp)
+                        if (review?.notes?.isNotBlank() == true) Text(review.notes, color = C.sub, fontSize = 13.sp)
+                        if (!installed && Updater.newer(r.version, BuildConfig.VERSION_NAME))
+                            TextButton(enabled = !releaseBusy, onClick = { vm.testRelease(r) }) { Text("Instalar solo para mí", color = C.me) }
+                        if (!live) Row {
+                            TextButton(enabled = !releaseBusy, onClick = { corrections = r.version; correctionText = review?.notes.orEmpty() }) { Text("Pedir correcciones", color = C.warn) }
+                            if (installed && review?.state != "approved") TextButton(enabled = !releaseBusy, onClick = { vm.reviewRelease(r.version, "approved") }) { Text("Aprobar mi prueba", color = C.me) }
                         }
-                        if (live) Text("Liberada", color = C.ok, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        else TextButton(onClick = { vm.release(r) }) { Text("Liberar", color = C.me, fontWeight = FontWeight.Bold) }
+                        if (!live && review?.state == "approved" && installed) TextButton(enabled = !releaseBusy, onClick = {
+                            confirm = "Tu pareja podrá actualizar a ${r.version}. Tu prueba ya está aprobada." to { vm.release(r) }
+                        }) { Text("Liberar para mi pareja", color = C.me, fontWeight = FontWeight.Bold) }
+                        Divider()
                     }
                 }
             }

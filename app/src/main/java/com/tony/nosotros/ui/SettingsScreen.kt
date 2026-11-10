@@ -82,6 +82,7 @@ const val INDEFINITE = 4_102_444_800_000L  // año 2100 = "hasta que la reanude"
 @Composable
 fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
     val isAdmin by vm.isAdmin.collectAsState()
+    val creatorInfo by vm.pairInfo.collectAsState()
     var autoUpdate by remember { mutableStateOf(vm.prefs.autoUpdate) }
     val ctx = LocalContext.current
     val me by vm.me.collectAsState()
@@ -220,7 +221,6 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                 Divider()
                 Toggle("Cuando sale de un lugar", nLeave) { nLeave = it; p.notifyLeave = it }
                 Divider()
-                Toggle("Cuando pausa o reanuda", nPause) { nPause = it; p.notifyPause = it }
                 Divider()
                 if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.LOCK_DETAILS)) Toggle("Mostrar lugar y acción en pantalla de bloqueo", lockDetails) { lockDetails = it; p.lockDetails = it }
                 Text("Los avisos muestran llegó o salió y el lugar. Samsung también debe permitir mostrar el contenido de las notificaciones.", color = C.sub, fontSize = 13.sp)
@@ -299,7 +299,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
         }
 
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) {
-            Text("Nosotros v${com.tony.nosotros.BuildConfig.VERSION_NAME} · hecho con ♥", color = C.sub, fontSize = 13.sp)
+            Text("Nosotros v${com.tony.nosotros.BuildConfig.VERSION_NAME} · Creado por ${creatorInfo.creatorBrand}", color = C.sub, fontSize = 13.sp)
         }
         Section(Ic.User, "Cuenta") {
             Text(account ?: "Cuenta personal", color = C.sub, fontSize = 14.sp)

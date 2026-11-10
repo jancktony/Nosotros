@@ -32,9 +32,10 @@ class App : Application() {
         }
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
-            NotificationChannel(CH_TRACKING, "Ubicación activa", NotificationManager.IMPORTANCE_MIN)
+            NotificationChannel(CH_TRACKING, "Ubicación activa", NotificationManager.IMPORTANCE_LOW)
                 .apply { description = "Aviso fijo mientras se comparte la ubicación" }
         )
+        nm.cancel(99); nm.cancel(77)
         nm.createNotificationChannel(
             NotificationChannel(CH_ALERTS, "Llegadas y salidas", NotificationManager.IMPORTANCE_HIGH)
                 .apply { description = "Avisos cuando tu pareja llega o sale de un lugar" }
@@ -42,7 +43,7 @@ class App : Application() {
     }
 
     companion object {
-        const val CH_TRACKING = "tracking"
+        const val CH_TRACKING = "background_v2"
         const val CH_ALERTS = "alerts"
         lateinit var instance: App
             private set

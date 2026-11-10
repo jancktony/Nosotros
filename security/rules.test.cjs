@@ -1,3 +1,4 @@
+const assert = require('node:assert/strict');
 const { before, after, beforeEach, test } = require('node:test');
 const { readFileSync } = require('node:fs');
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
@@ -15,7 +16,8 @@ beforeEach(async () => {
   await env.withSecurityRulesDisabled(async ctx => {
     await setDoc(p(ctx, 'releases/1.7'), {pairId:'p',ready:true,apkPath:'gs://bucket/releases/1.7/app.apk'});
     await setDoc(p(ctx), { members: ['alice', 'bob'], admin: 'alice', code: '123456', createdAt: Date.now() });
-    await setDoc(p(ctx, 'pairs/p/members/alice'), { lat: 1, lng: 2, pausedUntil: 0 });
+    await setDoc(p(ctx, 'pairs/p/members/alice'), { lat: 1, lng: 2, pausedUntil: 0, appVersion:'1.7' });
+    await setDoc(p(ctx, 'pairs/p/releaseReviews/1.7'), {uid:'alice',state:'approved',notes:'',updatedAt:new Date()});
     await setDoc(p(ctx, 'pairs/p/members/bob'), { lat: 3, lng: 4, pausedUntil: 0 });
     await setDoc(p(ctx, 'pairs/p/photos/f'), { uid: 'bob', caption: 'privado' });
     await setDoc(p(ctx, 'pairs/p/photos/f/full/img'), { img: 'privado' });
@@ -167,9 +169,13 @@ test('APK candidato solo admin; la pareja descarga únicamente tras aprobación 
   await assertFails(updateDoc(p(bob()),{relVersion:'2.0',relUrl:'firestore://releases/2.0'}));
   await assertFails(updateDoc(p(alice()),{relVersion:'2.1',relUrl:'firestore://releases/2.1'}));
   await assertFails(updateDoc(p(alice()),{relVersion:'2.0',relUrl:'https://wrong.example/app.apk'}));
+  await assertFails(updateDoc(p(alice()),{relVersion:'2.0',relUrl:'firestore://releases/2.0'}));
+  await assertSucceeds(updateDoc(p(alice(),'pairs/p/members/alice'),{appVersion:'2.0'}));
+  await assertSucceeds(setDoc(p(alice(),'pairs/p/releaseReviews/2.0'),{uid:'alice',state:'approved',notes:'',updatedAt:serverTimestamp()}));
   await assertSucceeds(updateDoc(p(alice()),{relVersion:'2.0',relUrl:'firestore://releases/2.0'}));
   await assertSucceeds(getDoc(p(bob(),path)));
   await assertSucceeds(getDocs(collection(bob().firestore(),'releases/2.0/chunks')));
+  await env.withSecurityRulesDisabled(ctx=>updateDoc(p(ctx,'pairs/p/members/alice'),{appVersion:'1.7'}));
   await assertSucceeds(updateDoc(p(alice()),{relVersion:'1.7',relUrl:'gs://bucket/releases/1.7/app.apk'}));
   await assertFails(getDoc(p(bob(),path)));
 });
@@ -180,4 +186,22 @@ test('ni el admin descarga fragmentos de una carga incompleta', async () => {
   });
   await assertFails(getDoc(p(alice(),'releases/2.0/chunks/000000')));
   await assertFails(updateDoc(p(alice()),{relVersion:'2.0',relUrl:'firestore://releases/2.0'}));
+});
+
+test('probar solo para mí no libera para la pareja; solo admin revisa y firma', async()=>{
+ await env.withSecurityRulesDisabled(ctx=>setDoc(p(ctx,'releases/2.0'),{pairId:'p',ready:true,apkPath:'firestore://releases/2.0'}));
+ await assertFails(updateDoc(p(bob()),{testVersion:'2.0'}));
+ await assertSucceeds(updateDoc(p(alice()),{testVersion:'2.0'}));
+ const review={uid:'alice',state:'approved',notes:'',updatedAt:serverTimestamp()};
+ await assertFails(setDoc(p(alice(),'pairs/p/releaseReviews/2.0'),review));
+ await assertFails(setDoc(p(bob(),'pairs/p/releaseReviews/2.0'),{...review,uid:'bob'}));
+ await assertFails(getDocs(collection(bob().firestore(),'pairs/p/releaseReviews')));
+ await assertSucceeds(setDoc(p(alice(),'pairs/p/releaseReviews/2.0'),{...review,state:'changes_requested',notes:'Corregir el micrófono'}));
+ await assertFails(updateDoc(p(alice()),{relVersion:'2.0',relUrl:'firestore://releases/2.0'}));
+ const pair=await getDoc(p(alice()));assert.equal(pair.data().relVersion,undefined);
+});
+test('solo el creador administrador puede cambiar su marca',async()=>{
+ await assertSucceeds(updateDoc(p(alice()),{creatorBrand:'jancktony'}));
+ await assertFails(updateDoc(p(bob()),{creatorBrand:'otro'}));
+ await assertFails(updateDoc(p(alice()),{creatorBrand:'x'.repeat(61)}));
 });

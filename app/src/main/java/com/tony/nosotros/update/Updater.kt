@@ -54,7 +54,7 @@ object Updater {
         val admin = info.admin == Repo.uid
         if (!admin && info.relVersion.isNullOrBlank()) return null
         val catalog = releases()
-        val version = UpdatePolicy.targetVersion(admin, catalog.firstOrNull()?.version, info.relVersion) ?: return null
+        val version = UpdatePolicy.targetVersion(admin, info.testVersion, info.relVersion) ?: return null
         val release = catalog.firstOrNull { it.version == version }
             ?: if (!admin && info.relUrl.startsWith("firestore://releases/")) Release(version, info.relUrl, info.relNotes) else null
         return release?.takeIf { newer(it.version, BuildConfig.VERSION_NAME) }
@@ -121,19 +121,21 @@ class UpdateReceiver : BroadcastReceiver() {
         }
         val status = i.getIntExtra(PackageInstaller.EXTRA_STATUS, -1)
         if (status != PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            UpdateConsent.pending = null
+            (ctx.applicationContext as App).prefs.pendingUpdateConsent = null
             if (status != PackageInstaller.STATUS_SUCCESS) (ctx.applicationContext as App).prefs.autoUpdateTried = ""
             return
         }
         @Suppress("DEPRECATION")
         val confirm = (i.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { ctx.startActivity(confirm) }
-        val n = NotificationCompat.Builder(ctx, App.CH_ALERTS)
-            .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle("Actualización de Nosotros lista")
-            .setContentText("Toca para instalarla. No se pierde nada.")
-            .setAutoCancel(true)
-            .setContentIntent(PendingIntent.getActivity(ctx, 77, confirm, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
-            .build()
-        runCatching { ctx.getSystemService(NotificationManager::class.java).notify(77, n) }
+        if (Repo.authorizedSession) {
+            UpdateConsent.pending = confirm
+            (ctx.applicationContext as App).prefs.pendingUpdateConsent = confirm.toUri(Intent.URI_INTENT_SCHEME)
+            com.tony.nosotros.ui.MainActivity.showPendingUpdate()
+        }
+
     }
 }
+
+/** Android confirmation remains inside the app; no extra status-bar notification. */
+object UpdateConsent { var pending: Intent? = null }

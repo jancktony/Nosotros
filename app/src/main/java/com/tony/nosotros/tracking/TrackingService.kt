@@ -459,7 +459,6 @@ class TrackingService : Service() {
         }
         scope.launch {
             while (true) {
-                checkAnniversary()
                 Widgets.updateAll(this@TrackingService)
                 runCatching { autoUpdate() }
                 delay(30 * 60_000L)
@@ -492,26 +491,6 @@ class TrackingService : Service() {
         }
     }
 
-    private fun checkAnniversary() {
-        val since = prefs.since
-        val today = TimeFmt.dayKey()
-        if (since <= 0 || prefs.annivNotifiedDay == today) return
-        val cal = java.util.Calendar.getInstance()
-        if (cal.get(java.util.Calendar.HOUR_OF_DAY) < 8) return
-        val span = Together.span(since) ?: return
-        val text = when {
-            Together.daysToAnniversary(since) == 0 -> "¡Feliz aniversario! Hoy cumplen ${span.years} ${if (span.years == 1) "año" else "años"} juntos"
-            Together.isMonthiversary(since) -> "¡Feliz mesiversario! Ya son ${span.years * 12 + span.months} meses juntos"
-            span.totalDays > 0 && span.totalDays % 100 == 0L -> "¡Hoy cumplen ${span.totalDays} días juntos!"
-            else -> null
-        } ?: return
-        prefs.annivNotifiedDay = today
-        val n = NotificationCompat.Builder(this, App.CH_ALERTS)
-            .setSmallIcon(R.drawable.ic_stat).setContentTitle(text).setAutoCancel(true)
-            .setColor(0xFFF9A8D4.toInt()).setContentIntent(openAppIntent()).build()
-        runCatching { getSystemService(NotificationManager::class.java).notify(99, n) }
-    }
-
     /** Instala sola la versión que toca, una vez por versión y solo con Wi-Fi. */
     private suspend fun autoUpdate() {
         if (!prefs.featureEnabled(com.tony.nosotros.data.Feature.AUTO_UPDATES) || !prefs.autoUpdate || !com.tony.nosotros.update.Updater.onWifi(this)) return
@@ -521,36 +500,19 @@ class TrackingService : Service() {
     }
 
     private fun notifyPartnerEvent(e: EventItem) {
-        if (e.type in listOf("arrive", "leave") && !prefs.featureEnabled(com.tony.nosotros.data.Feature.PLACE_ALERTS)) return
-        val enabled = when (e.type) {
-            "arrive" -> prefs.notifyArrive
-            "leave" -> prefs.notifyLeave
-            "pause", "resume" -> prefs.notifyPause
-            else -> true
-        }
-        if (!enabled) return
-        val notice = com.tony.nosotros.util.eventNotice(e.type, partnerName, e.placeName, e.at, e.until) ?: return
-        postEvent(e, notice.title, notice.detail)
-        // Al salir de un lugar: a dónde va probablemente y a qué hora llega
-        if (e.type == "leave") scope.launch {
-            val all = engine.allPlaces.filter { !it.suggested && it.name.isNotBlank() }
-            val from = all.firstOrNull { it.name == e.placeName } ?: return@launch
-            val dest = com.tony.nosotros.util.Eta.fallback(all.filter { it.id != from.id }, e.uid) ?: return@launch
-            val r = com.tony.nosotros.util.Eta.compute(com.tony.nosotros.util.Pt(from.lat, from.lng), dest, Mode.VEHICLE) ?: return@launch
-            postEvent(e, notice.title, notice.detail + ". Si va a ${dest.name}, llega aprox. a las " +
-                "${TimeFmt.hour(e.at + (r.seconds * 1000).toLong())} (${com.tony.nosotros.util.Eta.mins(r.seconds)} en vehículo)")
-        }
+        if (e.type !in listOf("arrive", "leave") || !prefs.featureEnabled(com.tony.nosotros.data.Feature.PLACE_ALERTS)) return
+        if ((e.type == "arrive" && !prefs.notifyArrive) || (e.type == "leave" && !prefs.notifyLeave)) return
+        val notice = com.tony.nosotros.util.eventNotice(e.type, partnerName, e.placeName, e.at) ?: return
+        postEvent(e, notice.title)
     }
 
-    private fun postEvent(e: EventItem, title: String, text: String) {
+    private fun postEvent(e: EventItem, title: String) {
         val n = NotificationCompat.Builder(this, App.CH_ALERTS)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(title)
-            .setContentText(text)
             .setWhen(e.at)
-            .setShowWhen(true)
+            .setShowWhen(false)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$title\n$text"))
             .setVisibility(if (prefs.lockDetails && prefs.featureEnabled(com.tony.nosotros.data.Feature.LOCK_DETAILS)) NotificationCompat.VISIBILITY_PUBLIC else NotificationCompat.VISIBILITY_PRIVATE)
             .setOnlyAlertOnce(true)
             .setColor(0xFFF9A8D4.toInt())
@@ -568,21 +530,13 @@ class TrackingService : Service() {
     )
 
     private fun buildNotification(): Notification {
-        val status = when {
-            isPaused() -> "En pausa"
-            liveUntil > System.currentTimeMillis() -> "Modo en vivo (tu pareja te está viendo)"
-            lowBattery -> "Ahorro extremo · ${displayMode().label}"
-            else -> "Compartiendo · ${displayMode().label}"
-        }
-        // Se ve también en la pantalla de bloqueo: distancia y dónde está la pareja
-        val hasBoth = prefs.partnerUpdated > 0 && (prefs.myLat != 0.0 || prefs.myLng != 0.0) && (prefs.partnerLat != 0.0 || prefs.partnerLng != 0.0)
-        val title = if (hasBoth) "A ${TimeFmt.km(com.tony.nosotros.util.Geo.dist(prefs.myLat, prefs.myLng, prefs.partnerLat, prefs.partnerLng))} de $partnerName" +
-            (prefs.partnerPlace?.let { " · en $it" } ?: "") else "Nosotros"
         return NotificationCompat.Builder(this, App.CH_TRACKING)
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle(title)
+            .setContentTitle("Nosotros activo")
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
-            .setContentText(status)
+            .setContentText("Funciones en segundo plano activas")
+            .setShowWhen(false)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .setSilent(true)
             .setColor(0xFF5EEAD4.toInt())
