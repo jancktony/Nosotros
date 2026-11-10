@@ -449,6 +449,12 @@ class TrackingService : Service() {
             }
         }
         scope.launch {
+            Repo.pairInfoFlow(pid).collect {
+                prefs.featureModes = it.featureFlags; prefs.featureAdmin = it.admin == uid
+                Widgets.updateAll(this@TrackingService)
+            }
+        }
+        scope.launch {
             Repo.sinceFlow(pid).collect { prefs.since = it; Widgets.updateAll(this@TrackingService) }
         }
         scope.launch {
@@ -508,13 +514,14 @@ class TrackingService : Service() {
 
     /** Instala sola la versión que toca, una vez por versión y solo con Wi-Fi. */
     private suspend fun autoUpdate() {
-        if (!prefs.autoUpdate || !com.tony.nosotros.update.Updater.onWifi(this)) return
+        if (!prefs.featureEnabled(com.tony.nosotros.data.Feature.AUTO_UPDATES) || !prefs.autoUpdate || !com.tony.nosotros.update.Updater.onWifi(this)) return
         val r = com.tony.nosotros.update.Updater.target(pairId) ?: return
         if (prefs.autoUpdateTried == r.version) return
         if (com.tony.nosotros.update.Updater.install(applicationContext, r)) prefs.autoUpdateTried = r.version
     }
 
     private fun notifyPartnerEvent(e: EventItem) {
+        if (e.type in listOf("arrive", "leave") && !prefs.featureEnabled(com.tony.nosotros.data.Feature.PLACE_ALERTS)) return
         val enabled = when (e.type) {
             "arrive" -> prefs.notifyArrive
             "leave" -> prefs.notifyLeave
@@ -544,7 +551,7 @@ class TrackingService : Service() {
             .setShowWhen(true)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setStyle(NotificationCompat.BigTextStyle().bigText("$title\n$text"))
-            .setVisibility(if (prefs.lockDetails) NotificationCompat.VISIBILITY_PUBLIC else NotificationCompat.VISIBILITY_PRIVATE)
+            .setVisibility(if (prefs.lockDetails && prefs.featureEnabled(com.tony.nosotros.data.Feature.LOCK_DETAILS)) NotificationCompat.VISIBILITY_PUBLIC else NotificationCompat.VISIBILITY_PRIVATE)
             .setOnlyAlertOnce(true)
             .setColor(0xFFF9A8D4.toInt())
             .setAutoCancel(true)

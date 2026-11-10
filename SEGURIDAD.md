@@ -1,3 +1,8 @@
+> **Canal vigente desde 1.9.1:** Firestore por fragmentos, sin Blaze ni bucket.
+> El propietario prueba candidatas y solo su panel libera para la pareja.
+> Ver [la migración única y privacidad](docs/ACTUALIZACIONES-PRIVADAS.md).
+> Las instrucciones de Storage que siguen corresponden al diseño anterior.
+
 # Uso personal y migración sin perder actualizaciones
 
 ## Cambios

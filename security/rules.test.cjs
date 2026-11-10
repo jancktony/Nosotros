@@ -1,7 +1,7 @@
 const { before, after, beforeEach, test } = require('node:test');
 const { readFileSync } = require('node:fs');
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBatch } = require('firebase/firestore');
+const { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBatch, serverTimestamp, Bytes } = require('firebase/firestore');
 const { ref, uploadBytes, getBytes } = require('firebase/storage');
 let env;
 const alice = () => env.authenticatedContext('alice', { email: 'jancktoni@gmail.com', email_verified: true });
@@ -13,6 +13,7 @@ after(async () => { await env.cleanup(); });
 beforeEach(async () => {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async ctx => {
+    await setDoc(p(ctx, 'releases/1.7'), {pairId:'p',ready:true,apkPath:'gs://bucket/releases/1.7/app.apk'});
     await setDoc(p(ctx), { members: ['alice', 'bob'], admin: 'alice', code: '123456', createdAt: Date.now() });
     await setDoc(p(ctx, 'pairs/p/members/alice'), { lat: 1, lng: 2, pausedUntil: 0 });
     await setDoc(p(ctx, 'pairs/p/members/bob'), { lat: 3, lng: 4, pausedUntil: 0 });
@@ -94,5 +95,89 @@ test('foto de perfil solo propia y tamaño limitado; política de versiones solo
   const { deleteField } = require('firebase/firestore');
   await env.withSecurityRulesDisabled(ctx => updateDoc(p(ctx), { relVersion: '1.7', relUrl: 'gs://bucket/old', relNotes: 'vieja' }));
   await assertFails(updateDoc(p(bob()), { relVersion: deleteField(), relUrl: deleteField(), relNotes: deleteField() }));
-  await assertSucceeds(updateDoc(p(alice()), { relVersion: deleteField(), relUrl: deleteField(), relNotes: deleteField() }));
+  await assertFails(updateDoc(p(alice()), { relVersion: deleteField(), relUrl: deleteField(), relNotes: deleteField() }));
+});
+
+const enableVoice = async (flags = {walkie: 'all', voiceNotes: 'all'}) => {
+  await env.withSecurityRulesDisabled(ctx => updateDoc(p(ctx), {featureFlags: flags}));
+};
+test('solo admin controla funciones y rechaza estados o claves inválidos', async () => {
+  await assertFails(updateDoc(p(bob()), {featureFlags: {walkie: 'all'}}));
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags: {walkie: 'admin', voiceNotes: 'off'}}));
+  await assertFails(updateDoc(p(alice()), {featureFlags: {walkie: 'yes'}}));
+  await assertFails(updateDoc(p(alice()), {featureFlags: {invented: 'all'}}));
+});
+test('notas privadas, sin suplantación y límites de tamaño/duración', async () => {
+  const note = () => ({uid: 'alice', audio: Bytes.fromUint8Array(new Uint8Array([1,2])), durationMs: 1000, createdAt: serverTimestamp()});
+  const path = 'pairs/p/voiceNotes/n';
+  await assertFails(setDoc(p(alice(), path), note()));
+  await enableVoice();
+  await assertFails(setDoc(p(bob(), path), note()));
+  await assertFails(setDoc(p(alice(), path), {...note(), durationMs: 30001}));
+  await assertFails(setDoc(p(alice(), path), {...note(), audio: Bytes.fromUint8Array(new Uint8Array(150001))}));
+  await assertSucceeds(setDoc(p(alice(), path), note()));
+  await assertSucceeds(getDoc(p(bob(), path)));
+  await assertFails(getDoc(p(stranger(), path)));
+  await assertFails(updateDoc(p(alice(), path), {durationMs: 500}));
+  await assertFails(deleteDoc(p(bob(), path)));
+  await assertSucceeds(deleteDoc(p(alice(), path)));
+});
+test('prueba privada de funciones y retirada bloquean acceso de la pareja', async () => {
+  await enableVoice({voiceNotes: 'admin', walkie: 'admin'});
+  const path = 'pairs/p/voiceNotes/n';
+  await assertSucceeds(setDoc(p(alice(), path), {uid: 'alice', audio: Bytes.fromUint8Array(new Uint8Array([1])), durationMs: 1000, createdAt: serverTimestamp()}));
+  await assertFails(getDoc(p(bob(), path)));
+  await enableVoice({voiceNotes: 'all'});
+  await assertSucceeds(getDoc(p(bob(), path)));
+  await enableVoice({voiceNotes: 'off'});
+  await assertFails(getDoc(p(alice(), path)));
+  await assertSucceeds(deleteDoc(p(alice(), path)));
+});
+test('señalización solo entre miembros, con respuesta del destinatario y candidatos propios', async () => {
+  await enableVoice();
+  const path = 'pairs/p/walkieCalls/c';
+  const call = () => ({uid: 'alice', to: 'bob', offer: 'sdp', createdAt: serverTimestamp()});
+  await assertFails(setDoc(p(alice(), path), {...call(), to: 'mallory'}));
+  await assertFails(setDoc(p(bob(), path), call()));
+  await assertSucceeds(setDoc(p(alice(), path), call()));
+  await assertFails(updateDoc(p(alice(), path), {answer: 'sdp'}));
+  await assertSucceeds(updateDoc(p(bob(), path), {answer: 'sdp'}));
+  await assertFails(updateDoc(p(bob(), path), {answer: 'changed'}));
+  const candidate = {uid:'alice', candidate:'ice', mid:'0', line:0};
+  await assertFails(setDoc(p(bob(), path+'/candidates/i'), candidate));
+  await assertSucceeds(setDoc(p(alice(), path+'/candidates/i'), candidate));
+  await assertFails(getDoc(p(stranger(), path)));
+  await enableVoice({walkie:'off'});
+  await assertFails(getDoc(p(bob(), path)));
+  await assertFails(setDoc(p(alice(), path+'/candidates/j'), candidate));
+  await assertSucceeds(deleteDoc(p(bob(), path+'/candidates/i')));
+  await assertSucceeds(deleteDoc(p(bob(), path)));
+});
+
+test('APK candidato solo admin; la pareja descarga únicamente tras aprobación explícita', async () => {
+  await env.withSecurityRulesDisabled(async ctx => {
+    await setDoc(p(ctx,'releases/2.0'), {pairId:'p',ready:true,apkPath:'firestore://releases/2.0'});
+    await setDoc(p(ctx,'releases/2.0/chunks/000000'), {data:Bytes.fromUint8Array(new Uint8Array([1,2])),index:0});
+  });
+  const path='releases/2.0/chunks/000000';
+  await assertSucceeds(getDoc(p(alice(),path)));
+  await assertFails(getDoc(p(bob(),path)));
+  await assertFails(getDoc(p(stranger(),path)));
+  await assertFails(setDoc(p(alice(),path), {data:Bytes.fromUint8Array(new Uint8Array([3])),index:0}));
+  await assertFails(updateDoc(p(bob()),{relVersion:'2.0',relUrl:'firestore://releases/2.0'}));
+  await assertFails(updateDoc(p(alice()),{relVersion:'2.1',relUrl:'firestore://releases/2.1'}));
+  await assertFails(updateDoc(p(alice()),{relVersion:'2.0',relUrl:'https://wrong.example/app.apk'}));
+  await assertSucceeds(updateDoc(p(alice()),{relVersion:'2.0',relUrl:'firestore://releases/2.0'}));
+  await assertSucceeds(getDoc(p(bob(),path)));
+  await assertSucceeds(getDocs(collection(bob().firestore(),'releases/2.0/chunks')));
+  await assertSucceeds(updateDoc(p(alice()),{relVersion:'1.7',relUrl:'gs://bucket/releases/1.7/app.apk'}));
+  await assertFails(getDoc(p(bob(),path)));
+});
+test('ni el admin descarga fragmentos de una carga incompleta', async () => {
+  await env.withSecurityRulesDisabled(async ctx=>{
+    await setDoc(p(ctx,'releases/2.0'), {pairId:'p',ready:false,apkPath:'firestore://releases/2.0'});
+    await setDoc(p(ctx,'releases/2.0/chunks/000000'), {data:Bytes.fromUint8Array(new Uint8Array([1])),index:0});
+  });
+  await assertFails(getDoc(p(alice(),'releases/2.0/chunks/000000')));
+  await assertFails(updateDoc(p(alice()),{relVersion:'2.0',relUrl:'firestore://releases/2.0'}));
 });

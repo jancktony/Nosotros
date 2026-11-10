@@ -88,10 +88,6 @@ object Repo {
     suspend fun myAvatar(pairId: String): String =
         uid?.let { pair(pairId).collection("members").document(it).get().await().getString("avatar") }.orEmpty()
 
-    suspend fun automaticPartnerUpdates(pairId: String) {
-        pair(pairId).update(mapOf("relVersion" to FieldValue.delete(), "relUrl" to FieldValue.delete(), "relNotes" to FieldValue.delete())).await()
-    }
-
     suspend fun resetPassword(email: String) { auth.sendPasswordResetEmail(email).await() }
 
     /** La pareja a la que ya pertenece esta cuenta (para recuperarla tras reinstalar). */
@@ -156,11 +152,12 @@ object Repo {
         return PairInfo(
             admin = s?.getString("admin") ?: members.firstOrNull() ?: "",
             relVersion = s?.getString("relVersion"), relUrl = s?.getString("relUrl") ?: "", relNotes = s?.getString("relNotes") ?: "",
+            featureFlags = (s?.get("featureFlags") as? Map<*, *>)?.entries?.mapNotNull { (k, v) -> if (k is String && v is String) k to v else null }?.toMap().orEmpty(),
         )
     }
 
     fun pairInfoFlow(pairId: String): Flow<PairInfo> = callbackFlow {
-        val reg = pair(pairId).addSnapshotListener { s, _ -> trySend(info(s)) }
+        val reg = pair(pairId).addSnapshotListener { s, error -> if (error == null && s?.exists() == true) trySend(info(s)) }
         awaitClose { reg.remove() }
     }
 
@@ -169,6 +166,11 @@ object Repo {
     /** El administrador elige qué versión recibe la pareja. */
     suspend fun setRelease(pairId: String, version: String, url: String, notes: String) {
         pair(pairId).update(mapOf("relVersion" to version, "relUrl" to url, "relNotes" to notes)).await()
+    }
+
+    suspend fun setFeature(pairId: String, feature: Feature, mode: String) {
+        require(mode in listOf("off", "admin", "all"))
+        pair(pairId).update(com.google.firebase.firestore.FieldPath.of("featureFlags", feature.id), mode).await()
     }
 
     fun setAdmin(pairId: String, uid: String) { pair(pairId).update("admin", uid) }

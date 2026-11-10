@@ -115,8 +115,9 @@ internal object CompactWidgets {
             span == null -> "Sin fecha"
             else -> "${span.totalDays} días"
         } else distanceWidgetValue(Widgets.signedIn(), p.partnerPaused, p.partnerUpdated, p.myLat, p.myLng, p.partnerLat, p.partnerLng)
-        v.setTextViewText(R.id.w_value, value)
-        v.setTextViewText(R.id.w_detail, if (!Widgets.signedIn()) "Nosotros" else if (days) "♥" else if (p.partnerPaused) "En pausa" else if (p.partnerUpdated > 0) TimeFmt.ago(p.partnerUpdated) else "Esperando señal")
+        val enabled = p.featureEnabled(com.tony.nosotros.data.Feature.COMPACT_WIDGETS)
+        v.setTextViewText(R.id.w_value, if (enabled) value else "Desactivado")
+        v.setTextViewText(R.id.w_detail, if (!enabled || !Widgets.signedIn()) "Nosotros" else if (days) "♥" else if (p.partnerPaused) "En pausa" else if (p.partnerUpdated > 0) TimeFmt.ago(p.partnerUpdated) else "Esperando señal")
         v.setTextColor(R.id.w_value, if (days) 0xFFF9A8D4.toInt() else 0xFF5EEAD4.toInt())
         v.setOnClickPendingIntent(R.id.w_root, Widgets.openApp(ctx))
         mgr.updateAppWidget(id, v)

@@ -125,6 +125,7 @@ data class Visit(
 /** Datos compartidos de la pareja: quién administra y qué versión está liberada. */
 data class PairInfo(
     val admin: String = "", val relVersion: String? = null, val relUrl: String = "", val relNotes: String = "",
+    val featureFlags: Map<String, String> = emptyMap(),
 )
 
 data class Photo(

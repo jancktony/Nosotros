@@ -43,7 +43,8 @@ fun Avatar(initial: String, color: Color, ink: Color, size: Dp = 44.dp, dim: Boo
         Modifier.size(size).clip(CircleShape).background(if (dim) Color(0xFF4B5563) else color),
         contentAlignment = Alignment.Center,
     ) {
-        val bitmap = remember(photo) { decodeAvatar(photo) }
+        val visiblePhoto = if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.PROFILE_PHOTO)) photo else ""
+        val bitmap = remember(visiblePhoto) { decodeAvatar(visiblePhoto) }
         if (bitmap != null) Image(bitmap.asImageBitmap(), "Foto de perfil", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         else Text(initial, color = if (dim) Color(0xFFE5E7EB) else ink, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.4f).sp)
         if (dim && bitmap != null) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))

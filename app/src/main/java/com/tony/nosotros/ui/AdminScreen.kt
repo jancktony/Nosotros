@@ -64,13 +64,30 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
             Text("Administrador", style = MaterialTheme.typography.headlineMedium)
         }
 
+        Section(Ic.Sparkle, "Funciones") {
+            Text("Desactivar, probar solo en tu cuenta o liberar para ambos. Tu pareja necesita una versión compatible y conexión para recibir los cambios.", color = C.sub, fontSize = 13.sp)
+            val busy by vm.featureBusy.collectAsState()
+            com.tony.nosotros.data.Feature.entries.forEach { feature ->
+                Text(feature.title, color = C.text, fontWeight = FontWeight.Bold)
+                val mode = info.featureFlags[feature.id] ?: feature.defaultMode
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    listOf("off" to "Desactivada", "admin" to "Solo yo", "all" to "Ambos").forEach { (value, label) ->
+                        TextButton(enabled = !busy && mode != value, onClick = { vm.setFeature(feature, value) }) {
+                            Text(if (mode == value) "✓ $label" else label, color = if (mode == value) C.ok else C.me, fontSize = 12.sp)
+                        }
+                    }
+                }
+                Divider()
+            }
+            adminMessage?.let { Text(it, color = C.me, fontSize = 13.sp) }
+        }
+
         Section(Ic.Sparkle, "Versiones") {
-            Text("Puedes fijar la versión de $pName o permitir que reciba automáticamente la última. La instalación respeta sus ajustes y la confirmación de Android.",
+            Text("Tú recibes las versiones de prueba. $pName solo recibe una versión cuando pulsas Liberar. La descarga puede ser automática después de tu aprobación y Android puede pedir confirmación.",
                 color = C.sub, fontSize = 14.sp)
             Line("Tu versión", BuildConfig.VERSION_NAME)
             Line("Versión de $pName", partner?.appVersion?.ifBlank { null } ?: "desconocida")
-            Line("Liberada para $pName", info.relVersion ?: "Automático: última versión")
-            if (info.relVersion != null) ActionButton("Activar versiones automáticas para mi pareja", C.me) { vm.allowAutomaticPartnerUpdates() }
+            Line("Liberada para $pName", info.relVersion ?: "Ninguna: requiere tu aprobación")
             ActionButton("Recargar versiones", C.sub) { scope.launch { releases = null; releases = runCatching { Updater.releases() }.getOrDefault(emptyList()) } }
             adminMessage?.let { Text(it, color = C.me, fontSize = 13.sp) }
             Divider()
@@ -114,7 +131,7 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
                     "Última señal: ${partner?.updatedAt?.let { TimeFmt.ago(it) } ?: "sin datos"}\n" +
                     "Batería de la pareja: ${partner?.battery ?: -1}%\n" +
                     "Ubicación en pausa: ${partner?.paused == true}\n" +
-                    "Actualizaciones: ${info.relVersion ?: "automáticas"}"
+                    "Actualizaciones: ${info.relVersion ?: "pendiente de aprobación"}"
                 ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND)
                     .setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, report), "Compartir diagnóstico"))
             }

@@ -1,8 +1,11 @@
-name: Activar canal privado de actualizaciones
+name: Publicar candidata privada en Firestore
 on:
   workflow_dispatch:
+concurrency:
+  group: android-candidates
+  cancel-in-progress: false
 permissions:
-  contents: read
+  contents: write
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -16,7 +19,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
         run: |
           VERSION=$(sed -n 's/.*versionName = "\([^"]*\)"/\1/p' app/build.gradle.kts)
           mkdir -p app/build/outputs/apk/release

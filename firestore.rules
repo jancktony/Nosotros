@@ -49,7 +49,15 @@ service cloud.firestore {
         && data.expiresAt > request.time.toMillis()
         && data.expiresAt <= request.time.toMillis() + 86400000;
     }
-    match /releases/{version} { allow read: if personal(); }
+    match /releases/{version} {
+      allow read: if personal();
+      match /chunks/{chunk} {
+        function manifest() { return get(/databases/$(database)/documents/releases/$(version)).data; }
+        allow read: if personal() && manifest().ready == true && member(manifest().pairId)
+          && (admin(manifest().pairId) || pairData(manifest().pairId).get('relVersion', '') == version);
+        // Solo CI con la cuenta de servicio puede publicar o borrar bytes.
+      }
+    }
     match /codes/{code} {
       allow get: if personal();
       allow list: if false;
@@ -64,6 +72,15 @@ service cloud.firestore {
     match /weblinks/{code} { allow read, write: if false; }
 
     match /pairs/{id} {
+      function validRelease() {
+        let before = resource.data.get('relVersion', '');
+        let after = request.resource.data.get('relVersion', '');
+        return before == after || (after is string && after.matches('[0-9]+([.][0-9]+){1,2}')
+          && get(/databases/$(database)/documents/releases/$(after)).data.ready == true
+          && get(/databases/$(database)/documents/releases/$(after)).data.pairId == id
+          && request.resource.data.get('relUrl', '') == get(/databases/$(database)/documents/releases/$(after)).data.apkPath);
+      }
+
       allow create: if personal()
         && request.resource.data.keys().hasOnly(['members', 'admin', 'code', 'createdAt'])
         && request.resource.data.members == [request.auth.uid]
@@ -75,6 +92,9 @@ service cloud.firestore {
         // Solo el administrador gestiona miembros y versiones. webUids solo puede borrarse.
         (request.auth.uid in resource.data.members && resource.data.admin == request.auth.uid
           && changedOnly(['members', 'admin', 'code', 'replaced', 'since', 'relVersion', 'relUrl', 'relNotes', 'webUids', 'featureFlags'])
+          && validRelease()
+          && (!('relVersion' in resource.data) || ('relVersion' in request.resource.data
+            && request.resource.data.relVersion is string && request.resource.data.relVersion.size() > 0))
           && (!('webUids' in request.resource.data) || request.resource.data.webUids == resource.data.get('webUids', []))
           && resource.data.members.hasAll(request.resource.data.members)) ||
         // Ambos pueden cambiar la fecha de la relación.

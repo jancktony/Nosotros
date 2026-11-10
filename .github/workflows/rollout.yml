@@ -1,22 +1,17 @@
-name: Habilitar actualización en los dos teléfonos
+name: Fijar versión actual de la pareja (sin liberar novedades)
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  rollout:
+  freeze:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: npm }
       - run: npm ci --no-audit --no-fund
-      - name: Habilitar versión para ambas cuentas
+      - name: Retirar la entrega automática de versiones no aprobadas
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          PERSONAL_EMAILS: ${{ secrets.PERSONAL_EMAILS }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          VERSION=$(sed -n 's/.*versionName = "\([^"]*\)"/\1/p' app/build.gradle.kts)
-          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" > /dev/null
-          node security/rollout.cjs
+        run: node security/freeze-partner.cjs

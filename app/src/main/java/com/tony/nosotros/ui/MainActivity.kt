@@ -50,7 +50,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             val theme by vm.theme.collectAsState()
             LaunchedEffect(theme) { applyBars() }
-            NosotrosTheme { Root(vm) }
+            val features by vm.features.collectAsState()
+            androidx.compose.runtime.CompositionLocalProvider(LocalFeatures provides features) {
+                NosotrosTheme { Root(vm) }
+            }
         }
     }
 
@@ -82,7 +85,10 @@ private fun Root(vm: MainViewModel) {
     val ctx = LocalContext.current
     var update by remember { mutableStateOf<com.tony.nosotros.update.Updater.Release?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    LaunchedEffect(Unit) { update = runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() }
+    val automaticUpdates = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.AUTO_UPDATES)
+    LaunchedEffect(automaticUpdates) {
+        update = if (automaticUpdates) runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() else null
+    }
     update?.let { r ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { update = null }, containerColor = C.surface,
@@ -152,6 +158,8 @@ private fun MainShell(vm: MainViewModel) {
                 NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Ic.Map, null) }, label = { Text("Mapa", fontWeight = FontWeight.SemiBold) }, colors = colors)
                 NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Ic.Clock, null) }, label = { Text("Historial", fontWeight = FontWeight.SemiBold) }, colors = colors)
                 NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Ic.Pin, null) }, label = { Text("Lugares", fontWeight = FontWeight.SemiBold) }, colors = colors)
+                if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.WALKIE) || LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.VOICE_NOTES))
+                    NavigationBarItem(tab == 4, { tab = 4 }, { Text("🎙") }, label = { Text("Voz") }, colors = colors)
                 NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Ic.Heart, null) }, label = { Text("Fotos", fontWeight = FontWeight.SemiBold) }, colors = colors)
             }
         },
@@ -163,6 +171,7 @@ private fun MainShell(vm: MainViewModel) {
                     onEditPlace = { editing = it })
                 1 -> HistoryScreen(vm)
                 3 -> PhotosScreen(vm)
+                4 -> VoiceScreen(vm)
                 else -> PlacesScreen(vm, onAdd = { picking = Place() }, onEdit = { editing = it })
             }
         }
