@@ -56,6 +56,7 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
     val me by vm.me.collectAsState()
     val partner by vm.partner.collectAsState()
     val satellite by vm.satellite.collectAsState()
+    val threeD by vm.map3d.collectAsState()
     val scope = rememberCoroutineScope()
     val keyboard = LocalFocusManager.current
     val density = LocalDensity.current
@@ -93,10 +94,10 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
 
     val people = buildList {
         me?.takeIf { it.hasLocation }?.let {
-            add(MapPerson(it.uid, initialOf(it.name, "Yo"), C.me.toArgb(), C.meInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt()))
+            add(MapPerson(it.uid, initialOf(it.name, "Yo"), C.me.toArgb(), C.meInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt(), it.avatar))
         }
         partner?.takeIf { it.hasLocation }?.let {
-            add(MapPerson(it.uid, initialOf(it.name, "P"), C.partner.toArgb(), C.partnerInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt()))
+            add(MapPerson(it.uid, initialOf(it.name, "P"), C.partner.toArgb(), C.partnerInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt(), it.avatar))
         }
     }
     val r = route
@@ -108,7 +109,7 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
             routes = r?.let { listOf(MapRoute("nav", it.points, C.me.toArgb())) } ?: emptyList(),
             fitKey = fitKey,
             focus = r?.points ?: myPt?.let { listOf(it) },
-            satellite = satellite,
+            satellite = satellite, threeD = threeD,
             topInsetPx = with(density) { 150.dp.roundToPx() },
             bottomInsetPx = with(density) { (if (r != null) 300 else 0).dp.roundToPx() },
             onLongPress = { lat, lng -> dest = Routing.Hit("Punto elegido en el mapa", lat, lng); hits = null },

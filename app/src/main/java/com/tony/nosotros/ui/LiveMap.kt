@@ -27,6 +27,9 @@ import com.tony.nosotros.data.Mode
 import com.tony.nosotros.data.Place
 import com.tony.nosotros.util.Pt
 import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.style.layers.FillExtrusionLayer
+import org.maplibre.android.style.sources.VectorSource
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
@@ -62,7 +65,7 @@ private val OUR_LAYERS = setOf("route-glow", "route-line", "place-area", "place-
 
 data class MapPerson(
     val uid: String, val initial: String, val color: Int, val ink: Int,
-    val lat: Double, val lng: Double, val mode: Mode, val paused: Boolean, val speed: Int = 0,
+    val lat: Double, val lng: Double, val mode: Mode, val paused: Boolean, val speed: Int = 0, val avatar: String = "",
 ) {
     val inMotion get() = !paused && mode.moving && speed >= 3
 }
@@ -80,6 +83,7 @@ fun LiveMap(
     /** Puntos a encuadrar; null = todo lo visible. */
     focus: List<Pt>? = null,
     satellite: Boolean = false,
+    threeD: Boolean = false,
     topInsetPx: Int = 0,
     bottomInsetPx: Int = 0,
     initialCenter: Pt? = null,
@@ -170,8 +174,22 @@ fun LiveMap(
         val builder = if (satellite) Style.Builder().fromJson(SATELLITE_STYLE) else Style.Builder().fromUri(palette.mapStyle)
         m.setStyle(builder) { s ->
             if (!satellite) tintStyle(s, palette)
+            if (!satellite) setupBuildings(s, palette)
             setupLayers(s)
             style = s
+        }
+    }
+
+    LaunchedEffect(style, threeD) {
+        style?.getLayer("nosotros-buildings-3d")?.setProperties(
+            PropertyFactory.visibility(if (threeD) Property.VISIBLE else Property.NONE)
+        )
+    }
+    LaunchedEffect(map, threeD) {
+        val m = map ?: return@LaunchedEffect
+        if (kotlin.math.abs(m.cameraPosition.tilt - (if (threeD) 55.0 else 0.0)) > 1.0) {
+            m.animateCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder(m.cameraPosition)
+                .tilt(if (threeD) 55.0 else 0.0).build()), 450)
         }
     }
 
@@ -210,10 +228,13 @@ fun LiveMap(
         fitted = fitKey
         val pad = (64 * ctx.resources.displayMetrics.density).toInt()
         if (pts.size == 1 || pts.all { it.distanceTo(pts[0]) < 50 }) {
-            m.animateCamera(CameraUpdateFactory.newLatLngZoom(pts[0], 16.0), 800)
+            m.animateCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder(m.cameraPosition)
+                .target(pts[0]).zoom(16.0).tilt(if (threeD) 55.0 else 0.0).build()), 800)
         } else {
             val b = LatLngBounds.Builder().includes(pts).build()
-            m.animateCamera(CameraUpdateFactory.newLatLngBounds(b, pad, topInsetPx + pad, pad, bottomInsetPx + pad), 800)
+            val camera = m.getCameraForLatLngBounds(b, intArrayOf(pad, topInsetPx + pad, pad, bottomInsetPx + pad),
+                m.cameraPosition.bearing, if (threeD) 55.0 else 0.0)
+            if (camera != null) m.animateCamera(CameraUpdateFactory.newCameraPosition(camera), 800)
         }
     }
 }
@@ -250,6 +271,27 @@ private fun tintStyle(s: Style, p: Palette) {
             }
         }
     }
+}
+
+/** Usa la fuente vectorial del estilo; los estilos antiguos CARTO y los actuales difieren. */
+private fun setupBuildings(s: Style, palette: Palette) {
+    val footprint = s.layers.filterIsInstance<FillLayer>().firstOrNull {
+        it.id.contains("building", ignoreCase = true) && s.getSource(it.sourceId) is VectorSource
+    } ?: return
+    val sourceLayer = footprint.sourceLayer ?: return
+    val buildings = FillExtrusionLayer("nosotros-buildings-3d", footprint.sourceId).apply {
+        this.sourceLayer = sourceLayer
+        minZoom = 14f
+        setProperties(
+            PropertyFactory.fillExtrusionHeight(Expression.coalesce(Expression.get("render_height"), Expression.get("height"), Expression.literal(8))),
+            PropertyFactory.fillExtrusionBase(Expression.coalesce(Expression.get("render_min_height"), Expression.get("min_height"), Expression.literal(0))),
+            PropertyFactory.fillExtrusionColor(if (palette.dark) "#536579" else "#D6AFC2"),
+            PropertyFactory.fillExtrusionOpacity(0.85f),
+            PropertyFactory.visibility(Property.NONE),
+        )
+    }
+    val label = s.layers.firstOrNull { it is SymbolLayer }?.id
+    if (label != null) s.addLayerBelow(buildings, label) else s.addLayer(buildings)
 }
 
 private fun setupLayers(s: Style) {
@@ -329,7 +371,7 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
 
     (s.getSource("people") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(
         people.map { p ->
-            val id = "av_${pal.id}_${p.uid}_${p.mode}_${p.paused}_${p.initial}_${p.color}_${if (p.inMotion) p.speed else 0}"
+            val id = "av_${pal.id}_${p.uid}_${p.mode}_${p.paused}_${p.initial}_${p.color}_${p.avatar.hashCode()}_${if (p.inMotion) p.speed else 0}"
             if (s.getImage(id) == null) s.addImage(id, avatarBitmap(ctx, pal, p))
             Feature.fromGeometry(Point.fromLngLat(p.lng, p.lat)).apply {
                 addStringProperty("icon", id)
@@ -396,7 +438,13 @@ private fun avatarBitmap(ctx: Context, pal: Palette, p: MapPerson): Bitmap {
         paint.style = Paint.Style.FILL; paint.color = pal.text.toArgb()
         c.drawText(txt, cx, pill.centerY() - (paint.descent() + paint.ascent()) / 2, paint)
     } else {
-        letter(cx, cy, 18f, ink)
+        val photo = decodeAvatar(p.avatar)
+        if (photo == null) letter(cx, cy, 18f, ink) else {
+            c.save()
+            c.clipPath(android.graphics.Path().apply { addCircle(cx, cy, r, android.graphics.Path.Direction.CW) })
+            c.drawBitmap(photo, null, RectF(cx - r, cy - r, cx + r, cy + r), paint)
+            c.restore()
+        }
         badge(bx, by)
         icon(if (p.paused) Ic.P_PAUSE else p.mode.paths(), bx, by, 15f, if (p.paused) 0xFF6B7280.toInt() else pal.text.toArgb())
     }

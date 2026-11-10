@@ -24,6 +24,7 @@ import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
@@ -69,6 +70,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
     val visits by vm.todayVisits.collectAsState()
     val since by vm.since.collectAsState()
     val satellite by vm.satellite.collectAsState()
+    val threeD by vm.map3d.collectAsState()
     vm.tick.collectAsState().value
 
     var fitKey by remember { mutableIntStateOf(0) }
@@ -96,10 +98,10 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
 
     val people = buildList {
         me?.takeIf { it.hasLocation }?.let {
-            add(MapPerson(it.uid, initialOf(it.name, "Yo"), C.me.toArgb(), C.meInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt()))
+            add(MapPerson(it.uid, initialOf(it.name, "Yo"), C.me.toArgb(), C.meInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt(), it.avatar))
         }
         partner?.takeIf { it.hasLocation }?.let {
-            add(MapPerson(it.uid, initialOf(it.name, "P"), C.partner.toArgb(), C.partnerInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt()))
+            add(MapPerson(it.uid, initialOf(it.name, "P"), C.partner.toArgb(), C.partnerInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt(), it.avatar))
         }
     }
     val routes = buildList {
@@ -135,7 +137,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
             LiveMap(
                 modifier = Modifier.fillMaxSize(),
                 people = people, places = places, routes = routes, fitKey = fitKey, focus = focusPts,
-                satellite = satellite,
+                satellite = satellite, threeD = threeD,
                 topInsetPx = with(density) { 150.dp.roundToPx() },
                 bottomInsetPx = with(density) { 250.dp.roundToPx() },
                 onLongPress = onAddPlace,
@@ -159,6 +161,10 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
                 RoundButton(Ic.Nav, "Buscar dirección y ruta", onNavigate)
                 RoundButton(if (satellite) Ic.Map else Ic.Layers, if (satellite) "Mapa" else "Satélite") { vm.toggleSatellite() }
                 RoundButton(Ic.Locate, "Centrar") { fitKey++ }
+                TextButton(onClick = { vm.setMap3d(!threeD) }, modifier = Modifier
+                    .clip(RoundedCornerShape(18.dp)).background(C.surface)) {
+                    Text(if (threeD) "2D" else "3D", color = C.me, fontWeight = FontWeight.Bold)
+                }
             }
             if (people.isEmpty()) {
                 Text(
@@ -209,9 +215,9 @@ private fun TopBar(me: Member?, partner: Member?, distance: Double?, onSettings:
                 .border(1.dp, C.line, RoundedCornerShape(28.dp)).padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Avatar(initialOf(me?.name ?: "", "Yo"), C.me, C.meInk, 38.dp)
+            Avatar(initialOf(me?.name ?: "", "Yo"), C.me, C.meInk, 38.dp, photo = me?.avatar.orEmpty())
             Box(Modifier.offset(x = (-10).dp)) {
-                Avatar(initialOf(partner?.name ?: "", "P"), C.partner, C.partnerInk, 38.dp, dim = partner?.paused == true)
+                Avatar(initialOf(partner?.name ?: "", "P"), C.partner, C.partnerInk, 38.dp, dim = partner?.paused == true, photo = partner?.avatar.orEmpty())
             }
             Column(Modifier.weight(1f)) {
                 Text("Nosotros", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = C.text)
@@ -234,7 +240,7 @@ private fun PersonCard(m: Member, isMe: Boolean, other: Member?, onClose: () -> 
     val color = if (isMe) C.me else C.partner
     FloatingCard(onClose) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(initialOf(m.name, if (isMe) "Yo" else "P"), color, if (isMe) C.meInk else C.partnerInk, 44.dp, dim = m.paused)
+            Avatar(initialOf(m.name, if (isMe) "Yo" else "P"), color, if (isMe) C.meInk else C.partnerInk, 44.dp, dim = m.paused, photo = m.avatar)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(if (isMe) "${m.name.ifBlank { "Yo" }} (tú)" else m.name.ifBlank { "Tu pareja" }, fontWeight = FontWeight.Bold, fontSize = 17.sp)
@@ -303,7 +309,7 @@ private fun PartnerSheet(
         val name = partner?.name?.ifBlank { null } ?: "Tu pareja"
         val paused = partner?.paused == true
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(initialOf(name, "P"), C.partner, C.partnerInk, 52.dp, dim = paused)
+            Avatar(initialOf(name, "P"), C.partner, C.partnerInk, 52.dp, dim = paused, photo = partner?.avatar.orEmpty())
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(name, style = MaterialTheme.typography.titleLarge, color = C.text)

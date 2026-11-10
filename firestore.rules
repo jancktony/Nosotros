@@ -14,6 +14,9 @@ service cloud.firestore {
     function admin(id) { return member(id) && pairData(id).admin == request.auth.uid; }
     function changedOnly(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
     function own(data) { return data.uid == request.auth.uid; }
+    function validProfile(data) {
+      return (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 90000));
+    }
     function validMembers(data) {
       return data.members is list && data.members.size() >= 1 && data.members.size() <= 2
         && data.members.toSet().size() == data.members.size()
@@ -76,8 +79,8 @@ service cloud.firestore {
       );
       match /members/{uid} {
         allow read: if member(id);
-        allow create: if member(id) && uid == request.auth.uid;
-        allow update: if member(id) && (
+        allow create: if member(id) && uid == request.auth.uid && validProfile(request.resource.data);
+        allow update: if member(id) && validProfile(request.resource.data) && (
           uid == request.auth.uid ||
           (uid in pairData(id).members && changedOnly(['liveRequestedUntil'])
             && request.resource.data.liveRequestedUntil is int

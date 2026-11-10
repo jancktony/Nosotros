@@ -57,6 +57,19 @@ class Prefs(ctx: Context) {
         get() = p.getBoolean("sat", false)
         set(v) = p.edit().putBoolean("sat", v).apply()
 
+    var map3d: Boolean
+        get() = p.getBoolean("map3d", false)
+        set(v) = p.edit().putBoolean("map3d", v).apply()
+    var myAvatar: String
+        get() = p.getString("avatar", "") ?: ""
+        set(v) = p.edit().putString("avatar", v).apply()
+    var lockDetails: Boolean
+        get() = p.getBoolean("lockDetails", false)
+        set(v) = p.edit().putBoolean("lockDetails", v).apply()
+    var partnerPaused: Boolean
+        get() = p.getBoolean("partnerPaused", false)
+        set(v) = p.edit().putBoolean("partnerPaused", v).apply()
+
     // ---- Datos para los widgets (los escribe el servicio) ----
     var since: Long
         get() = p.getLong("since", 0L)
@@ -118,6 +131,22 @@ class Prefs(ctx: Context) {
         }
 
     fun clearPairing() {
-        p.edit().remove("pairId").remove("curPlace").remove("curVisit").remove("lastEventSeen").apply()
+        p.edit().remove("pairId").remove("curPlace").remove("curVisit").remove("lastEventSeen")
+            .remove("pName").remove("pLat").remove("pLng").remove("pUpd").remove("pMode").remove("pPlace")
+            .remove("mLat").remove("mLng").remove("since").remove("partnerPaused").remove("wasPaused").apply()
+    }
+
+    /** Conserva la apariencia, pero borra todos los datos personales de este teléfono. */
+    fun clearSession() {
+        val savedTheme = theme
+        val saved3d = map3d
+        val savedSatellite = mapSatellite
+        val options = mapOf("autoUpdate" to autoUpdate, "nArrive" to notifyArrive,
+            "nLeave" to notifyLeave, "nPause" to notifyPause, "extreme" to extremeSaving,
+            "lockDetails" to lockDetails)
+        val edit = p.edit().clear().putString("theme", savedTheme).putBoolean("map3d", saved3d)
+            .putBoolean("sat", savedSatellite)
+        options.forEach { (key, value) -> edit.putBoolean(key, value) }
+        edit.apply()
     }
 }

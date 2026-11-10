@@ -50,6 +50,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,6 +66,8 @@ import androidx.compose.ui.unit.sp
 import com.tony.nosotros.data.Mode
 import com.tony.nosotros.util.TimeFmt
 import com.tony.nosotros.util.Together
+import com.tony.nosotros.widget.CompactDistanceWidget
+import com.tony.nosotros.widget.DaysWidget
 import com.tony.nosotros.widget.DistanceWidget
 import com.tony.nosotros.widget.TogetherWidget
 import java.text.SimpleDateFormat
@@ -93,6 +96,11 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
     var nPause by remember { mutableStateOf(p.notifyPause) }
     var extreme by remember { mutableStateOf(p.extremeSaving) }
     var confirmUnlink by remember { mutableStateOf(false) }
+    var confirmSignOut by remember { mutableStateOf(false) }
+    var category by rememberSaveable { mutableStateOf("General") }
+    var lockDetails by remember { mutableStateOf(p.lockDetails) }
+    val threeD by vm.map3d.collectAsState()
+    val account by vm.account.collectAsState()
     var pickDate by remember { mutableStateOf(false) }
     var pickTime by remember { mutableStateOf<Long?>(null) }
     val paused = me?.paused == true
@@ -114,11 +122,11 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                 .border(1.dp, C.line, RoundedCornerShape(22.dp)).padding(18.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Avatar(initialOf(p.myName, "Yo"), C.me, C.meInk, 48.dp)
+            Avatar(initialOf(p.myName, "Yo"), C.me, C.meInk, 48.dp, photo = me?.avatar ?: p.myAvatar)
             Spacer(Modifier.width(6.dp))
             Icon(Ic.Heart, null, tint = C.partner, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(6.dp))
-            Avatar(initialOf(partner?.name ?: "", "P"), C.partner, C.partnerInk, 48.dp)
+            Avatar(initialOf(partner?.name ?: "", "P"), C.partner, C.partnerInk, 48.dp, photo = partner?.avatar.orEmpty())
             Spacer(Modifier.width(14.dp))
             Column {
                 Text("${p.myName.ifBlank { "Tú" }} y ${partner?.name?.ifBlank { null } ?: "tu pareja"}",
@@ -128,132 +136,180 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
             }
         }
 
-        // ---------- Apariencia ----------
-        Section(Ic.Palette, "Apariencia") {
-            Text("Tema", color = C.sub, fontSize = 14.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ThemeTile("Noche", Palettes.Night, theme == "night", Modifier.weight(1f)) { vm.setTheme("night") }
-                ThemeTile("Rosa", Palettes.Pink, theme == "pink", Modifier.weight(1f)) { vm.setTheme("pink") }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("General", "Perfil", "Ubicación", "Avisos", "Widgets", "Cuenta").forEach { title ->
+                Chip(title, category == title) { category = title }
             }
+            if (isAdmin) Chip("Administración", false) { onAdmin() }
+        }
+
+        // ---------- Apariencia ----------
+        if (category == "General") {
+            Section(Ic.Palette, "Apariencia") {
+                Text("Tema", color = C.sub, fontSize = 14.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ThemeTile("Noche", Palettes.Night, theme == "night", Modifier.weight(1f)) { vm.setTheme("night") }
+                    ThemeTile("Rosa", Palettes.Pink, theme == "pink", Modifier.weight(1f)) { vm.setTheme("pink") }
+                }
+            }
+        }
+
+        if (category == "General") Section(Ic.Map, "Mapa") {
+            Toggle("Vista 3D", threeD) { vm.setMap3d(it) }
+            Text("Inclina el mapa y muestra edificios donde haya datos. En satélite se inclina la imagen; no se generan edificios fotográficos.", color = C.sub, fontSize = 13.sp)
         }
 
         // ---------- Nosotros ----------
-        Section(Ic.Calendar, "Nuestro aniversario") {
-            val fmt = SimpleDateFormat("d 'de' MMMM 'de' yyyy · H:mm", Locale("es"))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(if (since > 0) fmt.format(Date(since)) else "Sin fecha", fontWeight = FontWeight.SemiBold, color = C.text)
-                    Text("La ven los dos. Se usa en el contador, los widgets y los avisos de aniversario.",
-                        color = C.sub, fontSize = 13.sp)
+        if (category == "General") {
+            Section(Ic.Calendar, "Nuestro aniversario") {
+                val fmt = SimpleDateFormat("d 'de' MMMM 'de' yyyy · H:mm", Locale("es"))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(if (since > 0) fmt.format(Date(since)) else "Sin fecha", fontWeight = FontWeight.SemiBold, color = C.text)
+                        Text("La ven los dos. Se usa en el contador, los widgets y los avisos de aniversario.",
+                            color = C.sub, fontSize = 13.sp)
+                    }
                 }
+                ActionButton(if (since > 0) "Cambiar fecha" else "Elegir fecha", C.partner) { pickDate = true }
             }
-            ActionButton(if (since > 0) "Cambiar fecha" else "Elegir fecha", C.partner) { pickDate = true }
         }
 
         // ---------- Perfil ----------
-        Section(Ic.User, "Perfil") {
-            val account by vm.account.collectAsState()
-            Text(account?.let { "Cuenta: $it" } ?: "Sin cuenta de correo: ciérrala y ábrela para crearla.", color = C.sub, fontSize = 14.sp)
-            OutlinedTextField(name, { name = it }, label = { Text("Tu nombre") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            if (name != p.myName && name.isNotBlank()) ActionButton("Guardar nombre", C.me) { vm.setName(name) }
-            Text("Tu vehículo habitual", color = C.sub, fontSize = 14.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip("Carro", vehicle == Mode.CAR, icon = Ic.Car) { vehicle = Mode.CAR; vm.setVehicle(Mode.CAR) }
-                Chip("Moto", vehicle == Mode.MOTO, icon = Ic.Moto) { vehicle = Mode.MOTO; vm.setVehicle(Mode.MOTO) }
+        if (category == "Perfil") {
+            Section(Ic.User, "Perfil") {
+                ProfilePhotoControls(vm)
+                Text(account?.let { "Cuenta: $it" } ?: "Sin cuenta de correo: ciérrala y ábrela para crearla.", color = C.sub, fontSize = 14.sp)
+                OutlinedTextField(name, { name = it }, label = { Text("Tu nombre") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (name != p.myName && name.isNotBlank()) ActionButton("Guardar nombre", C.me) { vm.setName(name) }
+                Text("Tu vehículo habitual", color = C.sub, fontSize = 14.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Chip("Carro", vehicle == Mode.CAR, icon = Ic.Car) { vehicle = Mode.CAR; vm.setVehicle(Mode.CAR) }
+                    Chip("Moto", vehicle == Mode.MOTO, icon = Ic.Moto) { vehicle = Mode.MOTO; vm.setVehicle(Mode.MOTO) }
+                }
+                Text("Se usa cuando el teléfono detecta “en vehículo”. Los buses se reconocen por sus paradas.",
+                    color = C.sub, fontSize = 13.sp)
             }
-            Text("Se usa cuando el teléfono detecta “en vehículo”. Los buses se reconocen por sus paradas.",
-                color = C.sub, fontSize = 13.sp)
         }
 
         // ---------- Compartir ----------
-        Section(Ic.Pin, "Compartir ubicación") {
-            if (paused) {
-                val until = me?.pausedUntil ?: 0
-                Text(if (until >= INDEFINITE) "En pausa hasta que la reanudes" else "En pausa hasta las ${TimeFmt.hour(until)}",
-                    fontWeight = FontWeight.SemiBold, color = C.warn)
-                ActionButton("Reanudar ahora", C.me) { vm.resume() }
-            } else {
-                Text("Compartiendo con tu pareja", fontWeight = FontWeight.SemiBold, color = C.ok)
-                Text("Pausar (tu pareja verá “en pausa” y recibirá un aviso):", color = C.sub, fontSize = 14.sp)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val now = System.currentTimeMillis()
-                    Chip("1 hora", false, icon = Ic.Pause) { vm.pause(now + 3_600_000) }
-                    Chip("4 horas", false, icon = Ic.Pause) { vm.pause(now + 4 * 3_600_000) }
-                    Chip("Hasta mañana", false, icon = Ic.Pause) { vm.pause(TimeFmt.tomorrowAt(7)) }
-                    Chip("Indefinido", false, icon = Ic.Pause) { vm.pause(INDEFINITE) }
+        if (category == "Ubicación") {
+            Section(Ic.Pin, "Compartir ubicación") {
+                if (paused) {
+                    val until = me?.pausedUntil ?: 0
+                    Text(if (until >= INDEFINITE) "En pausa hasta que la reanudes" else "En pausa hasta las ${TimeFmt.hour(until)}",
+                        fontWeight = FontWeight.SemiBold, color = C.warn)
+                    ActionButton("Reanudar ahora", C.me) { vm.resume() }
+                } else {
+                    Text("Compartiendo con tu pareja", fontWeight = FontWeight.SemiBold, color = C.ok)
+                    Text("Pausar (tu pareja verá “en pausa” y recibirá un aviso):", color = C.sub, fontSize = 14.sp)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val now = System.currentTimeMillis()
+                        Chip("1 hora", false, icon = Ic.Pause) { vm.pause(now + 3_600_000) }
+                        Chip("4 horas", false, icon = Ic.Pause) { vm.pause(now + 4 * 3_600_000) }
+                        Chip("Hasta mañana", false, icon = Ic.Pause) { vm.pause(TimeFmt.tomorrowAt(7)) }
+                        Chip("Indefinido", false, icon = Ic.Pause) { vm.pause(INDEFINITE) }
+                    }
                 }
             }
         }
 
         // ---------- Avisos ----------
-        Section(Ic.Bell, "Avisos que recibo") {
-            Toggle("Cuando llega a un lugar", nArrive) { nArrive = it; p.notifyArrive = it }
-            Divider()
-            Toggle("Cuando sale de un lugar", nLeave) { nLeave = it; p.notifyLeave = it }
-            Divider()
-            Toggle("Cuando pausa o reanuda", nPause) { nPause = it; p.notifyPause = it }
+        if (category == "Avisos") {
+            Section(Ic.Bell, "Avisos que recibo") {
+                Toggle("Cuando llega a un lugar", nArrive) { nArrive = it; p.notifyArrive = it }
+                Divider()
+                Toggle("Cuando sale de un lugar", nLeave) { nLeave = it; p.notifyLeave = it }
+                Divider()
+                Toggle("Cuando pausa o reanuda", nPause) { nPause = it; p.notifyPause = it }
+                Divider()
+                Toggle("Mostrar lugar y acción en pantalla de bloqueo", lockDetails) { lockDetails = it; p.lockDetails = it }
+                Text("Los avisos muestran llegó o salió y el lugar. Samsung también debe permitir mostrar el contenido de las notificaciones.", color = C.sub, fontSize = 13.sp)
+                ActionButton("Abrir ajustes de notificaciones", C.sub) {
+                    ctx.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName))
+                }
+            }
         }
 
         // ---------- Batería ----------
-        Section(Ic.Battery, "Batería y precisión") {
-            Toggle("Ahorro extremo con batería < 20 %", extreme) { extreme = it; p.extremeSaving = it; vm.refreshTracking() }
-            Divider()
-            val ignoring = isIgnoringBattery(ctx)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(if (ignoring) C.ok else C.warn))
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    if (ignoring) "Funciona en segundo plano sin restricciones"
-                    else "El teléfono puede cerrar la app en segundo plano",
-                    color = C.text, fontSize = 14.sp,
-                )
+        if (category == "Ubicación") {
+            Section(Ic.Battery, "Batería y precisión") {
+                Toggle("Ahorro extremo con batería < 20 %", extreme) { extreme = it; p.extremeSaving = it; vm.refreshTracking() }
+                Divider()
+                val ignoring = isIgnoringBattery(ctx)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).clip(CircleShape).background(if (ignoring) C.ok else C.warn))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        if (ignoring) "Funciona en segundo plano sin restricciones"
+                        else "El teléfono puede cerrar la app en segundo plano",
+                        color = C.text, fontSize = 14.sp,
+                    )
+                }
+                if (!ignoring) ActionButton("Quitar restricción de batería", C.me) { requestIgnoreBattery(ctx) }
+                ActionButton("Abrir ajustes de la app", C.sub) {
+                    ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")))
+                }
+                Text("En Xiaomi activa también “Inicio automático”; en Samsung pon la app en “Sin restricciones”.",
+                    color = C.sub, fontSize = 13.sp)
             }
-            if (!ignoring) ActionButton("Quitar restricción de batería", C.me) { requestIgnoreBattery(ctx) }
-            ActionButton("Abrir ajustes de la app", C.sub) {
-                ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}")))
-            }
-            Text("En Xiaomi activa también “Inicio automático”; en Samsung pon la app en “Sin restricciones”.",
-                color = C.sub, fontSize = 13.sp)
         }
 
         // ---------- Widgets ----------
-        Section(Ic.Widget, "Widgets") {
-            Text("Pon en tu pantalla de inicio (o de bloqueo, si tu teléfono lo permite) la distancia entre ustedes o el contador de tiempo juntos.",
-                color = C.sub, fontSize = 14.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActionButton("Distancia", C.me, Modifier.weight(1f)) { pinWidget(ctx, DistanceWidget::class.java) }
-                ActionButton("Juntos", C.partner, Modifier.weight(1f)) { pinWidget(ctx, TogetherWidget::class.java) }
+        if (category == "Widgets") {
+            Section(Ic.Widget, "Widgets") {
+                Text("Elige el tamaño normal o compacto para mostrar la distancia y sus días juntos.",
+                    color = C.sub, fontSize = 14.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionButton("Distancia", C.me, Modifier.weight(1f)) { pinWidget(ctx, DistanceWidget::class.java) }
+                    ActionButton("Juntos", C.partner, Modifier.weight(1f)) { pinWidget(ctx, TogetherWidget::class.java) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionButton("Distancia compacta", C.me, Modifier.weight(1f)) { pinWidget(ctx, CompactDistanceWidget::class.java) }
+                    ActionButton("Días compactos", C.partner, Modifier.weight(1f)) { pinWidget(ctx, DaysWidget::class.java) }
+                }
+                Text("Estos botones añaden widgets al inicio. Para el bloqueo en Samsung: mantén pulsada la pantalla bloqueada → Widgets. Si Nosotros no aparece, usa Good Lock → LockStar → widgets, si tu modelo lo permite. Los miniwidgets del editor de Samsung dependen de One UI y de las apps que Samsung admita.", color = C.sub, fontSize = 13.sp)
+                ActionButton("Abrir Good Lock", C.sub) {
+                    val launch = ctx.packageManager.getLaunchIntentForPackage("com.samsung.android.goodlock")
+                    runCatching { ctx.startActivity(launch ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://galaxystore.samsung.com/detail/com.samsung.android.goodlock"))) }
+                    .onFailure { android.widget.Toast.makeText(ctx, "Busca Good Lock y LockStar en Galaxy Store, si están disponibles para tu modelo.", android.widget.Toast.LENGTH_LONG).show() }
+                }
             }
-            Text("Si no aparece la opción: mantén presionado el fondo de pantalla → Widgets → Nosotros.",
-                color = C.sub, fontSize = 13.sp)
         }
 
-        Section(Ic.Sparkle, "Actualizaciones") {
-            UpdateControls(vm.pairId.value)
-            Toggle("Instalar versiones nuevas sola (con Wi-Fi)", autoUpdate) { autoUpdate = it; p.autoUpdate = it }
-            Text("Se conserva tu información. Android puede pedirte confirmar la instalación.", color = C.sub, fontSize = 13.sp)
-        }
-
-        Section(Ic.User, "Administrador") {
-            if (isAdmin) {
-                Text("Eres el administrador: liberas versiones, gestionas todos los lugares y la vinculación.", color = C.sub, fontSize = 14.sp)
-                ActionButton("Abrir panel de administrador", C.me, onClick = onAdmin)
-            } else Text("Administra: ${partner?.name?.ifBlank { null } ?: "tu pareja"}", color = C.text, fontSize = 14.sp)
+        if (category == "General") {
+            Section(Ic.Sparkle, "Actualizaciones") {
+                UpdateControls(vm.pairId.value)
+                Toggle("Instalar versiones nuevas sola (con Wi-Fi)", autoUpdate) { autoUpdate = it; p.autoUpdate = it }
+                Text("Se conserva tu información. Android puede pedirte confirmar la instalación.", color = C.sub, fontSize = 13.sp)
+            }
         }
 
         // ---------- Pareja ----------
-        Section(Ic.Link, "Vinculación") {
-            Text("Conectado con ${partner?.name?.ifBlank { null } ?: "tu pareja"}", color = C.text, fontSize = 14.sp)
-            val newCode by vm.newCode.collectAsState()
-            Text("Si tu pareja reinstaló la app o cambió de teléfono sin tener cuenta, crea un código nuevo para que vuelva a entrar.",
-                color = C.sub, fontSize = 13.sp)
-            newCode?.let { Text("Código nuevo: $it  (dura 24 h)", color = C.me, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
-            ActionButton("Crear código para mi pareja", C.warn) { vm.resetPartner() }
-            ActionButton("Desvincular", C.danger) { confirmUnlink = true }
+        if (category == "Cuenta") {
+            Section(Ic.Link, "Vinculación") {
+                Text("Conectado con ${partner?.name?.ifBlank { null } ?: "tu pareja"}", color = C.text, fontSize = 14.sp)
+                val newCode by vm.newCode.collectAsState()
+                Text("Si tu pareja reinstaló la app o cambió de teléfono sin tener cuenta, crea un código nuevo para que vuelva a entrar.",
+                    color = C.sub, fontSize = 13.sp)
+                newCode?.let { Text("Código nuevo: $it  (dura 24 h)", color = C.me, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+                if (isAdmin) ActionButton("Crear código para mi pareja", C.warn) { vm.resetPartner() }
+                else Text("Solo el administrador puede regenerar el código de vinculación.", color = C.sub, fontSize = 13.sp)
+                ActionButton("Desvincular", C.danger) { confirmUnlink = true }
+            }
         }
 
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) {
             Text("Nosotros v${com.tony.nosotros.BuildConfig.VERSION_NAME} · hecho con ♥", color = C.sub, fontSize = 13.sp)
+        }
+        Section(Ic.User, "Cuenta") {
+            Text(account ?: "Cuenta personal", color = C.sub, fontSize = 14.sp)
+            if (category == "Cuenta") {
+                val authMessage by vm.authError.collectAsState()
+                ActionButton("Cambiar mi contraseña", C.me) { account?.let { vm.forgot(it) } }
+                authMessage?.let { Text(it, color = C.sub, fontSize = 13.sp) }
+            }
+            Text("Cerrar sesión detiene la ubicación en este teléfono. Tu pareja y el historial se conservan para cuando vuelvas a entrar.", color = C.sub, fontSize = 13.sp)
+            ActionButton("Cerrar sesión", C.danger, Modifier.fillMaxWidth()) { confirmSignOut = true }
         }
         Spacer(Modifier.height(30.dp))
     }
@@ -295,6 +351,14 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
         )
     }
 
+    if (confirmSignOut) AlertDialog(
+        onDismissRequest = { confirmSignOut = false }, containerColor = C.surface,
+        title = { Text("¿Cerrar sesión?") },
+        text = { Text("Se detendrá la ubicación, se cerrará tu sesión y se limpiarán los widgets. Tu cuenta, pareja e historial seguirán guardados.") },
+        confirmButton = { TextButton(onClick = { confirmSignOut = false; vm.signOut() }) { Text("Cerrar sesión", color = C.danger) } },
+        dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Cancelar", color = C.sub) } },
+    )
+
     if (confirmUnlink) AlertDialog(
         onDismissRequest = { confirmUnlink = false },
         containerColor = C.surface,
@@ -323,6 +387,7 @@ private fun fromUtcDay(utc: Long, hour: Int, minute: Int): Long {
 private fun pinWidget(ctx: Context, cls: Class<*>) {
     val mgr = AppWidgetManager.getInstance(ctx)
     if (mgr.isRequestPinAppWidgetSupported) mgr.requestPinAppWidget(ComponentName(ctx, cls), null, null)
+    else android.widget.Toast.makeText(ctx, "Mantén pulsado el inicio → Widgets → Nosotros", android.widget.Toast.LENGTH_LONG).show()
 }
 
 @Composable

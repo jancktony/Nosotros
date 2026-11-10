@@ -2,4 +2,6 @@
     <string name="app_name">Nosotros</string>
     <string name="w_distance">Distancia con tu pareja</string>
     <string name="w_together">Tiempo juntos</string>
+    <string name="w_distance_compact">Distancia compacta para inicio o bloqueo compatible</string>
+    <string name="w_days_compact">Días juntos en formato pequeño</string>
 </resources>

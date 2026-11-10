@@ -77,6 +77,21 @@ object Repo {
         return verifiedUser(auth.signInWithEmailAndPassword(email, pass).await().user!!)
     }
 
+    fun signOut() { auth.signOut() }
+
+    suspend fun saveAvatar(pairId: String, avatar: String) {
+        require(avatar.length <= 90_000) { "La foto es demasiado grande" }
+        val me = ensureSignedIn()
+        pair(pairId).collection("members").document(me).set(mapOf("avatar" to avatar), SetOptions.merge()).await()
+    }
+
+    suspend fun myAvatar(pairId: String): String =
+        uid?.let { pair(pairId).collection("members").document(it).get().await().getString("avatar") }.orEmpty()
+
+    suspend fun automaticPartnerUpdates(pairId: String) {
+        pair(pairId).update(mapOf("relVersion" to FieldValue.delete(), "relUrl" to FieldValue.delete(), "relNotes" to FieldValue.delete())).await()
+    }
+
     suspend fun resetPassword(email: String) { auth.sendPasswordResetEmail(email).await() }
 
     /** La pareja a la que ya pertenece esta cuenta (para recuperarla tras reinstalar). */
@@ -152,8 +167,8 @@ object Repo {
     suspend fun pairInfo(pairId: String): PairInfo = info(pair(pairId).get().await())
 
     /** El administrador elige qué versión recibe la pareja. */
-    fun setRelease(pairId: String, version: String, url: String, notes: String) {
-        pair(pairId).update(mapOf("relVersion" to version, "relUrl" to url, "relNotes" to notes))
+    suspend fun setRelease(pairId: String, version: String, url: String, notes: String) {
+        pair(pairId).update(mapOf("relVersion" to version, "relUrl" to url, "relNotes" to notes)).await()
     }
 
     fun setAdmin(pairId: String, uid: String) { pair(pairId).update("admin", uid) }
@@ -221,9 +236,9 @@ object Repo {
         pair(pairId).collection("members").document(me).set(fields, SetOptions.merge())
     }
 
-    fun requestLive(pairId: String, partnerUid: String, minutes: Int = 5) {
+    suspend fun requestLive(pairId: String, partnerUid: String, minutes: Int = 5) {
         pair(pairId).collection("members").document(partnerUid)
-            .set(mapOf("liveRequestedUntil" to System.currentTimeMillis() + minutes * 60_000L), SetOptions.merge())
+            .set(mapOf("liveRequestedUntil" to System.currentTimeMillis() + minutes * 60_000L), SetOptions.merge()).await()
     }
 
     fun memberFlow(pairId: String, memberUid: String): Flow<Member?> = callbackFlow {

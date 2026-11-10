@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.tony.nosotros.BuildConfig
 import com.tony.nosotros.update.Updater
 import com.tony.nosotros.util.TimeFmt
@@ -35,6 +36,17 @@ import com.tony.nosotros.util.TimeFmt
 /** Panel del administrador: versiones, estado del otro teléfono y vinculación. */
 @Composable
 fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
+    val allowed by vm.isAdmin.collectAsState()
+    if (!allowed) {
+        Column(Modifier.fillMaxSize().padding(24.dp)) {
+            Text("Solo el administrador puede abrir este panel.", color = C.sub)
+            TextButton(onClick = onBack) { Text("Volver", color = C.me) }
+        }
+        return
+    }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val adminMessage by vm.adminMessage.collectAsState()
     val partner by vm.partner.collectAsState()
     val info by vm.pairInfo.collectAsState()
     val newCode by vm.newCode.collectAsState()
@@ -53,11 +65,14 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
         }
 
         Section(Ic.Sparkle, "Versiones") {
-            Text("Cada versión nueva se sube sola aquí. Tú la recibes primero para probarla; $pName solo recibe la que tú liberes.",
+            Text("Puedes fijar la versión de $pName o permitir que reciba automáticamente la última. La instalación respeta sus ajustes y la confirmación de Android.",
                 color = C.sub, fontSize = 14.sp)
             Line("Tu versión", BuildConfig.VERSION_NAME)
             Line("Versión de $pName", partner?.appVersion?.ifBlank { null } ?: "desconocida")
-            Line("Liberada para $pName", info.relVersion ?: "la última (sin control)")
+            Line("Liberada para $pName", info.relVersion ?: "Automático: última versión")
+            if (info.relVersion != null) ActionButton("Activar versiones automáticas para mi pareja", C.me) { vm.allowAutomaticPartnerUpdates() }
+            ActionButton("Recargar versiones", C.sub) { scope.launch { releases = null; releases = runCatching { Updater.releases() }.getOrDefault(emptyList()) } }
+            adminMessage?.let { Text(it, color = C.me, fontSize = 13.sp) }
             Divider()
             when {
                 releases == null -> Text("Cargando versiones…", color = C.sub, fontSize = 14.sp)
@@ -85,6 +100,23 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
                 Line("Precisión", if (p.acc > 0) "±${p.acc.toInt()} m" else "—")
                 Line("Ahorro extremo", if (p.saving) "activo" else "no")
                 Line("Ubicación", if (p.paused) "en pausa" else "compartiendo")
+            }
+        }
+
+        Section(Ic.Locate, "Herramientas del administrador") {
+            ActionButton("Solicitar ubicación reciente", C.me) {
+                vm.requestLive()
+            }
+            Text("No cambia los permisos ni activa la ubicación si tu pareja la pausó.", color = C.sub, fontSize = 13.sp)
+            ActionButton("Compartir diagnóstico", C.sub) {
+                val report = "Nosotros ${BuildConfig.VERSION_NAME}\n" +
+                    "Versión de la pareja: ${partner?.appVersion ?: "sin datos"}\n" +
+                    "Última señal: ${partner?.updatedAt?.let { TimeFmt.ago(it) } ?: "sin datos"}\n" +
+                    "Batería de la pareja: ${partner?.battery ?: -1}%\n" +
+                    "Ubicación en pausa: ${partner?.paused == true}\n" +
+                    "Actualizaciones: ${info.relVersion ?: "automáticas"}"
+                ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND)
+                    .setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, report), "Compartir diagnóstico"))
             }
         }
 

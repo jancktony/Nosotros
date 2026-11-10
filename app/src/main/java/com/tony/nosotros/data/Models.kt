@@ -33,6 +33,7 @@ data class Member(
     val placeName: String? = null,
     val saving: Boolean = false,
     val appVersion: String = "",
+    val avatar: String = "",
 ) {
     val hasLocation get() = updatedAt > 0 && (lat != 0.0 || lng != 0.0)
     val paused get() = pausedUntil > System.currentTimeMillis()
@@ -55,6 +56,7 @@ data class Member(
             placeName = d.getString("placeName"),
             saving = d.getBoolean("saving") ?: false,
             appVersion = d.getString("appVersion") ?: "",
+            avatar = d.getString("avatar") ?: "",
         )
     }
 }

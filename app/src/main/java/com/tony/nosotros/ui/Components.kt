@@ -1,5 +1,10 @@
 package com.tony.nosotros.ui
 
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,12 +38,15 @@ import com.tony.nosotros.data.Visit
 import com.tony.nosotros.util.TimeFmt
 
 @Composable
-fun Avatar(initial: String, color: Color, ink: Color, size: Dp = 44.dp, dim: Boolean = false) {
+fun Avatar(initial: String, color: Color, ink: Color, size: Dp = 44.dp, dim: Boolean = false, photo: String = "") {
     Box(
         Modifier.size(size).clip(CircleShape).background(if (dim) Color(0xFF4B5563) else color),
         contentAlignment = Alignment.Center,
     ) {
-        Text(initial, color = if (dim) Color(0xFFE5E7EB) else ink, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.4f).sp)
+        val bitmap = remember(photo) { decodeAvatar(photo) }
+        if (bitmap != null) Image(bitmap.asImageBitmap(), "Foto de perfil", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        else Text(initial, color = if (dim) Color(0xFFE5E7EB) else ink, fontWeight = FontWeight.Bold, fontSize = (size.value * 0.4f).sp)
+        if (dim && bitmap != null) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
     }
 }
 
