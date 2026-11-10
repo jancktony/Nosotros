@@ -1,26 +1,17 @@
-name: Activar canal privado de actualizaciones
+name: Configurar correos y reglas de Firebase
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  publish:
+  configure:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '22', cache: npm }
       - run: npm ci --no-audit --no-fund
-      - name: Publicar el APK firmado existente sin recompilarlo
+      - name: Configurar proyecto autorizado sin mostrar credenciales
         env:
-          GH_TOKEN: ${{ github.token }}
-          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
-        run: |
-          VERSION=$(sed -n 's/.*versionName = "\([^"]*\)"/\1/p' app/build.gradle.kts)
-          mkdir -p app/build/outputs/apk/release
-          gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "Nosotros-v$VERSION.apk" --dir "$RUNNER_TEMP/private-update"
-          cp "$RUNNER_TEMP/private-update/Nosotros-v$VERSION.apk" app/build/outputs/apk/release/app-release.apk
-          printf '%s' "$GS" > app/google-services.json
-          node security/publish-update.cjs
+        run: node security/configure-firebase.cjs
