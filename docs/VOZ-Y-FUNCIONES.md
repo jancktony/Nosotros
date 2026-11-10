@@ -75,7 +75,7 @@ Los ajustes personales de silencio, permisos y pausa siguen teniendo prioridad.
    límite 30 s, reproducción/borrado, desconectar, bloquear, cambiar pestaña, salir
    de la app, cerrar sesión y retirada de funciones durante el uso. Probar entre
    Wi-Fi y datos; verificar comportamiento cuando STUN no logra conexión.
-4. Versión puente 1.9.1, código 12: el propietario la prueba primero y decide cuándo instalarla en el otro teléfono. La voz sigue
+4. Versión puente 1.9.1, código 12: el propietario la recibe dentro de la app, prueba primero y decide cuándo liberarla para el otro teléfono. La voz sigue
    apagada por defecto para que el administrador decida cuándo probarla y liberarla.
    El audio no se ha validado todavía en los Samsung físicos.
 5. Activar notas «Solo yo» para probar y luego «Ambos». El directo requiere
