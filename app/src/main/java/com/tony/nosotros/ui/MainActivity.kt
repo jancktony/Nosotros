@@ -82,7 +82,7 @@ private fun Root(vm: MainViewModel) {
     val ctx = LocalContext.current
     var update by remember { mutableStateOf<com.tony.nosotros.update.Updater.Release?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    LaunchedEffect(Unit) { update = com.tony.nosotros.update.Updater.target(vm.pairId.value) }
+    LaunchedEffect(Unit) { update = runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() }
     update?.let { r ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { update = null }, containerColor = C.surface,

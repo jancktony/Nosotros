@@ -10,3 +10,7 @@ app/*.keystore
 KEYSTORE_B64.txt
 web/config.js
 .vercel
+
+node_modules/
+*-debug.log
+*.service-account.json

@@ -17,7 +17,7 @@ App Android para compartir ubicación en pareja.
 
 ## Firebase
 
-- Authentication → método **Anónimo** activado
+- Authentication → **Correo y contraseña**, solo las dos cuentas autorizadas con correo verificado.
 - Firestore Database creada, con las reglas de `firestore.rules`
 - App Android registrada con el paquete `com.tony.nosotros`
 
@@ -28,3 +28,7 @@ App Android para compartir ubicación en pareja.
 - `tracking/PlaceEngine.kt` — llegadas, salidas y sugerencias de lugares
 - `data/Repo.kt` — acceso a Firestore
 - `ui/` — pantallas (Compose)
+
+## Seguridad y actualizaciones
+
+Ver [SEGURIDAD.md](SEGURIDAD.md) para activar el acceso personal, las reglas y la distribución privada sin interrumpir las actualizaciones.

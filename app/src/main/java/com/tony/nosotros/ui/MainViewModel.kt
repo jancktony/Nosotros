@@ -68,15 +68,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         runCatching { Repo.resetPartner(p, partnerUid.value) }.onSuccess { newCode.value = it }
     }
 
-    val webMsg = MutableStateFlow<String?>(null)
-    fun linkWeb(code: String) = viewModelScope.launch {
-        val p = pairId.value ?: return@launch
-        runCatching { Repo.linkWeb(p, code) }
-            .onSuccess { webMsg.value = "Listo, el panel web ya tiene acceso." }
-            .onFailure { webMsg.value = "No se pudo: revisa el código (y que las reglas de Firebase estén actualizadas)." }
-    }
-    fun unlinkWeb() { pairId.value?.let { Repo.unlinkWeb(it) }; webMsg.value = "Se cerró el acceso de todos los navegadores." }
-
     val photos: StateFlow<List<com.tony.nosotros.data.Photo>> = StateFlowOf(
         pairId.flatMapLatest { it?.let { Repo.photosFlow(it) } ?: flowOf(emptyList()) }, emptyList()
     )
@@ -127,13 +118,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         if (App.firebaseConfigured) viewModelScope.launch {
-            Repo.uid?.let { uid.value = it; runCatching { restore() } }
+            if (Repo.authorizedSession) Repo.uid?.let { uid.value = it; runCatching { restore() } }
         }
     }
 
     // ---------- Cuenta ----------
     val account = MutableStateFlow(if (App.firebaseConfigured) Repo.email else null)
-    val hasSession = MutableStateFlow(App.firebaseConfigured && Repo.uid != null)
+    val hasSession = MutableStateFlow(App.firebaseConfigured && Repo.authorizedSession)
     val authSkipped = MutableStateFlow(false)
     val authBusy = MutableStateFlow(false)
     val authError = MutableStateFlow<String?>(null)
@@ -153,6 +144,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun authMessage(e: Throwable): String = when {
+        e is IllegalStateException || e is IllegalArgumentException -> e.message ?: "Acceso privado."
         e is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "Ese correo ya tiene cuenta. Usa “iniciar sesión”."
         e is com.google.firebase.auth.FirebaseAuthWeakPasswordException -> "La contraseña debe tener al menos 6 caracteres."
         e is com.google.firebase.auth.FirebaseAuthInvalidUserException -> "No hay ninguna cuenta con ese correo."
@@ -194,7 +186,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun unlink() = viewModelScope.launch {
-        pairId.value?.let { Repo.unlink(it) }
+        val result = runCatching { pairId.value?.let { Repo.unlink(it) } }
+        if (result.isFailure) {
+            error.value = "No se pudo desvincular. Si eres administrador, cede primero la administración."
+            return@launch
+        }
         TrackingService.stop(getApplication())
         prefs.clearPairing(); prefs.onboarded = false; onboarded.value = false
         pairId.value = null; createdCode.value = null

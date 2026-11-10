@@ -1,0 +1,13 @@
+{
+  "name": "nosotros-security-tests",
+  "private": true,
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore,storage --project demo-nosotros 'node --test security/*.test.cjs'"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "4.0.1",
+    "firebase": "11.10.0",
+    "firebase-tools": "14.26.0",
+    "firebase-admin": "13.6.0"
+  }
+}

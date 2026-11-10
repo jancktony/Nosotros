@@ -229,8 +229,9 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
         }
 
         Section(Ic.Sparkle, "Actualizaciones") {
+            UpdateControls(vm.pairId.value)
             Toggle("Instalar versiones nuevas sola (con Wi-Fi)", autoUpdate) { autoUpdate = it; p.autoUpdate = it }
-            Text("Se instalan encima de la app, sin borrar nada ni volver a vincular.", color = C.sub, fontSize = 13.sp)
+            Text("Se conserva tu información. Android puede pedirte confirmar la instalación.", color = C.sub, fontSize = 13.sp)
         }
 
         Section(Ic.User, "Administrador") {
