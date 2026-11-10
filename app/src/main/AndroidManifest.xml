@@ -52,6 +52,14 @@
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_together" />
         </receiver>
+        <receiver android:name=".widget.CompactDistanceWidget" android:exported="false" android:label="Distancia · compacto">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_distance_compact" />
+        </receiver>
+        <receiver android:name=".widget.DaysWidget" android:exported="false" android:label="Días juntos · compacto">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_days_compact" />
+        </receiver>
         <receiver android:name=".update.UpdateReceiver" android:exported="false">
             <intent-filter><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter>
         </receiver>

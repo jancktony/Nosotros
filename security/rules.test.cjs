@@ -87,3 +87,12 @@ test('Storage: APK privado para cuentas verificadas; nadie publica desde el clie
   await assertFails(getBytes(ref(env.unauthenticatedContext().storage(), path)));
   await assertFails(uploadBytes(ref(alice().storage(), path), new Uint8Array([4])));
 });
+test('foto de perfil solo propia y tamaño limitado; política de versiones solo admin', async () => {
+  await assertSucceeds(updateDoc(p(bob(), 'pairs/p/members/bob'), { avatar: 'miniatura' }));
+  await assertFails(updateDoc(p(alice(), 'pairs/p/members/bob'), { avatar: 'suplantada' }));
+  await assertFails(updateDoc(p(bob(), 'pairs/p/members/bob'), { avatar: 'a'.repeat(90001) }));
+  const { deleteField } = require('firebase/firestore');
+  await env.withSecurityRulesDisabled(ctx => updateDoc(p(ctx), { relVersion: '1.7', relUrl: 'gs://bucket/old', relNotes: 'vieja' }));
+  await assertFails(updateDoc(p(bob()), { relVersion: deleteField(), relUrl: deleteField(), relNotes: deleteField() }));
+  await assertSucceeds(updateDoc(p(alice()), { relVersion: deleteField(), relUrl: deleteField(), relNotes: deleteField() }));
+});

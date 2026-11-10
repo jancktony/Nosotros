@@ -1,8 +1,6 @@
 name: Validar seguridad y Android
 on:
   pull_request:
-  push:
-    branches: [security/personal-only]
 permissions:
   contents: read
 jobs:

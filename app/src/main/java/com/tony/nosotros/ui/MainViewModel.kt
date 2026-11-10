@@ -61,11 +61,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     )
     val isAdmin: StateFlow<Boolean> = StateFlowOf(combine(pairInfo, uid) { i, u -> u != null && i.admin == u }, false)
     val newCode = MutableStateFlow<String?>(null)
-    fun release(r: com.tony.nosotros.update.Updater.Release) { pairId.value?.let { Repo.setRelease(it, r.version, r.apkUrl, r.notes) } }
+    fun release(r: com.tony.nosotros.update.Updater.Release) = viewModelScope.launch {
+        val id = pairId.value ?: return@launch
+        if (!isAdmin.value) return@launch
+        runCatching { Repo.setRelease(id, r.version, r.apkUrl, r.notes) }
+            .onSuccess { adminMessage.value = "Versión ${r.version} habilitada para tu pareja." }
+            .onFailure { adminMessage.value = "No se pudo liberar la versión. Revisa la conexión." }
+    }
     fun giveAdmin() { val p = pairId.value ?: return; partnerUid.value?.let { Repo.setAdmin(p, it) } }
     fun resetPartner() = viewModelScope.launch {
         val p = pairId.value ?: return@launch
+        if (!isAdmin.value) return@launch
         runCatching { Repo.resetPartner(p, partnerUid.value) }.onSuccess { newCode.value = it }
+            .onFailure { error.value = "No se pudo regenerar el código." }
     }
 
     val photos: StateFlow<List<com.tony.nosotros.data.Photo>> = StateFlowOf(
@@ -91,6 +99,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val theme = MutableStateFlow(prefs.theme)
     fun setTheme(id: String) { prefs.theme = id; theme.value = id; C.p = Palettes.of(id); Widgets.updateAll(getApplication()) }
 
+    val map3d = MutableStateFlow(prefs.map3d)
+    fun setMap3d(value: Boolean) { prefs.map3d = value; map3d.value = value }
     val satellite = MutableStateFlow(prefs.mapSatellite)
     fun toggleSatellite() { val v = !satellite.value; prefs.mapSatellite = v; satellite.value = v }
 
@@ -158,7 +168,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun restore() {
         if (prefs.pairId == null) Repo.findMyPair()?.let { id ->
             Repo.myName(id)?.takeIf { it.isNotBlank() }?.let { prefs.myName = it }
+            prefs.myAvatar = Repo.myAvatar(id)
             prefs.pairId = id; pairId.value = id
+            prefs.onboarded = true; onboarded.value = true
+            TrackingService.start(getApplication())
         }
         pushProfile()
     }
@@ -196,6 +209,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         pairId.value = null; createdCode.value = null
     }
 
+    fun signOut() {
+        TrackingService.stop(getApplication())
+        Repo.signOut()
+        pairId.value = null; uid.value = null; onboarded.value = false
+        prefs.clearSession()
+        profileBusy.value = false; profileMessage.value = null; adminMessage.value = null
+        account.value = null; hasSession.value = false; authSkipped.value = false
+        createdCode.value = null; newCode.value = null; error.value = null; authError.value = null
+        historyDay.value = 0
+        getApplication<Application>().getSystemService(android.app.NotificationManager::class.java).cancelAll()
+        Widgets.updateAll(getApplication())
+    }
+
+    val profileBusy = MutableStateFlow(false)
+    val profileMessage = MutableStateFlow<String?>(null)
+    fun setAvatar(encoded: String) = viewModelScope.launch {
+        val id = pairId.value ?: return@launch
+        val session = uid.value
+        profileBusy.value = true; profileMessage.value = null
+        runCatching { Repo.saveAvatar(id, encoded) }
+            .onSuccess { if (uid.value != session) return@onSuccess; prefs.myAvatar = encoded; profileMessage.value = if (encoded.isEmpty()) "Foto eliminada." else "Foto de perfil guardada." }
+            .onFailure { profileMessage.value = "No se pudo guardar la foto. Revisa la conexión e inténtalo de nuevo." }
+        profileBusy.value = false
+    }
+
+    val adminMessage = MutableStateFlow<String?>(null)
+    fun allowAutomaticPartnerUpdates() = viewModelScope.launch {
+        if (!isAdmin.value) return@launch
+        val id = pairId.value ?: return@launch
+        runCatching { Repo.automaticPartnerUpdates(id) }
+            .onSuccess { adminMessage.value = "Tu pareja recibirá las versiones nuevas automáticamente si tiene activada la opción en su teléfono." }
+            .onFailure { adminMessage.value = "No se pudo cambiar la política de versiones." }
+    }
+
     // ---------- Perfil ----------
     fun setName(name: String) { prefs.myName = name.trim(); pushProfile() }
     fun setVehicle(m: Mode) { prefs.vehicle = m }
@@ -206,10 +253,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---------- Acciones ----------
-    fun requestLive() {
-        val p = pairId.value ?: return
-        val u = partnerUid.value ?: return
-        Repo.requestLive(p, u)
+    fun requestLive() = viewModelScope.launch {
+        val p = pairId.value ?: return@launch
+        val u = partnerUid.value ?: return@launch
+        runCatching { Repo.requestLive(p, u) }
+            .onSuccess { adminMessage.value = "Solicitud enviada. Se respeta la pausa de ubicación de tu pareja." }
+            .onFailure { error.value = "No se pudo solicitar la ubicación. Revisa tu conexión." }
     }
 
     fun pause(until: Long) {

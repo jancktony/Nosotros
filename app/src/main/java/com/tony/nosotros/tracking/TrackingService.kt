@@ -438,6 +438,7 @@ class TrackingService : Service() {
                         if (m.hasLocation && !m.paused) {
                             prefs.partnerLat = m.lat; prefs.partnerLng = m.lng
                         }
+                        prefs.partnerPaused = m.paused
                         prefs.partnerUpdated = m.updatedAt
                         prefs.partnerMode = if (m.paused) "" else m.mode.name
                         prefs.partnerPlace = m.placeName
@@ -514,25 +515,22 @@ class TrackingService : Service() {
     }
 
     private fun notifyPartnerEvent(e: EventItem) {
-        val text = when (e.type) {
-            "arrive" -> if (prefs.notifyArrive) "$partnerName llegó a ${e.placeName}" else null
-            "leave" -> if (prefs.notifyLeave) "$partnerName salió de ${e.placeName}" else null
-            "pause" -> if (prefs.notifyPause) {
-                if (e.until > 4_000_000_000_000L || e.until == 0L) "$partnerName pausó su ubicación"
-                else "$partnerName pausó su ubicación hasta las ${TimeFmt.hour(e.until)}"
-            } else null
-            "resume" -> if (prefs.notifyPause) "$partnerName volvió a compartir su ubicación" else null
-            "photo" -> "$partnerName te mandó una foto" + (e.placeName?.let { ": $it" } ?: "")
-            else -> null
-        } ?: return
-        postEvent(e, text, TimeFmt.hour(e.at))
+        val enabled = when (e.type) {
+            "arrive" -> prefs.notifyArrive
+            "leave" -> prefs.notifyLeave
+            "pause", "resume" -> prefs.notifyPause
+            else -> true
+        }
+        if (!enabled) return
+        val notice = com.tony.nosotros.util.eventNotice(e.type, partnerName, e.placeName, e.at, e.until) ?: return
+        postEvent(e, notice.title, notice.detail)
         // Al salir de un lugar: a dónde va probablemente y a qué hora llega
         if (e.type == "leave") scope.launch {
             val all = engine.allPlaces.filter { !it.suggested && it.name.isNotBlank() }
             val from = all.firstOrNull { it.name == e.placeName } ?: return@launch
             val dest = com.tony.nosotros.util.Eta.fallback(all.filter { it.id != from.id }, e.uid) ?: return@launch
             val r = com.tony.nosotros.util.Eta.compute(com.tony.nosotros.util.Pt(from.lat, from.lng), dest, Mode.VEHICLE) ?: return@launch
-            postEvent(e, text, "Salió a las ${TimeFmt.hour(e.at)}. Si va a ${dest.name}, llega aprox. a las " +
+            postEvent(e, notice.title, notice.detail + ". Si va a ${dest.name}, llega aprox. a las " +
                 "${TimeFmt.hour(e.at + (r.seconds * 1000).toLong())} (${com.tony.nosotros.util.Eta.mins(r.seconds)} en vehículo)")
         }
     }
@@ -542,8 +540,11 @@ class TrackingService : Service() {
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(title)
             .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setWhen(e.at)
+            .setShowWhen(true)
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setStyle(NotificationCompat.BigTextStyle().bigText("$title\n$text"))
+            .setVisibility(if (prefs.lockDetails) NotificationCompat.VISIBILITY_PUBLIC else NotificationCompat.VISIBILITY_PRIVATE)
             .setOnlyAlertOnce(true)
             .setColor(0xFFF9A8D4.toInt())
             .setAutoCancel(true)
