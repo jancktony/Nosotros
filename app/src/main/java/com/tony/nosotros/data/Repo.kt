@@ -27,7 +27,7 @@ import java.util.Locale
  */
 object Repo {
     val db: FirebaseFirestore get() = FirebaseFirestore.getInstance()
-    private val auth: FirebaseAuth get() = FirebaseAuth.getInstance()
+    private val auth: FirebaseAuth get() = FirebaseAuth.getInstance().apply { setLanguageCode("es") }
 
     val uid: String? get() = auth.currentUser?.uid
 
