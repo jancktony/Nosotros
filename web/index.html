@@ -31,8 +31,8 @@ button.bad{color:var(--bad)}button:hover{border-color:currentColor}
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, orderBy, limit, arrayRemove }
+import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, orderBy, limit, where, getDocs }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const REPO = "jancktony/Nosotros";
@@ -46,34 +46,49 @@ const km = (a, b) => { const R = 6371, r = x => x * Math.PI / 180, dLa = r(b.lat
 
 const fb = initializeApp(window.FB);
 const db = getFirestore(fb);
-const uid = (await signInAnonymously(getAuth(fb))).user.uid;
+const auth = getAuth(fb);
+let uid = null;
 const S = { pair: null, members: [], places: [], photos: [], releases: null };
-let pairId = localStorage.getItem("pairId"), map, markers = {}, unsub = [];
+let pairId = null, map, markers = {}, unsub = [];
 
 function linkScreen() {
-  unsub.forEach(u => u()); unsub = []; localStorage.removeItem("pairId"); pairId = null;
-  const code = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
-  app.innerHTML = `<div class="center"><div class="card" style="max-width:420px">
-    <h1>Nosotros · Admin</h1><p class="sub">Este panel es privado. Para entrar, abre la app en tu teléfono:<br>
-    <b>Ajustes → Administrador → Panel web</b> y escribe este código:</p>
-    <p class="code">${code}</p><p class="sub">Esperando a que lo confirmes en tu teléfono…</p></div></div>`;
-  const ref = doc(db, "weblinks", code);
-  setDoc(ref, { uid, at: Date.now() }).catch(() => app.querySelector(".sub:last-child").textContent =
-    "No se pudo crear el código. Falta actualizar las reglas de Firebase.");
-  const stop = onSnapshot(ref, s => { const p = s.data()?.pairId; if (p) { stop(); localStorage.setItem("pairId", p); pairId = p; start(); } }, () => {});
+  unsub.forEach(u => u()); unsub = []; map?.remove(); map = null;
+  pairId = null; S.pair = null; S.members = []; S.places = []; S.photos = [];
+  localStorage.removeItem("pairId");
+  app.innerHTML = `<div class="center"><form id="login" class="card">
+    <h1>Nosotros · Privado</h1><p>Entra con tu correo autorizado y verificado.</p>
+    <p><input name="email" type="email" placeholder="Correo" autocomplete="username" required></p>
+    <p><input name="password" type="password" placeholder="Contraseña" autocomplete="current-password" required></p>
+    <button>Entrar</button><p id="error" role="alert"></p></form></div>`;
+  app.querySelector('#login').addEventListener('submit', async e => {
+    e.preventDefault(); const form = e.currentTarget; form.querySelector('button').disabled = true;
+    try {
+      const user = (await signInWithEmailAndPassword(auth, form.email.value.trim(), form.password.value)).user;
+      if (!user.emailVerified) throw new Error('Verifica tu correo desde la app antes de entrar.');
+      uid = user.uid;
+      const pairs = await getDocs(query(collection(db, 'pairs'), where('members', 'array-contains', uid), limit(1)));
+      if (pairs.empty) throw new Error('No hay una pareja autorizada para esta cuenta.');
+      const pair = pairs.docs[0];
+      if (pair.data().admin !== uid) throw new Error('El panel de administración solo está disponible para el administrador.');
+      pairId = pair.id; form.reset(); start();
+    } catch (err) {
+      await signOut(auth); form.querySelector('#error').textContent = err.message;
+      form.querySelector('button').disabled = false;
+    }
+  });
 }
 
 function start() {
   const p = doc(db, "pairs", pairId);
-  unsub.push(onSnapshot(p, s => { S.pair = s.data(); render(); }, linkScreen));
+  unsub.push(onSnapshot(p, s => { S.pair = s.data(); if (S.pair?.admin !== uid) { signOut(auth); linkScreen(); return; } render(); }, linkScreen));
   unsub.push(onSnapshot(collection(p, "members"), s => { S.members = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {}));
   unsub.push(onSnapshot(collection(p, "places"), s => { S.places = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {}));
   unsub.push(onSnapshot(query(collection(p, "photos"), orderBy("at", "desc"), limit(24)),
     s => { S.photos = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {}));
-  fetch(`https://api.github.com/repos/${REPO}/releases?per_page=15`).then(r => r.json()).then(j => {
-    S.releases = (Array.isArray(j) ? j : []).map(r => ({ version: r.tag_name.replace(/^v/, ""), date: (r.published_at || "").slice(0, 10),
-      notes: r.body || "", url: (r.assets.find(a => a.name.endsWith(".apk")) || {}).browser_download_url })).filter(r => r.url);
-    render(); }).catch(() => { S.releases = []; render(); });
+  getDocs(query(collection(db, 'releases'), orderBy('publishedAt', 'desc'), limit(15))).then(snapshot => {
+    S.releases = snapshot.docs.map(d => ({ version: d.data().version, date: d.data().date || '', notes: d.data().notes || '', url: d.data().apkPath }));
+    render();
+  }).catch(() => { S.releases = []; render(); });
 }
 
 const name = m => m?.name || "Sin nombre";
@@ -103,7 +118,7 @@ function render() {
       <p class="sub">Liberada para ${esc(name(her))}: <b>${esc(S.pair.relVersion || "la última (sin control)")}</b></p>
       ${S.releases == null ? `<p class="sub">Cargando…</p>` : S.releases.map(r => `<div class="row"><div class="grow"><b>Versión ${esc(r.version)}</b>
         <div class="sub">${esc(r.date)} · ${esc(r.notes.split("\n").find(l => l.trim()) || "")}</div></div>
-        <a href="${esc(r.url)}"><button>Descargar</button></a>
+
         ${S.pair.relVersion === r.version ? `<span class="ok">Liberada</span>` : `<button data-act="release" data-v="${esc(r.version)}">Liberar</button>`}</div>`).join("") || `<p class="sub">No hay versiones.</p>`}
     </div>
     <div class="card"><h2>Lugares</h2>${places.map(p => `<div class="row"><div class="grow"><b>${esc(p.name)}</b>
@@ -138,11 +153,11 @@ app.addEventListener("click", async e => {
     if (t.dataset.act === "delphoto" && confirm("¿Borrar esta foto para los dos?")) {
       await deleteDoc(doc(p, "photos", id, "full", "img")); await deleteDoc(doc(p, "photos", id)); }
     if (t.dataset.act === "logout" && confirm("¿Cerrar el panel en este navegador?")) {
-      await updateDoc(p, { webUids: arrayRemove(uid) }).catch(() => {}); linkScreen(); }
+      await signOut(auth); linkScreen(); }
   } catch (err) { alert("No se pudo: " + err.message); }
 });
 
-pairId ? start() : linkScreen();
+linkScreen();
 </script>
 </body>
 </html>

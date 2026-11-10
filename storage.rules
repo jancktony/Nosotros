@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /releases/{version}/{apk} {
+      allow read: if request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in [
+          'kelinherrera130323@gmail.com', 'jancktoni@gmail.com'
+        ];
+      // Solo la cuenta de servicio de CI puede publicar con Admin SDK/IAM.
+      allow write: if false;
+    }
+  }
+}

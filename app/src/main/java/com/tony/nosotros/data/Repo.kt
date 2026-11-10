@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 import com.tony.nosotros.util.TimeFmt
-import kotlin.random.Random
+import java.security.SecureRandom
+import java.util.Locale
 
 /**
  * Todo el acceso a Firebase.
@@ -30,9 +31,32 @@ object Repo {
 
     val uid: String? get() = auth.currentUser?.uid
 
-    suspend fun ensureSignedIn(): String {
-        return auth.currentUser?.uid ?: error("Inicia sesión primero")
+    private val personalEmails = setOf("kelinherrera130323@gmail.com", "jancktoni@gmail.com")
+    val authorizedSession: Boolean get() = auth.currentUser?.let {
+        it.isEmailVerified && it.email?.lowercase(Locale.ROOT) in personalEmails
+    } == true
+
+    private fun checkEmail(email: String) {
+        require(email.trim().lowercase(Locale.ROOT) in personalEmails) { "Esta app es de uso privado." }
     }
+
+    private suspend fun verifiedUser(user: com.google.firebase.auth.FirebaseUser): String {
+        checkEmail(user.email.orEmpty())
+        user.reload().await()
+        if (!user.isEmailVerified) {
+            user.sendEmailVerification().await()
+            error("Te enviamos un enlace de verificación. Ábrelo y vuelve a iniciar sesión.")
+        }
+        user.getIdToken(true).await()
+        return user.uid
+    }
+
+    suspend fun ensureSignedIn(): String {
+        check(authorizedSession) { "Inicia sesión con tu correo autorizado y verificado." }
+        return auth.currentUser!!.uid
+    }
+
+    private fun newCode() = (100000 + SecureRandom().nextInt(900000)).toString()
 
     // ---------- Cuenta ----------
 
@@ -40,15 +64,18 @@ object Repo {
 
     /** Crea la cuenta. Si el teléfono ya se usaba sin cuenta, conserva su identidad y solo le añade el correo. */
     suspend fun register(email: String, pass: String): String {
+        checkEmail(email)
         val cur = auth.currentUser
         val user = if (cur != null && cur.isAnonymous)
             cur.linkWithCredential(com.google.firebase.auth.EmailAuthProvider.getCredential(email, pass)).await().user
         else auth.createUserWithEmailAndPassword(email, pass).await().user
-        return user!!.uid
+        return verifiedUser(user!!)
     }
 
-    suspend fun login(email: String, pass: String): String =
-        auth.signInWithEmailAndPassword(email, pass).await().user!!.uid
+    suspend fun login(email: String, pass: String): String {
+        checkEmail(email)
+        return verifiedUser(auth.signInWithEmailAndPassword(email, pass).await().user!!)
+    }
 
     suspend fun resetPassword(email: String) { auth.sendPasswordResetEmail(email).await() }
 
@@ -70,7 +97,7 @@ object Repo {
     /** Crea la pareja y devuelve un código de 6 dígitos para compartir. */
     suspend fun createPair(): Pair<String, String> {
         val me = ensureSignedIn()
-        val code = Random.nextInt(100000, 999999).toString()
+        val code = newCode()
         val ref = db.collection("pairs").document()
         ref.set(mapOf("members" to listOf(me), "code" to code, "admin" to me, "createdAt" to System.currentTimeMillis())).await()
         db.collection("codes").document(code).set(
@@ -87,17 +114,6 @@ object Repo {
         if ((c.getLong("expiresAt") ?: 0L) < System.currentTimeMillis()) error("El código expiró, genera uno nuevo")
         val pairId = c.getString("pairId")!!
         pair(pairId).update(mapOf("members" to FieldValue.arrayUnion(me), "joinCode" to code.trim())).await()
-        // Si reemplazo a un teléfono anterior, heredo sus lugares y su rol de administrador
-        runCatching {
-            val snap = pair(pairId).get().await()
-            val old = snap.getString("replaced") ?: return@runCatching
-            val batch = db.batch()
-            pair(pairId).collection("places").whereEqualTo("owner", old).get().await().documents.forEach { batch.update(it.reference, "owner", me) }
-            val changes = HashMap<String, Any>(mapOf("replaced" to FieldValue.delete()))
-            if (snap.getString("admin") == old) changes["admin"] = me
-            batch.update(pair(pairId), changes)
-            batch.commit().await()
-        }
         return pairId
     }
 
@@ -145,11 +161,11 @@ object Repo {
     /** Saca al otro teléfono y crea un código nuevo para volver a vincular. */
     suspend fun resetPartner(pairId: String, partnerUid: String?): String {
         val me = ensureSignedIn()
-        val code = Random.nextInt(100000, 999999).toString()
+        val code = newCode()
         val snap = pair(pairId).get().await()
         @Suppress("UNCHECKED_CAST")
         val admin = snap.getString("admin") ?: (snap.get("members") as? List<String>)?.firstOrNull() ?: me
-        val changes = HashMap<String, Any>(mapOf("code" to code, "admin" to admin))
+        val changes = HashMap<String, Any>(mapOf("code" to code, "admin" to admin, "webUids" to FieldValue.delete()))
         if (partnerUid != null) { changes["members"] = FieldValue.arrayRemove(partnerUid); changes["replaced"] = partnerUid }
         pair(pairId).update(changes).await()
         db.collection("codes").document(code).set(
@@ -158,24 +174,16 @@ object Repo {
         return code
     }
 
-    /** Da acceso al navegador que muestra este código en el panel web. */
-    suspend fun linkWeb(pairId: String, code: String) {
-        val ref = db.collection("weblinks").document(code.trim().uppercase())
-        val webUid = ref.get().await().getString("uid") ?: error("Código no encontrado")
-        pair(pairId).update("webUids", FieldValue.arrayUnion(webUid)).await()
-        ref.update("pairId", pairId).await()
-    }
-
-    fun unlinkWeb(pairId: String) { pair(pairId).update("webUids", FieldValue.delete()) }
-
     // ---------- Fotos ----------
 
     suspend fun addPhoto(pairId: String, thumb: ByteArray, full: ByteArray, caption: String, place: String?, lat: Double, lng: Double) {
         val me = ensureSignedIn()
         val ref = pair(pairId).collection("photos").document()
-        ref.collection("full").document("img").set(mapOf("img" to com.google.firebase.firestore.Blob.fromBytes(full))).await()
-        ref.set(mapOf("uid" to me, "at" to System.currentTimeMillis(), "caption" to caption, "place" to place,
-            "lat" to lat, "lng" to lng, "thumb" to com.google.firebase.firestore.Blob.fromBytes(thumb))).await()
+        val batch = db.batch()
+        batch.set(ref, mapOf("uid" to me, "at" to System.currentTimeMillis(), "caption" to caption, "place" to place,
+            "lat" to lat, "lng" to lng, "thumb" to com.google.firebase.firestore.Blob.fromBytes(thumb)))
+        batch.set(ref.collection("full").document("img"), mapOf("img" to com.google.firebase.firestore.Blob.fromBytes(full)))
+        batch.commit().await()
         addEvent(pairId, "photo", caption.ifBlank { null })
     }
 
@@ -203,7 +211,7 @@ object Repo {
 
     suspend fun unlink(pairId: String) {
         val me = uid ?: return
-        runCatching { pair(pairId).update("members", FieldValue.arrayRemove(me)).await() }
+        pair(pairId).update("members", FieldValue.arrayRemove(me)).await()
     }
 
     // ---------- Miembros ----------

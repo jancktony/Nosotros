@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.sp
 fun AuthScreen(vm: MainViewModel, upgrade: Boolean) {
     val busy by vm.authBusy.collectAsState()
     val error by vm.authError.collectAsState()
-    var create by remember { mutableStateOf(true) }
+    var create by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
     val ok = email.contains("@") && pass.length >= 6 && !busy
@@ -47,7 +47,7 @@ fun AuthScreen(vm: MainViewModel, upgrade: Boolean) {
         Text(if (upgrade) "Protege tu cuenta" else if (create) "Crea tu cuenta" else "Inicia sesión", style = MaterialTheme.typography.headlineMedium)
         Text(
             if (upgrade) "Ponle correo y contraseña a esta app. Así, si la borras o cambias de teléfono, entras con tu correo y todo sigue igual."
-            else "Cada uno entra con su propio correo. Si reinstalas la app, inicias sesión y recuperas tu vinculación, lugares y fotos.",
+            else "Acceso exclusivo con uno de los dos correos autorizados y verificados. Cada uno entra con su propio correo. Si reinstalas la app, inicias sesión y recuperas tu vinculación, lugares y fotos.",
             color = C.sub, fontSize = 15.sp,
         )
         OutlinedTextField(email, { email = it.trim() }, label = { Text("Correo") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
@@ -58,8 +58,7 @@ fun AuthScreen(vm: MainViewModel, upgrade: Boolean) {
         PrimaryButton(if (busy) "Un momento…" else if (create || upgrade) "Crear cuenta" else "Entrar", enabled = ok) {
             vm.auth(email, pass, create || upgrade)
         }
-        if (upgrade) TextButton(onClick = { vm.authSkipped.value = true }) { Text("Más tarde", color = C.sub) }
-        else {
+        if (!upgrade) {
             TextButton(onClick = { create = !create; vm.authError.value = null }) {
                 Text(if (create) "Ya tengo cuenta: iniciar sesión" else "No tengo cuenta: crear una", color = C.me)
             }

@@ -28,7 +28,7 @@ jobs:
           echo "$GS" > app/google-services.json
           echo "$KS" | base64 -d > app/nosotros.keystore
       - if: steps.v.outputs.skip != '1'
-        run: chmod +x gradlew && ./gradlew assembleRelease -PghRepo=${{ github.repository }}
+        run: chmod +x gradlew && ./gradlew testDebugUnitTest assembleRelease -PghRepo=${{ github.repository }}
         env:
           KS_PASS: ${{ secrets.KS_PASS }}
       - if: steps.v.outputs.skip != '1'
@@ -39,3 +39,19 @@ jobs:
           tag_name: ${{ steps.v.outputs.tag }}
           files: Nosotros-${{ steps.v.outputs.tag }}.apk
           body: "Mejoras y correcciones."
+      - if: steps.v.outputs.skip != '1'
+        uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - if: steps.v.outputs.skip != '1'
+        run: npm ci --no-audit --no-fund
+      - if: steps.v.outputs.skip != '1'
+        name: Publicar actualización privada si Firebase está configurado
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
+        run: |
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            node security/publish-update.cjs
+          else
+            echo '::warning::Falta FIREBASE_SERVICE_ACCOUNT. Se conserva el canal de GitHub para la migración; no privatizar hasta activar Firebase Storage.'
+          fi

@@ -85,6 +85,7 @@ class TrackingService : Service() {
     private var policyKey = ""
     private var stillJob: Job? = null
     private var timerJob: Job? = null
+    private var partnerJob: Job? = null
     private val notifiedEvents = HashSet<String>()
 
     private val callback = object : LocationCallback() {
@@ -108,7 +109,7 @@ class TrackingService : Service() {
         if (pairId == null || !App.firebaseConfigured) { stopSelf(); return }
         scope.launch {
             me = runCatching { Repo.ensureSignedIn() }.getOrNull()
-            if (me == null) return@launch
+            if (me == null) { stopSelf(); return@launch }
             listenFirebase()
             registerActivityTransitions()
             applyPolicy(force = true)
@@ -132,6 +133,7 @@ class TrackingService : Service() {
     // ---------------- Entradas externas ----------------
 
     fun handle(intent: Intent) {
+        if (!App.firebaseConfigured || !Repo.authorizedSession || me == null) return
         if (intent.hasExtra(EXTRA_ACTIVITY)) onActivity(intent.getIntExtra(EXTRA_ACTIVITY, -1))
         if (intent.hasExtra(EXTRA_GEOFENCE_IDS)) {
             val enter = intent.getBooleanExtra(EXTRA_GEOFENCE_ENTER, true)
@@ -419,15 +421,17 @@ class TrackingService : Service() {
             Repo.placesFlow(pid).collect { all ->
                 engine.allPlaces = all
                 val mine = all.filter { it.owner == uid && !it.suggested && it.name.isNotBlank() }
-                val changed = mine.map { it.id to it.radius to it.lat } != engine.places.map { it.id to it.radius to it.lat }
+                val changed = mine.map { listOf(it.id, it.radius, it.lat, it.lng) } != engine.places.map { listOf(it.id, it.radius, it.lat, it.lng) }
                 engine.places = mine
                 if (changed) registerGeofences(mine)
             }
         }
         scope.launch {
             Repo.pairMembersFlow(pid).collect { members ->
+                if (uid !in members) { stopSelf(); return@collect }
+                partnerJob?.cancel()
                 val partner = members.firstOrNull { it != uid } ?: return@collect
-                launch {
+                partnerJob = launch {
                     Repo.memberFlow(pid, partner).collect { m ->
                         if (m == null) return@collect
                         m.name.takeIf { it.isNotBlank() }?.let { partnerName = it; prefs.partnerName = it }
@@ -450,7 +454,7 @@ class TrackingService : Service() {
             while (true) {
                 checkAnniversary()
                 Widgets.updateAll(this@TrackingService)
-                autoUpdate()
+                runCatching { autoUpdate() }
                 delay(30 * 60_000L)
             }
         }
@@ -506,8 +510,7 @@ class TrackingService : Service() {
         if (!prefs.autoUpdate || !com.tony.nosotros.update.Updater.onWifi(this)) return
         val r = com.tony.nosotros.update.Updater.target(pairId) ?: return
         if (prefs.autoUpdateTried == r.version) return
-        prefs.autoUpdateTried = r.version
-        com.tony.nosotros.update.Updater.install(applicationContext, r)
+        if (com.tony.nosotros.update.Updater.install(applicationContext, r)) prefs.autoUpdateTried = r.version
     }
 
     private fun notifyPartnerEvent(e: EventItem) {
@@ -540,7 +543,7 @@ class TrackingService : Service() {
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setOnlyAlertOnce(true)
             .setColor(0xFFF9A8D4.toInt())
             .setAutoCancel(true)
@@ -570,7 +573,7 @@ class TrackingService : Service() {
         return NotificationCompat.Builder(this, App.CH_TRACKING)
             .setSmallIcon(R.drawable.ic_stat)
             .setContentTitle(title)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setContentText(status)
             .setOngoing(true)
             .setSilent(true)

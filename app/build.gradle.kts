@@ -36,8 +36,8 @@ android {
         applicationId = "com.tony.nosotros"
         minSdk = 29
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.6"
+        versionCode = 8
+        versionName = "1.7"
         buildConfigField("String", "GH_REPO", "\"${(project.findProperty("ghRepo") as String?) ?: ""}\"")
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         buildConfigField("String", "FB_API_KEY", "\"${fb.apiKey}\"")
@@ -48,18 +48,15 @@ android {
     signingConfigs {
         create("release") {
             storeFile = file("nosotros.keystore")
-            storePassword = System.getenv("KS_PASS") ?: "nosotros123"
+            storePassword = System.getenv("KS_PASS")
             keyAlias = "nosotros"
-            keyPassword = System.getenv("KS_PASS") ?: "nosotros123"
+            keyPassword = System.getenv("KS_PASS")
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
-        }
-        debug {
             signingConfig = signingConfigs.getByName("release")
         }
     }
@@ -91,6 +88,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-storage")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     implementation("org.maplibre.gl:android-sdk:11.8.0")
