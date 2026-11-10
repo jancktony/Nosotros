@@ -62,11 +62,29 @@ private fun VoicePanel(pair: String, uid: String, partner: String?, direct: Bool
             message = text; ready = connected; if (!connected) talking = false
         } }.getOrNull() else null
     }
+    val audioManager = remember { context.getSystemService(android.media.AudioManager::class.java) }
+    val interrupt by rememberUpdatedState {
+        connection?.end("Audio interrumpido"); voice.close(); recording = false; talking = false
+        playJob?.cancel(); playing = null; ready = false
+    }
+    val focusRequest = remember {
+        android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+            .setAudioAttributes(android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH).build())
+            .setOnAudioFocusChangeListener({ change -> if (change <= 0) interrupt() }, android.os.Handler(android.os.Looper.getMainLooper()))
+            .build()
+    }
+    fun focus(): Boolean {
+        val granted = audioManager.requestAudioFocus(focusRequest) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        if (!granted) message = "Otra aplicación está usando el audio. Inténtalo después."
+        return granted
+    }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         message = if (it) "Micrófono autorizado. Mantén pulsado para hablar." else "Autoriza el micrófono para poder hablar."
     }
     fun permitted(): Boolean {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) return true
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) return focus()
         permission.launch(Manifest.permission.RECORD_AUDIO); return false
     }
     fun sendNote() {
@@ -83,11 +101,14 @@ private fun VoicePanel(pair: String, uid: String, partner: String?, direct: Bool
             if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) {
                 connection?.end(); voice.close(); recording = false; talking = false
                 playJob?.cancel(); playing = null; ready = false
+                audioManager.abandonAudioFocusRequest(focusRequest)
             }
         }
         lifecycle.addObserver(observer)
         onDispose {
             lifecycle.removeObserver(observer); connection?.close(); voice.close(); playJob?.cancel()
+            recording = false; talking = false; ready = false; playing = null
+            audioManager.abandonAudioFocusRequest(focusRequest)
         }
     }
     DisposableEffect(saved) {
@@ -143,6 +164,7 @@ private fun VoicePanel(pair: String, uid: String, partner: String?, direct: Bool
             notes.forEach { note ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(enabled = !recording && !sending && connection?.active != true, onClick = {
+                        if (!focus()) return@TextButton
                         playJob?.cancel(); playing = note.id
                         playJob = scope.launch {
                             try { voice.play(note) { playing = null } }
