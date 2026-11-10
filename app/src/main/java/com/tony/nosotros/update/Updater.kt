@@ -20,12 +20,11 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
-import com.google.firebase.storage.FirebaseStorage
 import android.content.pm.PackageManager
 import java.io.File
 
 /**
- * Versiones privadas en Firebase Storage. El administrador recibe siempre la última;
+ * Versiones privadas en Firestore, sin bucket ni dependencia de GitHub. El administrador recibe siempre la última;
  * la pareja solo la que el administrador haya liberado. Se instala encima, sin perder datos.
  */
 object Updater {
@@ -38,9 +37,10 @@ object Updater {
             check(Repo.authorizedSession) { "Verifica tu correo para acceder a las actualizaciones privadas." }
             Repo.db.collection("releases").orderBy("publishedAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
                 .limit(20).get().await().documents.mapNotNull { d ->
+                    if (d.getString("pairId") != App.instance.prefs.pairId) return@mapNotNull null
                     val version = d.getString("version") ?: return@mapNotNull null
                     val path = d.getString("apkPath") ?: return@mapNotNull null
-                    if (!path.startsWith("gs://")) return@mapNotNull null
+                    if (d.getBoolean("ready") != true || !path.startsWith("firestore://releases/")) return@mapNotNull null
                     Release(version, path, d.getString("notes").orEmpty(), d.getString("date").orEmpty())
                 }
         }
@@ -51,11 +51,12 @@ object Updater {
     suspend fun target(pairId: String?): Release? {
         if (!Repo.authorizedSession || pairId == null) return null
         val info = Repo.pairInfo(pairId)
-        val catalog = releases()
         val admin = info.admin == Repo.uid
+        if (!admin && info.relVersion.isNullOrBlank()) return null
+        val catalog = releases()
         val version = UpdatePolicy.targetVersion(admin, catalog.firstOrNull()?.version, info.relVersion) ?: return null
         val release = catalog.firstOrNull { it.version == version }
-            ?: if (!admin && info.relUrl.startsWith("gs://")) Release(version, info.relUrl, info.relNotes) else null
+            ?: if (!admin && info.relUrl.startsWith("firestore://releases/")) Release(version, info.relUrl, info.relNotes) else null
         return release?.takeIf { newer(it.version, BuildConfig.VERSION_NAME) }
     }
 
@@ -80,11 +81,7 @@ object Updater {
         runCatching {
             val file = File(ctx.cacheDir, "update.apk")
             check(Repo.authorizedSession) { "Acceso privado" }
-            if (r.apkUrl.startsWith("gs://")) {
-                // Firebase Auth y Storage Rules; nunca un enlace público con token.
-                val bucket = "gs://" + r.apkUrl.removePrefix("gs://").substringBefore('/')
-                FirebaseStorage.getInstance(bucket).getReferenceFromUrl(r.apkUrl).getFile(file).await()
-            } else error("Las actualizaciones requieren el canal privado de Firebase")
+            PrivateApk.download(r.version, r.apkUrl, file)
 
             @Suppress("DEPRECATION")
             val archive = ctx.packageManager.getPackageArchiveInfo(file.path, PackageManager.GET_SIGNING_CERTIFICATES)

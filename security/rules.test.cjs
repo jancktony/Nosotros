@@ -13,6 +13,7 @@ after(async () => { await env.cleanup(); });
 beforeEach(async () => {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async ctx => {
+    await setDoc(p(ctx, 'releases/1.7'), {pairId:'p',ready:true,apkPath:'gs://bucket/releases/1.7/app.apk'});
     await setDoc(p(ctx), { members: ['alice', 'bob'], admin: 'alice', code: '123456', createdAt: Date.now() });
     await setDoc(p(ctx, 'pairs/p/members/alice'), { lat: 1, lng: 2, pausedUntil: 0 });
     await setDoc(p(ctx, 'pairs/p/members/bob'), { lat: 3, lng: 4, pausedUntil: 0 });
@@ -151,4 +152,32 @@ test('señalización solo entre miembros, con respuesta del destinatario y candi
   await assertFails(setDoc(p(alice(), path+'/candidates/j'), candidate));
   await assertSucceeds(deleteDoc(p(bob(), path+'/candidates/i')));
   await assertSucceeds(deleteDoc(p(bob(), path)));
+});
+
+test('APK candidato solo admin; la pareja descarga únicamente tras aprobación explícita', async () => {
+  await env.withSecurityRulesDisabled(async ctx => {
+    await setDoc(p(ctx,'releases/2.0'), {pairId:'p',ready:true,apkPath:'firestore://releases/2.0'});
+    await setDoc(p(ctx,'releases/2.0/chunks/000000'), {data:Bytes.fromUint8Array(new Uint8Array([1,2])),index:0});
+  });
+  const path='releases/2.0/chunks/000000';
+  await assertSucceeds(getDoc(p(alice(),path)));
+  await assertFails(getDoc(p(bob(),path)));
+  await assertFails(getDoc(p(stranger(),path)));
+  await assertFails(setDoc(p(alice(),path), {data:Bytes.fromUint8Array(new Uint8Array([3])),index:0}));
+  await assertFails(updateDoc(p(bob()),{relVersion:'2.0',relUrl:'firestore://releases/2.0'}));
+  await assertFails(updateDoc(p(alice()),{relVersion:'2.1',relUrl:'firestore://releases/2.1'}));
+  await assertFails(updateDoc(p(alice()),{relVersion:'2.0',relUrl:'https://wrong.example/app.apk'}));
+  await assertSucceeds(updateDoc(p(alice()),{relVersion:'2.0',relUrl:'firestore://releases/2.0'}));
+  await assertSucceeds(getDoc(p(bob(),path)));
+  await assertSucceeds(getDocs(collection(bob().firestore(),'releases/2.0/chunks')));
+  await assertSucceeds(updateDoc(p(alice()),{relVersion:'1.7',relUrl:'gs://bucket/releases/1.7/app.apk'}));
+  await assertFails(getDoc(p(bob(),path)));
+});
+test('ni el admin descarga fragmentos de una carga incompleta', async () => {
+  await env.withSecurityRulesDisabled(async ctx=>{
+    await setDoc(p(ctx,'releases/2.0'), {pairId:'p',ready:false,apkPath:'firestore://releases/2.0'});
+    await setDoc(p(ctx,'releases/2.0/chunks/000000'), {data:Bytes.fromUint8Array(new Uint8Array([1])),index:0});
+  });
+  await assertFails(getDoc(p(alice(),'releases/2.0/chunks/000000')));
+  await assertFails(updateDoc(p(alice()),{relVersion:'2.0',relUrl:'firestore://releases/2.0'}));
 });

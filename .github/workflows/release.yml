@@ -46,13 +46,13 @@ jobs:
       - if: steps.v.outputs.skip != '1'
         run: npm ci --no-audit --no-fund
       - if: steps.v.outputs.skip != '1'
-        name: Publicar actualización privada si Firebase está configurado
+        name: Publicar candidata privada sin liberarla a la pareja
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
         run: |
           if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
             node security/publish-update.cjs
           else
-            echo '::warning::Falta FIREBASE_SERVICE_ACCOUNT. Se conserva el canal de GitHub para la migración; no privatizar hasta activar Firebase Storage.'
+            echo '::error::Falta FIREBASE_SERVICE_ACCOUNT. No hay candidata privada disponible.'
+            exit 1
           fi
