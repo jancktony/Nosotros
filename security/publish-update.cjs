@@ -5,6 +5,13 @@ const {getFirestore} = require('firebase-admin/firestore');
 const {readFileSync} = require('node:fs');
 const {createHash} = require('node:crypto');
 const CHUNK=512*1024, MAX_APK=100*1024*1024;
+let stage='inicio';
+async function timed(promise, label) {
+  stage=label;
+  let timer;
+  try { return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('TIMEOUT')),60000)})]); }
+  finally { clearTimeout(timer); }
+}
 async function main() {
   const account=JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
   if(account.project_id!=='nosotros-1e43a'||!account.private_key) throw Error('Credencial incorrecta');
@@ -13,8 +20,8 @@ async function main() {
   const configured=source.match(/personalEmails = setOf\(([^)]+)\)/)?.[1]||'';
   const emails=[...configured.matchAll(/"([^"\s]+@[^"\s]+)"/g)].map(m=>m[1]);
   if(emails.length!==2) throw Error('Lista incorrecta');
-  const users=await Promise.all(emails.map(e=>getAuth(app).getUserByEmail(e))),uids=users.map(u=>u.uid);
-  const pairs=await db.collection('pairs').where('members','array-contains',uids[0]).get();
+  const users=await timed(Promise.all(emails.map(e=>getAuth(app).getUserByEmail(e))),'autenticación'),uids=users.map(u=>u.uid);
+  const pairs=await timed(db.collection('pairs').where('members','array-contains',uids[0]).get(),'pareja');
   const eligible=pairs.docs.filter(d=>d.data().members?.length===2&&d.data().members.every(u=>uids.includes(u)));
   if(eligible.length!==1) throw Error('Pareja ambigua');
   const pair=eligible[0],pairId=pair.id;
@@ -24,7 +31,7 @@ async function main() {
   const apk=readFileSync('app/build/outputs/apk/release/app-release.apk');
   if(!apk.length||apk.length>MAX_APK) throw Error('APK mayor que el límite de 100 MiB');
   const sha256=createHash('sha256').update(apk).digest('hex'),ref=db.collection('releases').doc(version);
-  const previous=await ref.get();
+  const previous=await timed(ref.get(),'manifiesto previo');
   if(previous.exists&&previous.get('sha256')!==sha256) throw Error('Versión inmutable: incrementa la versión');
   if(previous.get('ready')===true) { console.log(`Candidata ${version} ya existe. No se libera a la pareja.`);return; }
   // Bounded retention: protect approved and installed versions; keep at most four APKs.
@@ -50,22 +57,24 @@ async function main() {
   const manifest={version,pairId,transport:'firestore-chunks-v1',apkPath:`firestore://releases/${version}`,
     sha256,size:apk.length,chunkSize:CHUNK,chunkCount,publishedAt:Date.now(),
     date:new Date().toISOString().slice(0,10),notes:process.env.RELEASE_NOTES||'Versión de prueba para el administrador.'};
-  await ref.set({...manifest,ready:false});
+  await timed(ref.set({...manifest,ready:false}),'crear manifiesto incompleto');
+  console.log(`Cargando candidata ${version}: ${chunkCount} fragmentos.`);
   for(let i=0;i<chunkCount;i+=4){
     const batch=db.batch();
     for(let n=i;n<Math.min(i+4,chunkCount);n++)batch.set(ref.collection('chunks').doc(String(n).padStart(6,'0')),
       {data:apk.subarray(n*CHUNK,Math.min((n+1)*CHUNK,apk.length)),index:n});
-    await batch.commit();
+    await timed(batch.commit(),`carga ${i}/${chunkCount}`);
+    if(i%32===0) console.log(`Carga privada: ${Math.min(i+4,chunkCount)}/${chunkCount}`);
   }
   // Verify stored bytes before exposing a ready manifest.
   const check=createHash('sha256');let length=0;
   for(let i=0;i<chunkCount;i+=4){
     const refs=Array.from({length:Math.min(4,chunkCount-i)},(_,n)=>ref.collection('chunks').doc(String(i+n).padStart(6,'0')));
-    const docs=await db.getAll(...refs);
+    const docs=await timed(db.getAll(...refs),`verificación ${i}/${chunkCount}`);
     for(const d of docs.sort((a,b)=>a.id.localeCompare(b.id))){const bytes=d.get('data');if(!Buffer.isBuffer(bytes))throw Error('Fragmento incorrecto');check.update(bytes);length+=bytes.length;}
   }
   if(length!==apk.length||check.digest('hex')!==sha256)throw Error('Integridad no confirmada');
-  await ref.update({ready:true});
+  await timed(ref.update({ready:true}),'publicar manifiesto verificado');
   console.log(`Candidata privada ${version} verificada: ${apk.length} bytes en ${chunkCount} fragmentos. Solo el panel libera a la pareja.`);
 }
-main().catch(()=>{console.error('No se pudo publicar la candidata privada. Revisa cuota, permisos y versión. No se muestran datos privados.');process.exitCode=1});
+main().then(()=>process.exit(0)).catch(e=>{console.error(`No se pudo publicar la candidata privada; fase: ${stage}; código: ${Number.isInteger(e.code)?e.code:'no disponible'}. No se muestran datos privados.`);process.exit(1)});
