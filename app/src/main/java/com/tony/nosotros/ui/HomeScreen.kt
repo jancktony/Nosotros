@@ -178,7 +178,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
                 }
                 TextButton(onClick = { vm.setMap3d(!threeD) }, modifier = Modifier
                     .clip(RoundedCornerShape(18.dp)).background(C.surface)) {
-                    Text(if (threeD) "2D" else "3D", color = C.me, fontWeight = FontWeight.Bold)
+                    Text(if (threeD) "2D" else "Inclinar", color = C.me, fontWeight = FontWeight.Bold)
                 }
             }
             if (people.isEmpty()) {
