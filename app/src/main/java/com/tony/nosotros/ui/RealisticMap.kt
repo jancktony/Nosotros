@@ -152,7 +152,7 @@ private fun GoogleRealisticMap(
             googleMap.setMapMode(Map3DMode.HYBRID)
             googleMap.setCamera(camera {
                 center = LatLngAltitude(frame.center.lat, frame.center.lng, 0.0)
-                altitudeMode = AltitudeMode.CLAMP_TO_GROUND
+                altitudeMode = AltitudeMode.RELATIVE_TO_GROUND
                 heading = 0.0
                 tilt = 65.0
                 range = frame.range
