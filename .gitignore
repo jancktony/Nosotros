@@ -14,3 +14,5 @@ web/config.js
 node_modules/
 *-debug.log
 *.service-account.json
+
+secrets.properties
