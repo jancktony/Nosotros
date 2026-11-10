@@ -7,6 +7,8 @@ enum class Feature(val id: String, val title: String, val defaultMode: String = 
     PROFILE_PHOTO("profilePhoto", "Fotos de perfil"),
     COMPACT_WIDGETS("compactWidgets", "Widgets compactos"),
     PLACE_ALERTS("placeAlerts", "Avisos de llegadas y salidas"),
+    AUTO_UPDATES("autoUpdates", "Actualizaciones automáticas"),
+    LOCK_DETAILS("lockDetails", "Detalles de avisos en pantalla de bloqueo"),
     MANUAL_UPDATES("manualUpdates", "Buscar actualizaciones manualmente");
 }
 

@@ -15,13 +15,15 @@ service cloud.firestore {
     function changedOnly(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
     function own(data) { return data.uid == request.auth.uid; }
     function validFlags(flags) {
-      return flags is map && flags.keys().hasOnly(['walkie', 'voiceNotes', 'map3d', 'profilePhoto', 'compactWidgets', 'placeAlerts', 'manualUpdates'])
+      return flags is map && flags.keys().hasOnly(['walkie', 'voiceNotes', 'map3d', 'profilePhoto', 'compactWidgets', 'placeAlerts', 'manualUpdates', 'autoUpdates', 'lockDetails'])
         && flags.get('walkie', 'off') in ['off', 'admin', 'all']
         && flags.get('voiceNotes', 'off') in ['off', 'admin', 'all']
         && flags.get('map3d', 'all') in ['off', 'admin', 'all']
         && flags.get('profilePhoto', 'all') in ['off', 'admin', 'all']
         && flags.get('compactWidgets', 'all') in ['off', 'admin', 'all']
         && flags.get('placeAlerts', 'all') in ['off', 'admin', 'all']
+        && flags.get('autoUpdates', 'all') in ['off', 'admin', 'all']
+        && flags.get('lockDetails', 'all') in ['off', 'admin', 'all']
         && flags.get('manualUpdates', 'all') in ['off', 'admin', 'all']
       ;
     }

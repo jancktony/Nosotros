@@ -222,7 +222,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                 Divider()
                 Toggle("Cuando pausa o reanuda", nPause) { nPause = it; p.notifyPause = it }
                 Divider()
-                Toggle("Mostrar lugar y acción en pantalla de bloqueo", lockDetails) { lockDetails = it; p.lockDetails = it }
+                if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.LOCK_DETAILS)) Toggle("Mostrar lugar y acción en pantalla de bloqueo", lockDetails) { lockDetails = it; p.lockDetails = it }
                 Text("Los avisos muestran llegó o salió y el lugar. Samsung también debe permitir mostrar el contenido de las notificaciones.", color = C.sub, fontSize = 13.sp)
                 ActionButton("Abrir ajustes de notificaciones", C.sub) {
                     ctx.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName))
@@ -279,7 +279,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
         if (category == "General") {
             Section(Ic.Sparkle, "Actualizaciones") {
                 if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MANUAL_UPDATES)) UpdateControls(vm.pairId.value)
-                Toggle("Instalar versiones nuevas sola (con Wi-Fi)", autoUpdate) { autoUpdate = it; p.autoUpdate = it }
+                if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.AUTO_UPDATES)) Toggle("Instalar versiones nuevas sola (con Wi-Fi)", autoUpdate) { autoUpdate = it; p.autoUpdate = it }
                 Text("Se conserva tu información. Android puede pedirte confirmar la instalación.", color = C.sub, fontSize = 13.sp)
             }
         }

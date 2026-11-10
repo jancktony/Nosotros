@@ -85,7 +85,10 @@ private fun Root(vm: MainViewModel) {
     val ctx = LocalContext.current
     var update by remember { mutableStateOf<com.tony.nosotros.update.Updater.Release?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    LaunchedEffect(Unit) { update = runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() }
+    val automaticUpdates = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.AUTO_UPDATES)
+    LaunchedEffect(automaticUpdates) {
+        update = if (automaticUpdates) runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() else null
+    }
     update?.let { r ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { update = null }, containerColor = C.surface,
