@@ -13,6 +13,11 @@ async function main() {
     throw new Error('Configura FIREBASE_SERVICE_ACCOUNT y el bucket del mismo proyecto Firebase.');
   }
   const app = initializeApp({ credential: cert(account), storageBucket: bucket });
+  const [bucketExists] = await getStorage(app).bucket().exists();
+  if (!bucketExists) {
+    console.log('::warning::El bucket de actualizaciones privadas no existe. Se conserva el canal de GitHub; no se crea almacenamiento ni se habilita facturación.');
+    return;
+  }
   const path = `releases/${version}/Nosotros.apk`;
   const apk = 'app/build/outputs/apk/release/app-release.apk';
   const sha256 = createHash('sha256').update(readFileSync(apk)).digest('hex');

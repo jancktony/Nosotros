@@ -69,15 +69,15 @@ Los ajustes personales de silencio, permisos y pausa siguen teniendo prioridad.
 ## Activación pendiente
 
 1. Ejecutar CI Android y pruebas de reglas.
-2. Con acceso administrativo a Firebase, desplegar `firestore.rules` del repositorio
-   al proyecto `nosotros-1e43a`. Este entorno no tiene credenciales de despliegue.
+2. Reglas desplegadas y ruleset activo confirmado el 10 de noviembre de 2026
+   en `nosotros-1e43a` mediante la cuenta de servicio en GitHub Actions.
 3. Probar en los dos Samsung: permisos concedidos/denegados, pulsar/soltar/cancelar,
    límite 30 s, reproducción/borrado, desconectar, bloquear, cambiar pestaña, salir
    de la app, cerrar sesión y retirada de funciones durante el uso. Probar entre
    Wi-Fi y datos; verificar comportamiento cuando STUN no logra conexión.
-4. Fijar versión/código nuevos y publicar una compilación firmada, primero para
-   el administrador. Ambos teléfonos necesitan ese APK. Esta preparación no
-   incrementa la versión 1.8.1 para evitar publicación anticipada.
+4. Versión 1.9, código 11: ambos teléfonos necesitan el nuevo APK. La voz sigue
+   apagada por defecto para que el administrador decida cuándo probarla y liberarla.
+   El audio no se ha validado todavía en los Samsung físicos.
 5. Activar notas «Solo yo» para probar y luego «Ambos». El directo requiere
    «Ambos» para que la pareja pueda aceptar; «Solo yo» permite inspeccionar la
    pantalla pero no establece conversación con un destinatario sin acceso.
