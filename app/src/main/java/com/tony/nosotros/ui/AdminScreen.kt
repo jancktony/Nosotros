@@ -64,6 +64,24 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
             Text("Administrador", style = MaterialTheme.typography.headlineMedium)
         }
 
+        Section(Ic.Sparkle, "Funciones") {
+            Text("Desactivar, probar solo en tu cuenta o liberar para ambos. Tu pareja necesita una versión compatible y conexión para recibir los cambios.", color = C.sub, fontSize = 13.sp)
+            val busy by vm.featureBusy.collectAsState()
+            com.tony.nosotros.data.Feature.entries.forEach { feature ->
+                Text(feature.title, color = C.text, fontWeight = FontWeight.Bold)
+                val mode = info.featureFlags[feature.id] ?: feature.defaultMode
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    listOf("off" to "Desactivada", "admin" to "Solo yo", "all" to "Ambos").forEach { (value, label) ->
+                        TextButton(enabled = !busy && mode != value, onClick = { vm.setFeature(feature, value) }) {
+                            Text(if (mode == value) "✓ $label" else label, color = if (mode == value) C.ok else C.me, fontSize = 12.sp)
+                        }
+                    }
+                }
+                Divider()
+            }
+            adminMessage?.let { Text(it, color = C.me, fontSize = 13.sp) }
+        }
+
         Section(Ic.Sparkle, "Versiones") {
             Text("Puedes fijar la versión de $pName o permitir que reciba automáticamente la última. La instalación respeta sus ajustes y la confirmación de Android.",
                 color = C.sub, fontSize = 14.sp)

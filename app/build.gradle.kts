@@ -92,6 +92,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     implementation("org.maplibre.gl:android-sdk:11.8.0")
+    implementation("io.github.webrtc-sdk:android:150.7871.04")
 
     testImplementation("junit:junit:4.13.2")
 }

@@ -1,7 +1,7 @@
 const { before, after, beforeEach, test } = require('node:test');
 const { readFileSync } = require('node:fs');
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBatch } = require('firebase/firestore');
+const { doc, setDoc, getDoc, getDocs, collection, updateDoc, deleteDoc, writeBatch, serverTimestamp, Bytes } = require('firebase/firestore');
 const { ref, uploadBytes, getBytes } = require('firebase/storage');
 let env;
 const alice = () => env.authenticatedContext('alice', { email: 'jancktoni@gmail.com', email_verified: true });
@@ -95,4 +95,60 @@ test('foto de perfil solo propia y tamaño limitado; política de versiones solo
   await env.withSecurityRulesDisabled(ctx => updateDoc(p(ctx), { relVersion: '1.7', relUrl: 'gs://bucket/old', relNotes: 'vieja' }));
   await assertFails(updateDoc(p(bob()), { relVersion: deleteField(), relUrl: deleteField(), relNotes: deleteField() }));
   await assertSucceeds(updateDoc(p(alice()), { relVersion: deleteField(), relUrl: deleteField(), relNotes: deleteField() }));
+});
+
+const enableVoice = async (flags = {walkie: 'all', voiceNotes: 'all'}) => {
+  await env.withSecurityRulesDisabled(ctx => updateDoc(p(ctx), {featureFlags: flags}));
+};
+test('solo admin controla funciones y rechaza estados o claves inválidos', async () => {
+  await assertFails(updateDoc(p(bob()), {featureFlags: {walkie: 'all'}}));
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags: {walkie: 'admin', voiceNotes: 'off'}}));
+  await assertFails(updateDoc(p(alice()), {featureFlags: {walkie: 'yes'}}));
+  await assertFails(updateDoc(p(alice()), {featureFlags: {invented: 'all'}}));
+});
+test('notas privadas, sin suplantación y límites de tamaño/duración', async () => {
+  const note = () => ({uid: 'alice', audio: Bytes.fromUint8Array(new Uint8Array([1,2])), durationMs: 1000, createdAt: serverTimestamp()});
+  const path = 'pairs/p/voiceNotes/n';
+  await assertFails(setDoc(p(alice(), path), note()));
+  await enableVoice();
+  await assertFails(setDoc(p(bob(), path), note()));
+  await assertFails(setDoc(p(alice(), path), {...note(), durationMs: 30001}));
+  await assertFails(setDoc(p(alice(), path), {...note(), audio: Bytes.fromUint8Array(new Uint8Array(150001))}));
+  await assertSucceeds(setDoc(p(alice(), path), note()));
+  await assertSucceeds(getDoc(p(bob(), path)));
+  await assertFails(getDoc(p(stranger(), path)));
+  await assertFails(updateDoc(p(alice(), path), {durationMs: 500}));
+  await assertFails(deleteDoc(p(bob(), path)));
+  await assertSucceeds(deleteDoc(p(alice(), path)));
+});
+test('prueba privada de funciones y retirada bloquean acceso de la pareja', async () => {
+  await enableVoice({voiceNotes: 'admin', walkie: 'admin'});
+  const path = 'pairs/p/voiceNotes/n';
+  await assertSucceeds(setDoc(p(alice(), path), {uid: 'alice', audio: Bytes.fromUint8Array(new Uint8Array([1])), durationMs: 1000, createdAt: serverTimestamp()}));
+  await assertFails(getDoc(p(bob(), path)));
+  await enableVoice({voiceNotes: 'all'});
+  await assertSucceeds(getDoc(p(bob(), path)));
+  await enableVoice({voiceNotes: 'off'});
+  await assertFails(getDoc(p(alice(), path)));
+  await assertSucceeds(deleteDoc(p(alice(), path)));
+});
+test('señalización solo entre miembros, con respuesta del destinatario y candidatos propios', async () => {
+  await enableVoice();
+  const path = 'pairs/p/walkieCalls/c';
+  const call = () => ({uid: 'alice', to: 'bob', offer: 'sdp', createdAt: serverTimestamp()});
+  await assertFails(setDoc(p(alice(), path), {...call(), to: 'mallory'}));
+  await assertFails(setDoc(p(bob(), path), call()));
+  await assertSucceeds(setDoc(p(alice(), path), call()));
+  await assertFails(updateDoc(p(alice(), path), {answer: 'sdp'}));
+  await assertSucceeds(updateDoc(p(bob(), path), {answer: 'sdp'}));
+  await assertFails(updateDoc(p(bob(), path), {answer: 'changed'}));
+  const candidate = {uid:'alice', candidate:'ice', mid:'0', line:0};
+  await assertFails(setDoc(p(bob(), path+'/candidates/i'), candidate));
+  await assertSucceeds(setDoc(p(alice(), path+'/candidates/i'), candidate));
+  await assertFails(getDoc(p(stranger(), path)));
+  await enableVoice({walkie:'off'});
+  await assertFails(getDoc(p(bob(), path)));
+  await assertFails(setDoc(p(alice(), path+'/candidates/j'), candidate));
+  await assertSucceeds(deleteDoc(p(bob(), path+'/candidates/i')));
+  await assertSucceeds(deleteDoc(p(bob(), path)));
 });

@@ -9,6 +9,15 @@ import org.json.JSONObject
 class Prefs(ctx: Context) {
     private val p: SharedPreferences = ctx.getSharedPreferences("nosotros", Context.MODE_PRIVATE)
 
+    var featureModes: Map<String, String>
+        get() = runCatching { val json = JSONObject(p.getString("featureModes", "{}") ?: "{}")
+            json.keys().asSequence().associateWith { json.getString(it) } }.getOrDefault(emptyMap())
+        set(v) = p.edit().putString("featureModes", JSONObject(v).toString()).apply()
+    var featureAdmin: Boolean
+        get() = p.getBoolean("featureAdmin", false)
+        set(v) = p.edit().putBoolean("featureAdmin", v).apply()
+    fun featureEnabled(feature: Feature) = FeatureAccess(featureModes, featureAdmin).enabled(feature)
+
     var pairId: String?
         get() = p.getString("pairId", null)
         set(v) = p.edit().putString("pairId", v).apply()

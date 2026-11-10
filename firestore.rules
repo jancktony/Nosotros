@@ -14,6 +14,22 @@ service cloud.firestore {
     function admin(id) { return member(id) && pairData(id).admin == request.auth.uid; }
     function changedOnly(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
     function own(data) { return data.uid == request.auth.uid; }
+    function validFlags(flags) {
+      return flags is map && flags.keys().hasOnly(['walkie', 'voiceNotes', 'map3d', 'profilePhoto', 'compactWidgets', 'placeAlerts', 'manualUpdates'])
+        && flags.get('walkie', 'off') in ['off', 'admin', 'all']
+        && flags.get('voiceNotes', 'off') in ['off', 'admin', 'all']
+        && flags.get('map3d', 'all') in ['off', 'admin', 'all']
+        && flags.get('profilePhoto', 'all') in ['off', 'admin', 'all']
+        && flags.get('compactWidgets', 'all') in ['off', 'admin', 'all']
+        && flags.get('placeAlerts', 'all') in ['off', 'admin', 'all']
+        && flags.get('manualUpdates', 'all') in ['off', 'admin', 'all']
+      ;
+    }
+    function feature(id, key, fallback) {
+      let data = pairData(id);
+      let mode = data.get('featureFlags', {}).get(key, fallback);
+      return mode == 'all' || (mode == 'admin' && data.admin == request.auth.uid);
+    }
     function validProfile(data) {
       return (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 90000));
     }
@@ -53,10 +69,10 @@ service cloud.firestore {
         && request.resource.data.code.matches('[0-9]{6}')
         && request.resource.data.createdAt is int;
       allow read: if personal() && request.auth.uid in resource.data.members;
-      allow update: if personal() && validMembers(request.resource.data) && (
+      allow update: if personal() && validMembers(request.resource.data) && validFlags(request.resource.data.get('featureFlags', {})) && (
         // Solo el administrador gestiona miembros y versiones. webUids solo puede borrarse.
         (request.auth.uid in resource.data.members && resource.data.admin == request.auth.uid
-          && changedOnly(['members', 'admin', 'code', 'replaced', 'since', 'relVersion', 'relUrl', 'relNotes', 'webUids'])
+          && changedOnly(['members', 'admin', 'code', 'replaced', 'since', 'relVersion', 'relUrl', 'relNotes', 'webUids', 'featureFlags'])
           && (!('webUids' in request.resource.data) || request.resource.data.webUids == resource.data.get('webUids', []))
           && resource.data.members.hasAll(request.resource.data.members)) ||
         // Ambos pueden cambiar la fecha de la relación.
@@ -108,6 +124,42 @@ service cloud.firestore {
         allow read: if member(id);
         allow create: if member(id) && own(request.resource.data);
         allow update: if member(id) && own(resource.data) && changedOnly(['end']);
+      }
+      match /voiceNotes/{note} {
+        allow read: if member(id) && feature(id, 'voiceNotes', 'off');
+        allow create: if member(id) && feature(id, 'voiceNotes', 'off') && own(request.resource.data)
+          && request.resource.data.keys().hasOnly(['uid', 'audio', 'durationMs', 'createdAt'])
+          && request.resource.data.audio is bytes && request.resource.data.audio.size() <= 150000
+          && request.resource.data.audio.size() > 0
+          && request.resource.data.durationMs is int
+          && request.resource.data.durationMs >= 300 && request.resource.data.durationMs <= 30000
+          && request.resource.data.createdAt == request.time;
+        allow delete: if member(id) && (own(resource.data) || admin(id));
+      }
+      match /walkieCalls/{call} {
+        function participant() { return member(id) && request.auth.uid in [resource.data.uid, resource.data.to]; }
+        allow read: if member(id) && feature(id, 'walkie', 'off');
+        allow delete: if participant();
+        allow create: if member(id) && feature(id, 'walkie', 'off') && own(request.resource.data)
+          && request.resource.data.keys().hasOnly(['uid', 'to', 'offer', 'createdAt'])
+          && request.resource.data.to in pairData(id).members
+          && request.resource.data.to != request.auth.uid
+          && request.resource.data.offer is string && request.resource.data.offer.size() <= 32000
+          && request.resource.data.createdAt == request.time;
+        allow update: if participant() && feature(id, 'walkie', 'off') && request.auth.uid == resource.data.to
+          && !('answer' in resource.data) && changedOnly(['answer'])
+          && request.resource.data.answer is string && request.resource.data.answer.size() <= 32000;
+        match /candidates/{candidate} {
+          function callData() { return get(/databases/$(database)/documents/pairs/$(id)/walkieCalls/$(call)).data; }
+          function participant() { return member(id) && request.auth.uid in [callData().uid, callData().to]; }
+          allow read: if participant() && feature(id, 'walkie', 'off');
+          allow delete: if participant();
+          allow create: if participant() && feature(id, 'walkie', 'off') && own(request.resource.data)
+            && request.resource.data.keys().hasOnly(['uid', 'candidate', 'mid', 'line'])
+            && request.resource.data.candidate is string && request.resource.data.candidate.size() <= 4096
+            && request.resource.data.mid is string && request.resource.data.mid.size() <= 128
+            && request.resource.data.line is int && request.resource.data.line >= 0 && request.resource.data.line <= 32;
+        }
       }
       match /photos/{photo} {
         allow read: if member(id);

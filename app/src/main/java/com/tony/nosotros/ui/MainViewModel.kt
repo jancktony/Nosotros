@@ -57,9 +57,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     val pairInfo: StateFlow<com.tony.nosotros.data.PairInfo> = StateFlowOf(
-        pairId.flatMapLatest { it?.let { Repo.pairInfoFlow(it) } ?: flowOf(com.tony.nosotros.data.PairInfo()) }, com.tony.nosotros.data.PairInfo()
+        pairId.flatMapLatest { it?.let { Repo.pairInfoFlow(it) } ?: flowOf(com.tony.nosotros.data.PairInfo()) }, com.tony.nosotros.data.PairInfo(featureFlags = prefs.featureModes)
     )
     val isAdmin: StateFlow<Boolean> = StateFlowOf(combine(pairInfo, uid) { i, u -> u != null && i.admin == u }, false)
+    val features = combine(pairInfo, uid) { info, user ->
+        com.tony.nosotros.data.FeatureAccess(info.featureFlags, user != null && info.admin == user)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, com.tony.nosotros.data.FeatureAccess(prefs.featureModes, prefs.featureAdmin))
+    val featureBusy = MutableStateFlow(false)
+    fun setFeature(feature: com.tony.nosotros.data.Feature, mode: String) = viewModelScope.launch {
+        if (!isAdmin.value || featureBusy.value) return@launch
+        val id = pairId.value ?: return@launch
+        featureBusy.value = true
+        try {
+            Repo.setFeature(id, feature, mode)
+            adminMessage.value = "${feature.title}: configuración guardada."
+        } catch (_: Exception) { adminMessage.value = "No se pudo guardar. Revisa conexión y reglas de Firebase." }
+        finally { featureBusy.value = false }
+    }
     val newCode = MutableStateFlow<String?>(null)
     fun release(r: com.tony.nosotros.update.Updater.Release) = viewModelScope.launch {
         val id = pairId.value ?: return@launch
@@ -100,7 +114,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setTheme(id: String) { prefs.theme = id; theme.value = id; C.p = Palettes.of(id); Widgets.updateAll(getApplication()) }
 
     val map3d = MutableStateFlow(prefs.map3d)
-    fun setMap3d(value: Boolean) { prefs.map3d = value; map3d.value = value }
+    fun setMap3d(value: Boolean) { if (value && !features.value.enabled(com.tony.nosotros.data.Feature.MAP_3D)) return; prefs.map3d = value; map3d.value = value }
     val satellite = MutableStateFlow(prefs.mapSatellite)
     fun toggleSatellite() { val v = !satellite.value; prefs.mapSatellite = v; satellite.value = v }
 
@@ -127,6 +141,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val tick: StateFlow<Long> = StateFlowOf(flow { while (true) { emit(System.currentTimeMillis()); delay(10_000) } }, 0L)
 
     init {
+        viewModelScope.launch { features.collect {
+            prefs.featureModes = it.modes; prefs.featureAdmin = it.admin
+            Widgets.updateAll(getApplication())
+        } }
         if (App.firebaseConfigured) viewModelScope.launch {
             if (Repo.authorizedSession) Repo.uid?.let { uid.value = it; runCatching { restore() } }
         }
@@ -225,6 +243,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val profileBusy = MutableStateFlow(false)
     val profileMessage = MutableStateFlow<String?>(null)
     fun setAvatar(encoded: String) = viewModelScope.launch {
+        if (!features.value.enabled(com.tony.nosotros.data.Feature.PROFILE_PHOTO)) return@launch
         val id = pairId.value ?: return@launch
         val session = uid.value
         profileBusy.value = true; profileMessage.value = null

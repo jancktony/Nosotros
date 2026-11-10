@@ -449,6 +449,12 @@ class TrackingService : Service() {
             }
         }
         scope.launch {
+            Repo.pairInfoFlow(pid).collect {
+                prefs.featureModes = it.featureFlags; prefs.featureAdmin = it.admin == uid
+                Widgets.updateAll(this@TrackingService)
+            }
+        }
+        scope.launch {
             Repo.sinceFlow(pid).collect { prefs.since = it; Widgets.updateAll(this@TrackingService) }
         }
         scope.launch {
@@ -515,6 +521,7 @@ class TrackingService : Service() {
     }
 
     private fun notifyPartnerEvent(e: EventItem) {
+        if (e.type in listOf("arrive", "leave") && !prefs.featureEnabled(com.tony.nosotros.data.Feature.PLACE_ALERTS)) return
         val enabled = when (e.type) {
             "arrive" -> prefs.notifyArrive
             "leave" -> prefs.notifyLeave

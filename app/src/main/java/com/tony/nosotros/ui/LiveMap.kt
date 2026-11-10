@@ -180,22 +180,24 @@ fun LiveMap(
         }
     }
 
-    LaunchedEffect(style, threeD) {
+    val tilt3d = threeD && LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MAP_3D)
+    val showPhotos = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.PROFILE_PHOTO)
+    LaunchedEffect(style, tilt3d) {
         style?.getLayer("nosotros-buildings-3d")?.setProperties(
-            PropertyFactory.visibility(if (threeD) Property.VISIBLE else Property.NONE)
+            PropertyFactory.visibility(if (tilt3d) Property.VISIBLE else Property.NONE)
         )
     }
-    LaunchedEffect(map, threeD) {
+    LaunchedEffect(map, tilt3d) {
         val m = map ?: return@LaunchedEffect
-        if (kotlin.math.abs(m.cameraPosition.tilt - (if (threeD) 55.0 else 0.0)) > 1.0) {
+        if (kotlin.math.abs(m.cameraPosition.tilt - (if (tilt3d) 55.0 else 0.0)) > 1.0) {
             m.animateCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder(m.cameraPosition)
-                .tilt(if (threeD) 55.0 else 0.0).build()), 450)
+                .tilt(if (tilt3d) 55.0 else 0.0).build()), 450)
         }
     }
 
-    LaunchedEffect(style, people, places, routes) {
+    LaunchedEffect(style, people, places, routes, showPhotos) {
         val s = style ?: return@LaunchedEffect
-        updateData(ctx, s, palette, people, places, routes)
+        updateData(ctx, s, palette, if (showPhotos) people else people.map { it.copy(avatar = "") }, places, routes)
     }
 
     // Pulso animado alrededor de quien se está moviendo
@@ -229,11 +231,11 @@ fun LiveMap(
         val pad = (64 * ctx.resources.displayMetrics.density).toInt()
         if (pts.size == 1 || pts.all { it.distanceTo(pts[0]) < 50 }) {
             m.animateCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder(m.cameraPosition)
-                .target(pts[0]).zoom(16.0).tilt(if (threeD) 55.0 else 0.0).build()), 800)
+                .target(pts[0]).zoom(16.0).tilt(if (tilt3d) 55.0 else 0.0).build()), 800)
         } else {
             val b = LatLngBounds.Builder().includes(pts).build()
             val camera = m.getCameraForLatLngBounds(b, intArrayOf(pad, topInsetPx + pad, pad, bottomInsetPx + pad),
-                m.cameraPosition.bearing, if (threeD) 55.0 else 0.0)
+                m.cameraPosition.bearing, if (tilt3d) 55.0 else 0.0)
             if (camera != null) m.animateCamera(CameraUpdateFactory.newCameraPosition(camera), 800)
         }
     }

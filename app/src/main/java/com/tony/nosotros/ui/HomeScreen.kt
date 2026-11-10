@@ -161,7 +161,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
                 RoundButton(Ic.Nav, "Buscar dirección y ruta", onNavigate)
                 RoundButton(if (satellite) Ic.Map else Ic.Layers, if (satellite) "Mapa" else "Satélite") { vm.toggleSatellite() }
                 RoundButton(Ic.Locate, "Centrar") { fitKey++ }
-                TextButton(onClick = { vm.setMap3d(!threeD) }, modifier = Modifier
+                if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MAP_3D)) TextButton(onClick = { vm.setMap3d(!threeD) }, modifier = Modifier
                     .clip(RoundedCornerShape(18.dp)).background(C.surface)) {
                     Text(if (threeD) "2D" else "3D", color = C.me, fontWeight = FontWeight.Bold)
                 }
