@@ -1,6 +1,11 @@
 name: Configurar correos y reglas de Firebase
 on:
   workflow_dispatch:
+    inputs:
+      configure_emails:
+        description: Intentar personalizar correos (Firebase puede restringirlos)
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -13,5 +18,6 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Configurar proyecto autorizado sin mostrar credenciales
         env:
+          ONLY_RULES: ${{ inputs.configure_emails && '0' || '1' }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node security/configure-firebase.cjs

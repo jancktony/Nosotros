@@ -24,7 +24,7 @@ async function main() {
   const authUrl = `https://identitytoolkit.googleapis.com/admin/v2/projects/${PROJECT}/config`;
   const auth = await api(authUrl);
   console.log(`Acceso a configuración de correos: HTTP ${auth.status}`);
-  if (auth.ok) {
+  if (auth.ok && process.env.ONLY_RULES !== '1') {
     console.log('Campos de configuración: ' + Object.keys(auth.data).join(','));
     const update = async (mask, body) => api(authUrl + '?updateMask=' + encodeURIComponent(mask), 'PATCH', body);
     const locale = await update('notification.defaultLocale', {notification:{defaultLocale:'es'}});
@@ -55,7 +55,7 @@ async function main() {
     console.log('Comprobación de correos: ' + JSON.stringify({locale:check.data?.notification?.defaultLocale,
       verify:{sender:email.verifyEmailTemplate?.senderDisplayName,subject:email.verifyEmailTemplate?.subject},
       reset:{sender:email.resetPasswordTemplate?.senderDisplayName,subject:email.resetPasswordTemplate?.subject}}));
-  } else failures++;
+  } else if (!auth.ok) failures++;
   if (process.env.APPLY_RULES === '0') {
     if (failures) throw new Error('Correos parcialmente configurados');
     return;
