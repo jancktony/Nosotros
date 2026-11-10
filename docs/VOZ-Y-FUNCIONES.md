@@ -75,7 +75,7 @@ Los ajustes personales de silencio, permisos y pausa siguen teniendo prioridad.
    límite 30 s, reproducción/borrado, desconectar, bloquear, cambiar pestaña, salir
    de la app, cerrar sesión y retirada de funciones durante el uso. Probar entre
    Wi-Fi y datos; verificar comportamiento cuando STUN no logra conexión.
-4. Versión 1.9, código 11: ambos teléfonos necesitan el nuevo APK. La voz sigue
+4. Versión puente 1.9.1, código 12: el propietario la prueba primero y decide cuándo instalarla en el otro teléfono. La voz sigue
    apagada por defecto para que el administrador decida cuándo probarla y liberarla.
    El audio no se ha validado todavía en los Samsung físicos.
 5. Activar notas «Solo yo» para probar y luego «Ambos». El directo requiere
@@ -83,3 +83,5 @@ Los ajustes personales de silencio, permisos y pausa siguen teniendo prioridad.
    pantalla pero no establece conversación con un destinatario sin acceso.
 
 Dependencia: https://github.com/webrtc-sdk/android (150.7871.04).
+
+Canal vigente sin Blaze ni Storage: ver [ACTUALIZACIONES-PRIVADAS.md](ACTUALIZACIONES-PRIVADAS.md).

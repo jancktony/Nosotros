@@ -1,6 +1,9 @@
 name: Publicar candidata privada en Firestore
 on:
   workflow_dispatch:
+concurrency:
+  group: android-candidates
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:

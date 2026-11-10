@@ -35,7 +35,17 @@ async function main() {
   const keep=new Set(stored.filter(d=>protectedVersions.has(d.id)).map(d=>d.id));keep.add(version);
   if(keep.size>4) throw Error('Demasiadas versiones protegidas');
   for(const d of stored.sort((a,b)=>(b.get('publishedAt')||0)-(a.get('publishedAt')||0))) if(keep.size<4)keep.add(d.id);
-  for(const d of stored) if(!keep.has(d.id))await db.recursiveDelete(d.ref);
+  for(const d of stored) if(!keep.has(d.id)) {
+    const retired = await db.runTransaction(async tx => {
+      const [livePair, ...liveMembers] = await Promise.all([tx.get(pair.ref), ...uids.map(u=>tx.get(pair.ref.collection('members').doc(u)))]);
+      if(livePair.get('relVersion')===d.id || liveMembers.some(m=>m.get('appVersion')===d.id)) return false;
+      // Approval rules require ready=true, so a version cannot be approved while being removed.
+      tx.update(d.ref,{ready:false}); return true;
+    });
+    if(retired) await db.recursiveDelete(d.ref);
+    else keep.add(d.id);
+  }
+  if(keep.size>4) throw Error('Una aprobación cambió durante la limpieza; reintenta sin añadir almacenamiento');
   const chunkCount=Math.ceil(apk.length/CHUNK);
   const manifest={version,pairId,transport:'firestore-chunks-v1',apkPath:`firestore://releases/${version}`,
     sha256,size:apk.length,chunkSize:CHUNK,chunkCount,publishedAt:Date.now(),
