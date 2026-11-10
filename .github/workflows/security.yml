@@ -1,6 +1,11 @@
 name: Validar seguridad y Android
 on:
   pull_request:
+  push:
+    branches: ['feature/**', 'security/**']
+concurrency:
+  group: validate-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
