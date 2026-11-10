@@ -40,24 +40,31 @@ Fuente: https://firebase.google.com/docs/firestore/quotas
 
 ## Migración única antes de privatizar
 
-Las versiones 1.8/1.8.1 entienden GitHub/Storage, pero no los fragmentos de
-Firestore. Por eso necesitan **una única instalación puente, 1.9.1 o superior**.
-El propietario la instala primero y realiza las pruebas. Cuando la aprueba,
-instala esa misma compilación firmada en el teléfono de la pareja. No hace falta
-reinstalar desde cero ni perder datos. Después las actualizaciones viajan por
-Firestore y solo se entregan al otro al pulsar Liberar en el panel.
+Las versiones 1.8/1.8.1 ya tienen un canal de GitHub. La transición a 1.9.1
+se entrega **como actualización dentro de la app**, sin desinstalar ni descargar
+manualmente otro APK. El propietario la recibe primero desde el canal existente.
+La pareja conserva su versión fijada y solo recibe 1.9.1 cuando el propietario
+pulsa **Liberar** en su panel.
 
-La instalación puente se descarga del borrador de GitHub autenticado como
-propietario. No se publica automáticamente para que otros la descarguen.
+Para esta única transición, el APK 1.9.1 se publica temporalmente en el GitHub
+actual, que aún es público. El teléfono antiguo busca la versión expresamente
+aprobada en ese catálogo y usa su enlace de GitHub; el hecho de que el panel nuevo
+guarde también la ruta privada no impide esa selección. Las candidatas futuras
+siguen siendo borradores y la app 1.9.1 solo descarga desde Firestore.
+
+No se reinstala desde cero, no se borran datos ni se cambia el certificado. Android
+puede pedir confirmar la instalación habitual de una actualización.
 
 Orden:
-1. Pruebas de reglas y compilación aprobadas.
-2. Desplegar las reglas de Firestore y publicar/verificar la candidata privada.
-3. El propietario instala el puente y comprueba descarga, firma, panel y voz.
-4. Solo cuando el propietario apruebe: instalar el puente en el otro teléfono.
+1. Pruebas de reglas, compilación e integridad aprobadas.
+2. Mantener fijada la versión de la pareja, sin aprobar el puente por CI.
+3. Habilitar 1.9.1 en el canal GitHub existente para que el propietario actualice
+   desde su app y realice sus pruebas.
+4. Solo cuando el propietario pulse Liberar: la app de la pareja descarga esa
+   misma versión desde el canal existente.
 5. Confirmar ambos teléfonos con 1.9.1 o superior y verificar el canal privado.
-6. Cambiar el repositorio a privado. Los APK futuros seguirán llegando por
-   Firestore, aunque GitHub ya no permita leer el código sin autenticación.
+6. Cambiar el repositorio a privado. Las actualizaciones posteriores usarán
+   Firestore y seguirán exigiendo Liberar desde el panel del propietario.
 
 No se debe privatizar antes del paso 5 porque los teléfonos antiguos perderían
 su canal de actualización. Este entorno no tiene permiso de administración de
