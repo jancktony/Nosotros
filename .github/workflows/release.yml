@@ -31,7 +31,6 @@ jobs:
         run: chmod +x gradlew && ./gradlew testDebugUnitTest assembleRelease -PghRepo=${{ github.repository }}
         env:
           KS_PASS: ${{ secrets.KS_PASS }}
-          MAPS3D_API_KEY: ${{ secrets.MAPS3D_API_KEY }}
       - if: steps.v.outputs.skip != '1'
         run: cp app/build/outputs/apk/release/app-release.apk Nosotros-${{ steps.v.outputs.tag }}.apk
       - if: steps.v.outputs.skip != '1'

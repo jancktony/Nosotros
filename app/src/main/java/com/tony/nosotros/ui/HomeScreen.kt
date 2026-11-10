@@ -73,8 +73,6 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
     val threeD by vm.map3d.collectAsState()
     vm.tick.collectAsState().value
 
-    var realMap by remember { mutableStateOf(false) }
-    var realMapInfo by remember { mutableStateOf(false) }
     var fitKey by remember { mutableIntStateOf(0) }
     var focus by remember { mutableStateOf(Focus.BOTH) }
     var liveRequested by remember { mutableStateOf(0L) }
@@ -115,14 +113,6 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
         Focus.ME -> me?.takeIf { it.hasLocation }?.let { listOf(Pt(it.lat, it.lng)) }
         Focus.PARTNER -> partner?.takeIf { it.hasLocation }?.let { listOf(Pt(it.lat, it.lng)) }
     }
-
-    if (realMap) RealisticMapDialog(people, places, routes, onClose = { realMap = false })
-    if (realMapInfo) androidx.compose.material3.AlertDialog(
-        onDismissRequest = { realMapInfo = false },
-        title = { Text("Edificios fotografiados") },
-        text = { Text("La vista realista todavía no está activada. El detalle de los edificios dependerá de la cobertura de Google en tu zona.") },
-        confirmButton = { TextButton(onClick = { realMapInfo = false }) { Text("Entendido") } },
-    )
 
     BottomSheetScaffold(
         scaffoldState = sheet,
@@ -171,14 +161,9 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
                 RoundButton(Ic.Nav, "Buscar dirección y ruta", onNavigate)
                 RoundButton(if (satellite) Ic.Map else Ic.Layers, if (satellite) "Mapa" else "Satélite") { vm.toggleSatellite() }
                 RoundButton(Ic.Locate, "Centrar") { fitKey++ }
-                TextButton(onClick = {
-                    if (com.tony.nosotros.BuildConfig.MAPS3D_ENABLED) realMap = true else realMapInfo = true
-                }, modifier = Modifier.clip(RoundedCornerShape(18.dp)).background(C.surface)) {
-                    Text("3D real", color = C.me, fontWeight = FontWeight.Bold)
-                }
                 TextButton(onClick = { vm.setMap3d(!threeD) }, modifier = Modifier
                     .clip(RoundedCornerShape(18.dp)).background(C.surface)) {
-                    Text(if (threeD) "2D" else "Inclinar", color = C.me, fontWeight = FontWeight.Bold)
+                    Text(if (threeD) "2D" else "3D", color = C.me, fontWeight = FontWeight.Bold)
                 }
             }
             if (people.isEmpty()) {

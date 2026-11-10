@@ -1,62 +1,56 @@
-# Vista 3D realista (pendiente de activar)
+# Viabilidad del mapa 3D fotografiado
 
-La versión 1.8 usa MapLibre: imágenes satelitales planas y edificios vectoriales.
-Esta integración añade un botón **3D real**, que abre Google Maps 3D en pantalla
-completa. Mantiene el mapa habitual para navegación y edición de lugares.
-La vista de Google muestra las ubicaciones recibidas por la app, sus lugares y
-rutas; permite centrar ambos o cada persona, inclinar, girar y acercar con gestos.
-Los marcadores usan iniciales (no fotografías de perfil). El mapa no obtiene
-ubicaciones adicionales ni cambia los controles existentes de pausa.
+Revisión: 10 de noviembre de 2026. Ciudades de uso: Barranquilla y Riohacha,
+Colombia. Objetivo: edificios fotografiados como Google Earth.
 
-Sin clave, el botón explica que la vista todavía no está activada y no crea un
-Map3DView ni hace solicitudes a Google Maps 3D. Con clave, se abre solo al pulsar.
-No se modifica el seguimiento en segundo plano. Al cerrar, se eliminan los
-marcadores y rutas del estado compartido del SDK. Si falla, se ofrece volver.
+## Resultado
 
-## Activación por el propietario
+La tabla oficial de Google Maps Platform marca Colombia con **—** en la columna
+**Maps 3D (JavaScript, Android, iOS)**. La leyenda define ese símbolo como no
+disponible o con baja calidad/disponibilidad. También indica solo teselas 2D,
+sin la marca adicional de cobertura de teselas 3D que sí aparece para países
+como Argentina, Brasil o Chile.
 
-1. Comprobar cobertura fotografiada en la ciudad de uso: no todos los edificios
-   o zonas tienen malla 3D. Una imagen satelital disponible no garantiza edificios.
-2. En Google Cloud, usar un proyecto con facturación y habilitar **Maps 3D SDK for Android**.
-   Esto requiere decisión del propietario: este cambio no crea proyectos,
-   habilita servicios ni acepta cargos. Revisar tarifas y cuotas antes de activar.
-3. Crear una clave limitada a este SDK y a la aplicación Android
-   `com.tony.nosotros`, con SHA-1 del certificado de firma **release** ya utilizado.
-   No usar la clave de Firebase. Para debug se requiere otra restricción con su
-   certificado; no eliminar restricciones para resolver un error de autorización.
-4. Guardar la clave en el secreto de Actions `MAPS3D_API_KEY`, nunca en código ni
-   en un mensaje. El workflow release ya la pasa al compilador. Para desarrollo,
-   usar `secrets.properties` en la raíz (ignorado por git):
+Por tanto, la documentación no respalda ofrecer edificios fotografiados en
+Barranquilla o Riohacha con el SDK de Google. Una clave, facturación habilitada
+y un teléfono compatible no añaden imágenes ausentes del proveedor.
 
-   ```properties
-   MAPS3D_API_KEY=clave_restringida
-   ```
+Fuente oficial, columna y fila deben leerse juntas:
+https://developers.google.com/maps/coverage
 
-   Las claves Android quedan incluidas en el APK por diseño: las restricciones
-   de API, paquete y certificado son necesarias. No son un sustituto de los
-   permisos de Firebase que protegen los datos de la pareja.
-5. Compilar una versión nueva firmada y probar en Fold4/One UI 8 y A15: carga,
-   cobertura, gestos, marcadores, rutas, volver/abrir, rotación, segundo plano,
-   cierre de sesión, falta de red y clave no autorizada. No se ha validado con
-   un dispositivo físico ni con una clave habilitada en esta preparación.
-6. Después de validar y ajustar versión/código, publicar por el canal automático
-   existente. Esta rama conserva 1.8 para evitar publicar una función sin activar.
+## Qué muestra la versión 1.8
 
-## Dependencia y facturación
+MapLibre inclina la cámara y da volumen a edificios vectoriales cuando los datos
+cartográficos incluyen sus huellas/alturas. La vista satelital actual es una
+imagen plana. Ninguna de estas técnicas reconstruye fachadas fotografiadas.
+Cambiar la inclinación o aumentar una altura por defecto no cumple el objetivo.
 
-SDK nativo `com.google.android.gms:play-services-maps3d:16.0.1`, aislado en un
-único Map3DView activo. El mapa de navegación sigue usando MapLibre. No se usa
-un WebView de Google Earth ni se extraen sus teselas.
+## Decisión técnica
 
-Google exige proyecto con facturación y clave. La documentación consultada el
-10 de noviembre de 2026 anuncia cobro del SKU Immersive Maps a partir del
-13 de noviembre de 2026. No asumir que una app personal está exenta de cargos.
-Una alerta de presupuesto no equivale a un límite de gasto; revisar cuotas que
-permita configurar el servicio y los precios vigentes antes de la activación.
+Se mantiene el mapa actual. No se integra ni activa Google Maps 3D, no se
+introduce su dependencia, no se configura una clave y no se habilita facturación.
+La versión y el mecanismo de actualizaciones conservan su configuración.
 
-Referencias oficiales:
+Antes de integrar otro proveedor, exigir una demostración con edificios
+fotografiados de las dos ciudades y comprobar licencia, costes y compatibilidad
+Android. Si Google amplía su cobertura, revisar de nuevo la tabla y probar zonas
+concretas antes de preparar una publicación.
+
+## Comprobaciones y límites
+
+- Se consultó la documentación oficial de cobertura y del SDK Android.
+- Se intentó contrastar las ciudades en el visor oficial de superficies 3D:
+  https://developers.google.com/maps/documentation/javascript/3d/coverage
+- En el navegador de prueba, ese visor usó renderizado RASTER y su capa de
+  cobertura no estuvo disponible (`isDataDrivenStylingAvailable=false`,
+  `FeatureLayer.isAvailable=false`). El control con Nueva York también falló;
+  sus capturas sin áreas azules **no son prueba de ausencia de cobertura**.
+  La conclusión se basa en la tabla oficial por país.
+- No se probó el renderizado nativo en Samsung ni se usó una clave facturable.
+- Este resultado se refiere a Google Maps Platform; no demuestra que ningún
+  otro proveedor o levantamiento fotogramétrico tenga datos de esas ciudades.
+
+Referencias adicionales:
+- https://developers.google.com/maps/documentation/maps-3d/android-sdk/overview
 - https://developers.google.com/maps/documentation/maps-3d/android-sdk/setup
 - https://developers.google.com/maps/documentation/maps-3d/android-sdk/usage-and-billing
-- https://developers.google.com/maps/documentation/maps-3d/android-sdk/overview
-- https://developers.google.com/maps/documentation/maps-3d/android-sdk/add-a-3d-map
-- https://github.com/googlemaps-samples/android-maps3d-samples

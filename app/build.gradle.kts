@@ -1,5 +1,4 @@
 import groovy.json.JsonSlurper
-import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -28,14 +27,6 @@ fun readFirebaseConfig(): FbConfig {
 }
 
 val fb = readFirebaseConfig()
-// Local development: ignored root secrets.properties. CI: MAPS3D_API_KEY secret.
-val mapSecrets = Properties().apply {
-    rootProject.file("secrets.properties").takeIf { it.isFile }?.inputStream()?.use { load(it) }
-}
-val maps3dKey = (System.getenv("MAPS3D_API_KEY") ?: mapSecrets.getProperty("MAPS3D_API_KEY", "")).trim()
-require(maps3dKey.isEmpty() || maps3dKey.matches(Regex("[A-Za-z0-9_-]+"))) {
-    "MAPS3D_API_KEY tiene un formato inválido"
-}
 
 android {
     namespace = "com.tony.nosotros"
@@ -48,8 +39,6 @@ android {
         versionCode = 9
         versionName = "1.8"
         buildConfigField("String", "GH_REPO", "\"${(project.findProperty("ghRepo") as String?) ?: ""}\"")
-        manifestPlaceholders["MAPS3D_API_KEY"] = maps3dKey
-        buildConfigField("boolean", "MAPS3D_ENABLED", maps3dKey.isNotEmpty().toString())
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         buildConfigField("String", "FB_API_KEY", "\"${fb.apiKey}\"")
         buildConfigField("String", "FB_APP_ID", "\"${fb.appId}\"")
@@ -103,7 +92,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     implementation("org.maplibre.gl:android-sdk:11.8.0")
-    implementation("com.google.android.gms:play-services-maps3d:16.0.1")
 
     testImplementation("junit:junit:4.13.2")
 }

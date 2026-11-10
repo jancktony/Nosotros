@@ -29,9 +29,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Nosotros">
 
-        <meta-data android:name="com.google.android.geo.maps3d.API_KEY"
-            android:value="${MAPS3D_API_KEY}" />
-
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
