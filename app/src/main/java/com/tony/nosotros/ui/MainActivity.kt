@@ -114,7 +114,7 @@ private fun Root(vm: MainViewModel) {
     val versionPolicy by vm.pairInfo.collectAsState()
     val automaticUpdates = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.AUTO_UPDATES)
     LaunchedEffect(automaticUpdates, versionPolicy.testVersion, versionPolicy.relVersion) {
-        update = if (automaticUpdates) runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() else null
+        update = if (automaticUpdates && !vm.releaseBusy.value) runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() else null
     }
     update?.let { r ->
         androidx.compose.material3.AlertDialog(

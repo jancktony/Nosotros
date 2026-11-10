@@ -449,9 +449,15 @@ class TrackingService : Service() {
             }
         }
         scope.launch {
+            var previousTarget: String? = null
             Repo.pairInfoFlow(pid).collect {
                 prefs.featureModes = it.featureFlags; prefs.featureAdmin = it.admin == uid
                 Widgets.updateAll(this@TrackingService)
+                val target = if (it.admin == uid) it.testVersion else it.relVersion
+                if (target != previousTarget) {
+                    previousTarget = target
+                    if (target != null) launch { runCatching { autoUpdate() } }
+                }
             }
         }
         scope.launch {

@@ -14,7 +14,7 @@ const paused=m=>(m?.pausedUntil||0)>Date.now();
 function clear(){unsub.forEach(fn=>fn());unsub=[];map?.remove();map=null;uid=null;pairId=null;selected=null;Object.assign(S,{pair:null,members:[],places:[],photos:[],releases:[],reviews:{}})}
 function errorMessage(e){return e?.code==='auth/invalid-credential'||e?.code==='auth/wrong-password'||e?.code==='auth/user-not-found'?'Correo o contraseña incorrectos.':e?.code==='auth/too-many-requests'?'Espera un momento antes de intentarlo otra vez.':e?.code==='permission-denied'?'Esta cuenta no tiene acceso a este panel.':e?.message?.startsWith('Verifica')?e.message:'No se pudo completar. Revisa la conexión y vuelve a intentarlo.'}
 function login(message=''){
- clear();app.innerHTML=`<div class="center"><form class="card" id="login" style="max-width:420px;width:100%"><h1>Nosotros · Privado</h1><p class="sub">Entra con el mismo correo de la app para encontrar tu teléfono y ver sus datos.</p><p><input name="email" type="email" autocomplete="username" placeholder="Tu correo" required></p><p><input name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required></p><button type="submit">Entrar</button> <button type="button" data-act="forgot">Olvidé mi contraseña</button><p id="login-error" role="alert">${esc(message)}</p><p class="sub">Creado por jancktony</p></form></div>`;
+ clear();app.innerHTML=`<div class="center"><form class="card" id="login" style="max-width:420px;width:100%"><h1>Nosotros · Privado</h1><p class="sub">Entra con el mismo correo de la app para encontrar tu teléfono y ver sus datos.</p><p><input name="email" type="email" autocomplete="username" placeholder="Tu correo" required></p><p><input name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required></p><button type="submit">Entrar</button> <button type="button" data-act="forgot">Olvidé mi contraseña</button><p id="login-error" role="alert">${esc(message)}</p><p class="sub">Creado por Jancktony Murgas</p></form></div>`;
  app.querySelector('#login').addEventListener('submit',async event=>{
   event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]');button.disabled=true;
   try{await signInWithEmailAndPassword(auth,form.email.value.trim(),form.password.value);form.reset()}
@@ -68,14 +68,14 @@ function adminPanel(){
  <button data-act="approve" data-id="${esc(release.id)}" ${installed?'':'disabled'}>Aprobar mi prueba</button>
  <button data-act="release" data-id="${esc(release.id)}" ${installed&&review.state==='approved'&&!live?'':'disabled'}>${live?'Liberada':'Liberar para mi pareja'}</button></div></div>`}).join('')||'<p class="sub">Todavía no hay candidatas privadas disponibles.</p>'}</section>
  <section class="card"><h2>Funciones</h2>${FEATURES.map(([key,title,fallback])=>{const mode=S.pair.featureFlags?.[key]||fallback;return `<div class="row"><span class="grow">${esc(title)}</span>${[['off','Desactivada'],['admin','Solo yo'],['all','Ambos']].map(([value,label])=>`<button data-act="feature" data-id="${key}" data-mode="${value}" ${mode===value?'disabled':''}>${mode===value?'✓ ':''}${label}</button>`).join('')}</div>`}).join('')}</section>
- <section class="card"><h2>Mi marca de creador</h2><input id="creator-brand" maxlength="60" value="${esc(S.pair.creatorBrand||'jancktony')}" aria-label="Tu marca"><p><button data-act="brand">Guardar mi marca</button></p></section>`;
+ <section class="card"><h2>Mi marca de creador</h2><input id="creator-brand" maxlength="60" value="${esc(S.pair.creatorBrand||'Jancktony Murgas')}" aria-label="Tu marca"><p><button data-act="brand">Guardar mi marca</button></p></section>`;
 }
 function render(){
  if(!S.pair||!uid)return;
  const live=S.members.filter(m=>S.pair.members.includes(m.id));
  const me=live.find(m=>m.id===uid),other=live.find(m=>m.id!==uid);
  map?.remove();map=null;
- app.innerHTML=`<header style="display:flex;gap:12px;align-items:center"><div class="grow"><h1>Nosotros · ${isAdmin()?'Tu panel':'Privado'}</h1><span class="sub">Creado por ${esc(S.pair.creatorBrand||'jancktony')}</span></div><button data-act="logout">Cerrar sesión</button></header>
+ app.innerHTML=`<header style="display:flex;gap:12px;align-items:center"><div class="grow"><h1>Nosotros · ${isAdmin()?'Tu panel':'Privado'}</h1><span class="sub">Creado por ${esc(S.pair.creatorBrand||'Jancktony Murgas')}</span></div><button data-act="logout">Cerrar sesión</button></header>
  ${notice?`<p class="card ok" role="status">${esc(notice)}</p>`:''}
  <section class="grid"><div class="card">${person(me)}</div><div class="card">${person(other)}</div></section>
  <section class="card"><h2>Encontrar el teléfono</h2><p class="sub">Muestra la última ubicación recibida, no una posición garantizada en tiempo real.</p><div id="map"></div></section>

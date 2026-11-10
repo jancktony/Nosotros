@@ -152,7 +152,7 @@ object Repo {
         return PairInfo(
             admin = s?.getString("admin") ?: members.firstOrNull() ?: "",
             relVersion = s?.getString("relVersion"), relUrl = s?.getString("relUrl") ?: "", relNotes = s?.getString("relNotes") ?: "",
-            testVersion = s?.getString("testVersion"), creatorBrand = s?.getString("creatorBrand") ?: "jancktony",
+            testVersion = s?.getString("testVersion"), creatorBrand = s?.getString("creatorBrand") ?: "Jancktony Murgas",
             featureFlags = (s?.get("featureFlags") as? Map<*, *>)?.entries?.mapNotNull { (k, v) -> if (k is String && v is String) k to v else null }?.toMap().orEmpty(),
         )
     }

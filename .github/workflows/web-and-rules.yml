@@ -1,0 +1,36 @@
+name: Validar y publicar web privada
+on:
+  push:
+    branches: [feature/pruebas-web-walkie]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: web-rules
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - name: Aplicar reglas verificadas
+        env:
+          ONLY_RULES: '1'
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node security/configure-firebase.cjs
+      - name: Publicar solo la web sin activar facturación
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/nosotros-hosting-credentials.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          node security/prepare-web.cjs
+          npx firebase deploy --only hosting --project nosotros-1e43a --non-interactive

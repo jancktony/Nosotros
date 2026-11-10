@@ -1,7 +1,7 @@
 name: Publicar versión Android
 on:
   push:
-    branches: [main]
+    branches: [main, feature/pruebas-web-walkie]
   workflow_dispatch:
 concurrency:
   group: android-candidates
@@ -63,3 +63,8 @@ jobs:
             echo '::error::Falta FIREBASE_SERVICE_ACCOUNT. No hay candidata privada disponible.'
             exit 1
           fi
+      - if: steps.v.outputs.skip != '1' && steps.v.outputs.tag == 'v1.9.2'
+        name: Habilitar únicamente el puente en el canal existente (no libera a la pareja)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ steps.v.outputs.tag }}" --repo "$GITHUB_REPOSITORY" --draft=false --latest=true
