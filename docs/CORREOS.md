@@ -3,7 +3,7 @@
 La app solicita español (`es`) a Firebase Authentication antes de enviar
 verificación o recuperación. Se aplica desde 1.8.1; no cambia correos ya enviados.
 
-## Configuración pendiente en Firebase Console
+## Estado y configuración en Firebase Console
 
 Proyecto `nosotros-1e43a`:
 
@@ -34,8 +34,16 @@ Comprobar con las dos cuentas autorizadas: remitente, asunto, cuerpo y página d
 acción en español, y que el enlace permita verificar/restablecer correctamente.
 No guardar enlaces reales de acción en el repositorio: contienen códigos de uso único.
 
-La configuración de consola no se aplica al publicar el APK. Requiere acceso
-administrativo a Firebase, no disponible en este entorno.
+El idioma `es` ya se aplicó al proyecto mediante la API administrativa el
+10 de noviembre de 2026. El propietario indicó que cambió el nombre público a
+Nosotros en la consola. Google rechaza actualmente la personalización de remitente,
+asunto y diseño con `EMAIL_TEMPLATE_UPDATE_NOT_ALLOWED`; no se da por aplicada.
+No se enviaron correos de prueba. Para diseño completamente propio se necesita
+un servidor que genere enlaces con Firebase Admin y un proveedor de envío:
+https://firebase.google.com/docs/auth/admin/email-action-links
+
+La configuración de consola no se aplica al publicar el APK. La credencial de
+administración se usa exclusivamente mediante secretos de GitHub Actions.
 
 Referencias:
 - https://firebase.google.com/docs/auth/android/manage-users
