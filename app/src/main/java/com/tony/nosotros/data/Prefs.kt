@@ -141,7 +141,12 @@ class Prefs(ctx: Context) {
         val savedTheme = theme
         val saved3d = map3d
         val savedSatellite = mapSatellite
-        p.edit().clear().putString("theme", savedTheme).putBoolean("map3d", saved3d)
-            .putBoolean("sat", savedSatellite).apply()
+        val options = mapOf("autoUpdate" to autoUpdate, "nArrive" to notifyArrive,
+            "nLeave" to notifyLeave, "nPause" to notifyPause, "extreme" to extremeSaving,
+            "lockDetails" to lockDetails)
+        val edit = p.edit().clear().putString("theme", savedTheme).putBoolean("map3d", saved3d)
+            .putBoolean("sat", savedSatellite)
+        options.forEach { (key, value) -> edit.putBoolean(key, value) }
+        edit.apply()
     }
 }
