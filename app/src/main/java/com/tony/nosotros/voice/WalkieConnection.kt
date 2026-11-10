@@ -28,6 +28,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     private val localIce = mutableListOf<IceCandidate>()
     private val remoteIce = mutableListOf<IceCandidate>()
     private val seenIce = mutableSetOf<String>()
+    private val cleanupCandidates = mutableSetOf<DocumentReference>()
     private var published = false
     private var remoteSet = false
     private var settingAnswer = false
@@ -138,7 +139,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
                         setSdp { pc!!.setRemoteDescription(it, SessionDescription(SessionDescription.Type.ANSWER, answer)) }
                         remoteSet = true; flushRemote()
                     } catch (_: CancellationException) {
-        } catch (_: Exception) { end("No se pudo negociar el canal") }
+                    } catch (_: Exception) { end("No se pudo negociar el canal") }
                 }
             }
         }
@@ -146,6 +147,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
             if (closed || generation != epoch) return@addSnapshotListener
             if (error != null) { end("No se pudo abrir el canal privado"); return@addSnapshotListener }
             docs?.documents?.filter { it.getString("uid") != uid && seenIce.add(it.id) }?.forEach {
+                cleanupCandidates.add(it.reference)
                 remoteIce.add(IceCandidate(it.getString("mid"), (it.getLong("line") ?: 0).toInt(), it.getString("candidate")))
             }
             flushRemote()
@@ -156,7 +158,9 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         val ref = call ?: return
         if (!published) return
         localIce.toList().forEach {
-            ref.collection("candidates").add(mapOf("uid" to uid, "candidate" to it.sdp,
+            val candidateRef = ref.collection("candidates").document()
+            cleanupCandidates.add(candidateRef)
+            candidateRef.set(mapOf("uid" to uid, "candidate" to it.sdp,
                 "mid" to (it.sdpMid ?: ""), "line" to it.sdpMLineIndex))
                 .addOnFailureListener { if (call == ref) end("No se pudo publicar el canal privado") }
         }
@@ -176,9 +180,12 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         channel?.unregisterObserver(); channel?.close(); channel?.dispose(); channel = null
         pc?.close(); pc?.dispose(); pc = null
         val old = call; call = null
-        old?.collection("candidates")?.get()?.addOnSuccessListener { docs ->
-            val batch = Repo.db.batch(); docs.documents.forEach { batch.delete(it.reference) }; batch.delete(old); batch.commit()
+        if (old != null) {
+            val batch = Repo.db.batch()
+            cleanupCandidates.take(400).forEach { batch.delete(it) }
+            batch.delete(old); batch.commit()
         }
+        cleanupCandidates.clear()
         published = false; remoteSet = false; settingAnswer = false
         localIce.clear(); remoteIce.clear(); seenIce.clear()
         report(message)
