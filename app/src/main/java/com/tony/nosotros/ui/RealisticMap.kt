@@ -75,7 +75,13 @@ private fun GoogleRealisticMap(
     var map by remember { mutableStateOf<GoogleMap3D?>(null) }
     val markers = remember { mutableListOf<Marker>() }
     val lines = remember { mutableListOf<Polyline>() }
-    val view = remember { Map3DView(context, Map3DInitConfig.create(mapMode = Map3DMode.HYBRID)) }
+    val view = remember { runCatching {
+        Map3DView(context, Map3DInitConfig.create(mapMode = Map3DMode.HYBRID))
+    }.getOrNull() }
+    if (view == null) {
+        LaunchedEffect(Unit) { errorCallback() }
+        return
+    }
     DisposableEffect(view, lifecycle) {
         var alive = true
         var started = false
@@ -95,12 +101,18 @@ private fun GoogleRealisticMap(
             }
             override fun onError(error: Exception) { handler.post { if (alive) errorCallback() } }
         })
+        val memoryCallback = object : android.content.ComponentCallbacks {
+            override fun onConfigurationChanged(config: android.content.res.Configuration) = Unit
+            override fun onLowMemory() { view.onLowMemory() }
+        }
+        context.applicationContext.registerComponentCallbacks(memoryCallback)
         val observer = LifecycleEventObserver { _, _ -> sync() }
         lifecycle.addObserver(observer)
         sync()
         onDispose {
             alive = false
             lifecycle.removeObserver(observer)
+            context.applicationContext.unregisterComponentCallbacks(memoryCallback)
             // SDK retains shared map state: remove personal overlays before destroying the view.
             markers.forEach { it.remove() }; markers.clear()
             lines.forEach { it.remove() }; lines.clear()
