@@ -271,6 +271,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                 ActionButton("Abrir Good Lock", C.sub) {
                     val launch = ctx.packageManager.getLaunchIntentForPackage("com.samsung.android.goodlock")
                     runCatching { ctx.startActivity(launch ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://galaxystore.samsung.com/detail/com.samsung.android.goodlock"))) }
+                    .onFailure { android.widget.Toast.makeText(ctx, "Busca Good Lock y LockStar en Galaxy Store, si están disponibles para tu modelo.", android.widget.Toast.LENGTH_LONG).show() }
                 }
             }
         }
