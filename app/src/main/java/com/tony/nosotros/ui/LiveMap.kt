@@ -50,9 +50,10 @@ import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 
-/** Vista satélite (Esri World Imagery) con nombres de calles y lugares encima. */
+/** Esri may return a successful HTTP response containing a grey "no data" image at
+ * high native zooms (confirmed in Riohacha). Overzoom available imagery instead. */
 private const val SATELLITE_STYLE = """{"version":8,"sources":{
-"sat":{"type":"raster","tileSize":256,"maxzoom":19,"attribution":"Esri, Maxar, Earthstar Geographics",
+"sat":{"type":"raster","tileSize":256,"maxzoom":17,"attribution":"Esri, Maxar, Earthstar Geographics",
 "tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]},
 "roads":{"type":"raster","tileSize":256,"maxzoom":19,
 "tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"]},

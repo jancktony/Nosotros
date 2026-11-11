@@ -6,13 +6,8 @@ import com.tony.nosotros.util.Geo
 import com.tony.nosotros.util.Pt
 import com.tony.nosotros.util.TimeFmt
 
-/**
- * Graba un trayecto mientras la persona se mueve y decide el medio de transporte.
- *
- * Android solo sabe decir "en vehículo"; aquí se refina:
- *  - muchas paradas cortas por km y velocidad media baja  -> BUS
- *  - si no                                              -> el vehículo habitual (carro o moto)
- */
+/** Records the trip's dominant activity. GPS cannot distinguish a bus from a car
+ * in traffic, so vehicle trips use the person's configured vehicle. */
 class TripRecorder(private val prefs: Prefs) {
     var active = false
         private set
@@ -24,15 +19,11 @@ class TripRecorder(private val prefs: Prefs) {
     private val modeTime = HashMap<Mode, Long>()
     private var lastRaw = Mode.UNKNOWN
     private var lastT = 0L
-    private var stops = 0
-    private var slowSince = 0L
-    private var speedSum = 0.0
-    private var speedSamples = 0
 
     fun begin(fromPlace: String?, now: Long = System.currentTimeMillis()) {
         active = true; start = now; from = fromPlace
         points.clear(); distance = 0.0; modeTime.clear()
-        lastT = now; stops = 0; slowSince = 0L; speedSum = 0.0; speedSamples = 0
+        lastT = now
     }
 
     fun onRawMode(raw: Mode, now: Long = System.currentTimeMillis()) {
@@ -40,7 +31,7 @@ class TripRecorder(private val prefs: Prefs) {
         lastRaw = raw; lastT = now
     }
 
-    fun add(lat: Double, lng: Double, acc: Float, speedMs: Float, t: Long) {
+    fun add(lat: Double, lng: Double, acc: Float, t: Long) {
         if (!active || acc > 60f) return
         val last = points.lastOrNull()
         if (last != null) {
@@ -50,16 +41,7 @@ class TripRecorder(private val prefs: Prefs) {
         }
         points.add(Pt(lat, lng, t))
 
-        if (lastRaw.isVehicle) {
-            if (speedMs > 2f) { speedSum += speedMs; speedSamples++ }
-            if (speedMs < 1.5f) {
-                if (slowSince == 0L) slowSince = t
-            } else if (slowSince != 0L) {
-                val stopped = t - slowSince
-                if (stopped in 8_000L..150_000L) stops++   // parada corta (semáforo/paradero)
-                slowSince = 0L
-            }
-        }
+
     }
 
     fun classify(): Mode {
@@ -68,9 +50,7 @@ class TripRecorder(private val prefs: Prefs) {
         val dominant = times.maxByOrNull { it.value }?.key ?: lastRaw
         return when {
             dominant.isVehicle -> {
-                val km = distance / 1000.0
-                val avgKmh = if (speedSamples > 0) speedSum / speedSamples * 3.6 else 0.0
-                if (km >= 1.0 && stops / km >= 1.0 && avgKmh in 1.0..30.0) Mode.BUS else prefs.vehicle
+                prefs.vehicle
             }
             dominant == Mode.BIKE -> Mode.BIKE
             dominant == Mode.WALK -> Mode.WALK

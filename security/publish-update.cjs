@@ -36,7 +36,7 @@ async function main() {
   if(previous.get('ready')===true) { console.log(`Candidata ${version} ya existe. No se libera a la pareja.`);return; }
   // Bounded retention: protect approved and installed versions; keep at most four APKs.
   const members=await Promise.all(uids.map(u=>pair.ref.collection('members').doc(u).get()));
-  const protectedVersions=new Set([version,pair.get('relVersion'),...members.map(m=>m.get('appVersion'))].filter(Boolean));
+  const protectedVersions=new Set([version,pair.get('relVersion'),pair.get('testVersion'),...members.map(m=>m.get('appVersion'))].filter(Boolean));
   const catalog=await db.collection('releases').where('pairId','==',pairId).get();
   const stored=catalog.docs.filter(d=>d.get('transport')==='firestore-chunks-v1');
   const keep=new Set(stored.filter(d=>protectedVersions.has(d.id)).map(d=>d.id));keep.add(version);
@@ -45,7 +45,7 @@ async function main() {
   for(const d of stored) if(!keep.has(d.id)) {
     const retired = await db.runTransaction(async tx => {
       const [livePair, ...liveMembers] = await Promise.all([tx.get(pair.ref), ...uids.map(u=>tx.get(pair.ref.collection('members').doc(u)))]);
-      if(livePair.get('relVersion')===d.id || liveMembers.some(m=>m.get('appVersion')===d.id)) return false;
+      if(livePair.get('relVersion')===d.id || livePair.get('testVersion')===d.id || liveMembers.some(m=>m.get('appVersion')===d.id)) return false;
       // Approval rules require ready=true, so a version cannot be approved while being removed.
       tx.update(d.ref,{ready:false}); return true;
     });

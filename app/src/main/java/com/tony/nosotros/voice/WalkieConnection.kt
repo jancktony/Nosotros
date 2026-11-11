@@ -32,9 +32,11 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     private var published = false
     private var remoteSet = false
     private var settingAnswer = false
+    @Volatile private var lastActivity = 0L
     private var closed = false
     private var epoch = 0
     val active get() = pc != null
+    val currentCallId get() = call?.id
 
     init {
         PeerConnectionFactory.initialize(PeerConnectionFactory.InitializationOptions.builder(context.applicationContext).createInitializationOptions())
@@ -109,9 +111,14 @@ class WalkieConnection(context: Context, private val pair: String, private val u
             if (closed || generation != epoch) return@post
             when (data.state()) {
                 DataChannel.State.OPEN -> if (audio == null) {
-                    runCatching { audio = PushAudio(data) }.onSuccess {
+                    runCatching { audio = PushAudio(data) { lastActivity = android.os.SystemClock.elapsedRealtime() } }.onSuccess {
                         timeout?.cancel(); report("Conectados · mantén pulsado para hablar", true)
-                        timeout = scope.launch { delay(300000); end("Sesión terminada. Puedes volver a conectar.") }
+                        lastActivity = android.os.SystemClock.elapsedRealtime()
+                        timeout = scope.launch {
+                            while (true) { delay(1000)
+                                if (android.os.SystemClock.elapsedRealtime() - lastActivity >= 60000) { end("Canal cerrado por inactividad"); break }
+                            }
+                        }
                     }.onFailure { end("No se pudo abrir el audio.") }
                 }
                 DataChannel.State.CLOSED -> end("Conexión terminada")
@@ -167,6 +174,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         localIce.clear()
     }
     fun talk(stopped: () -> Unit) {
+        lastActivity = android.os.SystemClock.elapsedRealtime()
         try { audio?.start { handler.post(stopped) } ?: error("Canal desconectado") }
         catch (_: Exception) { report("No se pudo usar el micrófono", audio != null); stopped() }
     }

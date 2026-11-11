@@ -29,6 +29,8 @@ import java.io.File
  */
 object Updater {
     private val installationMutex = Mutex()
+    @Volatile private var pendingVersion: String? = null
+    fun finishInstallAttempt() { pendingVersion = null }
     data class Release(val version: String, val apkUrl: String, val notes: String, val date: String = "")
 
     /** Manifiestos privados publicados por CI; no hay tokens de GitHub en el APK. */
@@ -52,12 +54,11 @@ object Updater {
         if (!Repo.authorizedSession || pairId == null) return null
         val info = Repo.pairInfo(pairId)
         val admin = info.admin == Repo.uid
-        if (!admin && info.relVersion.isNullOrBlank()) return null
-        val catalog = releases()
-        val version = UpdatePolicy.targetVersion(admin, catalog.firstOrNull()?.version, info.relVersion) ?: return null
-        val release = catalog.firstOrNull { it.version == version }
+        val version = UpdatePolicy.targetVersion(admin, info.testVersion, info.relVersion) ?: return null
+        if (!newer(version, BuildConfig.VERSION_NAME) || pendingVersion == version) return null
+        val release = releases().firstOrNull { it.version == version }
             ?: if (!admin && info.relUrl.startsWith("firestore://releases/")) Release(version, info.relUrl, info.relNotes) else null
-        return release?.takeIf { newer(it.version, BuildConfig.VERSION_NAME) }
+        return release
     }
 
     fun newer(a: String, b: String): Boolean {
@@ -78,6 +79,7 @@ object Updater {
     /** Descarga e instala encima de la app actual. En Android 12+ no pide confirmación tras la primera vez. */
     suspend fun install(ctx: Context, r: Release): Boolean = withContext(Dispatchers.IO) {
         installationMutex.withLock {
+        if (pendingVersion != null) return@withLock pendingVersion == r.version
         runCatching {
             val file = File(ctx.cacheDir, "update.apk")
             check(Repo.authorizedSession) { "Acceso privado" }
@@ -104,6 +106,7 @@ object Updater {
                 val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
                 s.commit(PendingIntent.getBroadcast(ctx, id, Intent(ctx, UpdateReceiver::class.java), flags).intentSender)
             }
+            pendingVersion = r.version
             file.delete()
             true
         }.getOrDefault(false).also { File(ctx.cacheDir, "update.apk").delete() }
@@ -121,19 +124,22 @@ class UpdateReceiver : BroadcastReceiver() {
         }
         val status = i.getIntExtra(PackageInstaller.EXTRA_STATUS, -1)
         if (status != PackageInstaller.STATUS_PENDING_USER_ACTION) {
+            Updater.finishInstallAttempt()
+            UpdateConsent.pending = null
+            (ctx.applicationContext as App).prefs.pendingUpdateConsent = null
             if (status != PackageInstaller.STATUS_SUCCESS) (ctx.applicationContext as App).prefs.autoUpdateTried = ""
             return
         }
         @Suppress("DEPRECATION")
         val confirm = (i.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { ctx.startActivity(confirm) }
-        val n = NotificationCompat.Builder(ctx, App.CH_ALERTS)
-            .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle("Actualización de Nosotros lista")
-            .setContentText("Toca para instalarla. No se pierde nada.")
-            .setAutoCancel(true)
-            .setContentIntent(PendingIntent.getActivity(ctx, 77, confirm, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
-            .build()
-        runCatching { ctx.getSystemService(NotificationManager::class.java).notify(77, n) }
+        if (Repo.authorizedSession) {
+            UpdateConsent.pending = confirm
+            (ctx.applicationContext as App).prefs.pendingUpdateConsent = confirm.toUri(Intent.URI_INTENT_SCHEME)
+            com.tony.nosotros.ui.MainActivity.showPendingUpdate()
+        }
+
     }
 }
+
+/** Android confirmation remains inside the app; no extra status-bar notification. */
+object UpdateConsent { var pending: Intent? = null }

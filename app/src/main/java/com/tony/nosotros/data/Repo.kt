@@ -152,6 +152,7 @@ object Repo {
         return PairInfo(
             admin = s?.getString("admin") ?: members.firstOrNull() ?: "",
             relVersion = s?.getString("relVersion"), relUrl = s?.getString("relUrl") ?: "", relNotes = s?.getString("relNotes") ?: "",
+            testVersion = s?.getString("testVersion"), creatorBrand = s?.getString("creatorBrand") ?: "Jancktony Murgas",
             featureFlags = (s?.get("featureFlags") as? Map<*, *>)?.entries?.mapNotNull { (k, v) -> if (k is String && v is String) k to v else null }?.toMap().orEmpty(),
         )
     }
@@ -166,6 +167,37 @@ object Repo {
     /** El administrador elige qué versión recibe la pareja. */
     suspend fun setRelease(pairId: String, version: String, url: String, notes: String) {
         pair(pairId).update(mapOf("relVersion" to version, "relUrl" to url, "relNotes" to notes)).await()
+    }
+
+    fun reviewsFlow(pairId: String): Flow<Map<String, ReleaseReview>> = callbackFlow {
+        val registration = pair(pairId).collection("releaseReviews").addSnapshotListener { snapshot, error ->
+            if (error == null) trySend(snapshot?.documents.orEmpty().associate {
+                it.id to ReleaseReview(it.getString("state") ?: "pending", it.getString("notes").orEmpty())
+            })
+        }
+        awaitClose { registration.remove() }
+    }
+
+    suspend fun selectTest(pairId: String, version: String) {
+        pair(pairId).update("testVersion", version).await()
+    }
+    suspend fun reviewRelease(pairId: String, version: String, state: String, notes: String) {
+        val user = ensureSignedIn()
+        require(state in listOf("approved", "changes_requested"))
+        require(notes.length <= 2000)
+        if (state == "approved") {
+            require(version == com.tony.nosotros.BuildConfig.VERSION_NAME) { "Instala y prueba esta versión primero" }
+            pair(pairId).collection("members").document(user).set(mapOf("appVersion" to version), SetOptions.merge()).await()
+        }
+        val batch = db.batch()
+        batch.set(pair(pairId).collection("releaseReviews").document(version), mapOf(
+            "uid" to user, "state" to state, "notes" to notes, "updatedAt" to FieldValue.serverTimestamp()))
+        if (state == "changes_requested") batch.update(pair(pairId), "testVersion", FieldValue.delete())
+        batch.commit().await()
+    }
+    suspend fun setCreatorBrand(pairId: String, brand: String) {
+        require(brand.trim().length in 2..60)
+        pair(pairId).update("creatorBrand", brand.trim()).await()
     }
 
     suspend fun setFeature(pairId: String, feature: Feature, mode: String) {

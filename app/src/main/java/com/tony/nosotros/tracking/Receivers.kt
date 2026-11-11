@@ -16,7 +16,9 @@ class ActivityReceiver : BroadcastReceiver() {
         if (!ActivityTransitionResult.hasResult(intent)) return
         val ev = ActivityTransitionResult.extractResult(intent)?.transitionEvents
             ?.lastOrNull { it.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER } ?: return
-        TrackingService.deliver(ctx, Intent().putExtra(TrackingService.EXTRA_ACTIVITY, ev.activityType))
+        TrackingService.deliver(ctx, Intent()
+            .putExtra(TrackingService.EXTRA_ACTIVITY, ev.activityType)
+            .putExtra(TrackingService.EXTRA_ACTIVITY_ELAPSED, ev.elapsedRealTimeNanos / 1_000_000))
     }
 
     companion object {

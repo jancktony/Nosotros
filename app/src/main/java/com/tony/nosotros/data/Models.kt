@@ -126,6 +126,7 @@ data class Visit(
 data class PairInfo(
     val admin: String = "", val relVersion: String? = null, val relUrl: String = "", val relNotes: String = "",
     val featureFlags: Map<String, String> = emptyMap(),
+    val testVersion: String? = null, val creatorBrand: String = "Jancktony Murgas",
 )
 
 data class Photo(
@@ -140,3 +141,5 @@ data class Photo(
         )
     }
 }
+
+data class ReleaseReview(val state: String = "pending", val notes: String = "")

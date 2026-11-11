@@ -57,6 +57,32 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        foreground = java.lang.ref.WeakReference(this)
+        consumeUpdateConsent()
+        if (App.firebaseConfigured && com.tony.nosotros.data.Repo.authorizedSession && App.instance.prefs.receiveWalkie &&
+            App.instance.prefs.featureEnabled(com.tony.nosotros.data.Feature.WALKIE)) com.tony.nosotros.voice.WalkieHub.enable(this)
+    }
+    override fun onPause() {
+        if (foreground?.get() === this) foreground = null
+        com.tony.nosotros.voice.WalkieHub.release()
+        super.onPause()
+    }
+    private fun consumeUpdateConsent() {
+        val prefs = App.instance.prefs
+        if (!App.firebaseConfigured || !com.tony.nosotros.data.Repo.authorizedSession) return
+        val intent = com.tony.nosotros.update.UpdateConsent.pending ?: prefs.pendingUpdateConsent?.let {
+            runCatching { android.content.Intent.parseUri(it, android.content.Intent.URI_INTENT_SCHEME) }.getOrNull()
+        } ?: return
+        com.tony.nosotros.update.UpdateConsent.pending = null; prefs.pendingUpdateConsent = null
+        runCatching { startActivity(intent) }.onFailure { prefs.autoUpdateTried = "" }
+    }
+    companion object {
+        private var foreground: java.lang.ref.WeakReference<MainActivity>? = null
+        fun showPendingUpdate() { foreground?.get()?.let { activity -> activity.runOnUiThread { activity.consumeUpdateConsent() } } }
+    }
+
     private fun applyBars() {
         if (C.dark) enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -85,9 +111,10 @@ private fun Root(vm: MainViewModel) {
     val ctx = LocalContext.current
     var update by remember { mutableStateOf<com.tony.nosotros.update.Updater.Release?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val versionPolicy by vm.pairInfo.collectAsState()
     val automaticUpdates = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.AUTO_UPDATES)
-    LaunchedEffect(automaticUpdates) {
-        update = if (automaticUpdates) runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() else null
+    LaunchedEffect(automaticUpdates, versionPolicy.testVersion, versionPolicy.relVersion) {
+        update = if (automaticUpdates && !vm.releaseBusy.value) runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() else null
     }
     update?.let { r ->
         androidx.compose.material3.AlertDialog(

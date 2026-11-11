@@ -18,6 +18,12 @@ class Prefs(ctx: Context) {
         set(v) = p.edit().putBoolean("featureAdmin", v).apply()
     fun featureEnabled(feature: Feature) = FeatureAccess(featureModes, featureAdmin).enabled(feature)
 
+    var receiveWalkie: Boolean
+        get() = p.getBoolean("receiveWalkie", false)
+        set(v) = p.edit().putBoolean("receiveWalkie", v).apply()
+    var pendingUpdateConsent: String?
+        get() = p.getString("pendingUpdateConsent", null)
+        set(v) = p.edit().putString("pendingUpdateConsent", v).apply()
     var pairId: String?
         get() = p.getString("pairId", null)
         set(v) = p.edit().putString("pairId", v).apply()

@@ -78,7 +78,10 @@ service cloud.firestore {
         return before == after || (after is string && after.matches('[0-9]+([.][0-9]+){1,2}')
           && get(/databases/$(database)/documents/releases/$(after)).data.ready == true
           && get(/databases/$(database)/documents/releases/$(after)).data.pairId == id
-          && request.resource.data.get('relUrl', '') == get(/databases/$(database)/documents/releases/$(after)).data.apkPath);
+          && request.resource.data.get('relUrl', '') == get(/databases/$(database)/documents/releases/$(after)).data.apkPath
+          && get(/databases/$(database)/documents/pairs/$(id)/releaseReviews/$(after)).data.state == 'approved'
+          && get(/databases/$(database)/documents/pairs/$(id)/releaseReviews/$(after)).data.uid == request.auth.uid
+          && get(/databases/$(database)/documents/pairs/$(id)/members/$(request.auth.uid)).data.appVersion == after);
       }
 
       allow create: if personal()
@@ -91,8 +94,13 @@ service cloud.firestore {
       allow update: if personal() && validMembers(request.resource.data) && validFlags(request.resource.data.get('featureFlags', {})) && (
         // Solo el administrador gestiona miembros y versiones. webUids solo puede borrarse.
         (request.auth.uid in resource.data.members && resource.data.admin == request.auth.uid
-          && changedOnly(['members', 'admin', 'code', 'replaced', 'since', 'relVersion', 'relUrl', 'relNotes', 'webUids', 'featureFlags'])
+          && changedOnly(['members', 'admin', 'code', 'replaced', 'since', 'relVersion', 'relUrl', 'relNotes', 'webUids', 'featureFlags', 'testVersion', 'creatorBrand'])
           && validRelease()
+          && (!('creatorBrand' in request.resource.data) || (request.resource.data.creatorBrand is string
+            && request.resource.data.creatorBrand.size() >= 2 && request.resource.data.creatorBrand.size() <= 60))
+          && (!('testVersion' in request.resource.data) || (request.resource.data.testVersion is string
+            && get(/databases/$(database)/documents/releases/$(request.resource.data.testVersion)).data.ready == true
+            && get(/databases/$(database)/documents/releases/$(request.resource.data.testVersion)).data.pairId == id))
           && (!('relVersion' in resource.data) || ('relVersion' in request.resource.data
             && request.resource.data.relVersion is string && request.resource.data.relVersion.size() > 0))
           && (!('webUids' in request.resource.data) || request.resource.data.webUids == resource.data.get('webUids', []))
@@ -146,6 +154,18 @@ service cloud.firestore {
         allow read: if member(id);
         allow create: if member(id) && own(request.resource.data);
         allow update: if member(id) && own(resource.data) && changedOnly(['end']);
+      }
+      match /releaseReviews/{version} {
+        allow read: if admin(id);
+        allow create, update: if admin(id)
+          && request.resource.data.keys().hasOnly(['uid', 'state', 'notes', 'updatedAt'])
+          && own(request.resource.data) && request.resource.data.state in ['approved', 'changes_requested']
+          && request.resource.data.notes is string && request.resource.data.notes.size() <= 2000
+          && request.resource.data.updatedAt == request.time
+          && get(/databases/$(database)/documents/releases/$(version)).data.ready == true
+          && get(/databases/$(database)/documents/releases/$(version)).data.pairId == id
+          && (request.resource.data.state != 'approved' ||
+            get(/databases/$(database)/documents/pairs/$(id)/members/$(request.auth.uid)).data.appVersion == version);
       }
       match /voiceNotes/{note} {
         allow read: if member(id) && feature(id, 'voiceNotes', 'off');
