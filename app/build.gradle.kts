@@ -36,8 +36,8 @@ android {
         applicationId = "com.tony.nosotros"
         minSdk = 29
         targetSdk = 35
-        versionCode = 14
-        versionName = "1.9.3"
+        versionCode = 15
+        versionName = "1.10.0"
         buildConfigField("String", "GH_REPO", "\"${(project.findProperty("ghRepo") as String?) ?: ""}\"")
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         buildConfigField("String", "FB_API_KEY", "\"${fb.apiKey}\"")
@@ -90,7 +90,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
-    implementation("org.maplibre.gl:android-sdk:11.8.0")
+    implementation("org.maplibre.gl:android-sdk:2026.11.2-globe")
     implementation("io.github.webrtc-sdk:android:150.7871.04")
 
     testImplementation("junit:junit:4.13.2")

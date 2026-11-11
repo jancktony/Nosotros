@@ -15,7 +15,12 @@ service cloud.firestore {
     function changedOnly(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
     function own(data) { return data.uid == request.auth.uid; }
     function validFlags(flags) {
-      return flags is map && flags.keys().hasOnly(['walkie', 'voiceNotes', 'map3d', 'profilePhoto', 'compactWidgets', 'placeAlerts', 'manualUpdates', 'autoUpdates', 'lockDetails'])
+      return flags is map && flags.keys().hasOnly(['walkie', 'voiceNotes', 'map3d', 'profilePhoto', 'compactWidgets', 'placeAlerts', 'manualUpdates', 'autoUpdates', 'lockDetails', 'appPresence', 'sleepStatus', 'mapPlaces', 'mapGlobe', 'walkieRelay'])
+        && flags.get('appPresence', 'off') in ['off', 'admin', 'all']
+        && flags.get('sleepStatus', 'off') in ['off', 'admin', 'all']
+        && flags.get('mapPlaces', 'off') in ['off', 'admin', 'all']
+        && flags.get('mapGlobe', 'off') in ['off', 'admin', 'all']
+        && flags.get('walkieRelay', 'off') in ['off', 'admin', 'all']
         && flags.get('walkie', 'off') in ['off', 'admin', 'all']
         && flags.get('voiceNotes', 'off') in ['off', 'admin', 'all']
         && flags.get('map3d', 'all') in ['off', 'admin', 'all']
@@ -123,6 +128,33 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/codes/$(resource.data.code)).data.pairId == id
           && get(/databases/$(database)/documents/codes/$(resource.data.code)).data.expiresAt > request.time.toMillis())
       );
+      function targetFeature(key, uid) {
+        let data = pairData(id);
+        let mode = data.get('featureFlags', {}).get(key, 'off');
+        return mode == 'all' || (mode == 'admin' && data.admin == uid);
+      }
+      match /appPresence/{uid} {
+        allow read: if member(id) && (request.auth.uid == uid || targetFeature('appPresence', uid));
+        allow delete: if member(id) && request.auth.uid == uid;
+        allow create, update: if member(id) && request.auth.uid == uid
+          && request.resource.data.sharing is bool && request.resource.data.updatedAt == request.time
+          && ((!request.resource.data.sharing && request.resource.data.keys().hasOnly(['sharing', 'updatedAt']))
+            || (request.resource.data.sharing && targetFeature('appPresence', uid)
+              && request.resource.data.keys().hasOnly(['sharing', 'label', 'updatedAt'])
+              && request.resource.data.label is string && request.resource.data.label.size() <= 100));
+      }
+      match /sleepPresence/{uid} {
+        allow read: if member(id) && (request.auth.uid == uid || targetFeature('sleepStatus', uid));
+        allow delete: if member(id) && request.auth.uid == uid;
+        allow create, update: if member(id) && request.auth.uid == uid
+          && request.resource.data.sharing is bool && request.resource.data.updatedAt == request.time
+          && ((!request.resource.data.sharing && request.resource.data.keys().hasOnly(['sharing', 'updatedAt']))
+            || (request.resource.data.sharing && targetFeature('sleepStatus', uid)
+              && request.resource.data.keys().hasOnly(['sharing', 'state', 'since', 'updatedAt'])
+              && request.resource.data.state in ['awake', 'idle', 'sleeping', 'overdue']
+              && request.resource.data.since is int && request.resource.data.since >= 0
+              && request.resource.data.since <= request.time.toMillis()));
+      }
       match /members/{uid} {
         allow read: if member(id);
         allow create: if member(id) && uid == request.auth.uid && validProfile(request.resource.data);

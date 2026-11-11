@@ -138,11 +138,13 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
         }
 
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("General", "Perfil", "Ubicación", "Avisos", "Widgets", "Cuenta").forEach { title ->
+            listOf("General", "Perfil", "Actividad", "Ubicación", "Avisos", "Widgets", "Cuenta").forEach { title ->
                 Chip(title, category == title) { category = title }
             }
             if (isAdmin) Chip("Administración", false) { onAdmin() }
         }
+
+        if (category == "Actividad") PresenceSettings(vm)
 
         // ---------- Apariencia ----------
         if (category == "General") {
@@ -187,7 +189,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                     Chip("Carro", vehicle == Mode.CAR, icon = Ic.Car) { vehicle = Mode.CAR; vm.setVehicle(Mode.CAR) }
                     Chip("Moto", vehicle == Mode.MOTO, icon = Ic.Moto) { vehicle = Mode.MOTO; vm.setVehicle(Mode.MOTO) }
                 }
-                Text("Se usa cuando el teléfono detecta “en vehículo”. Los buses se reconocen por sus paradas.",
+                Text("Se usa cuando el teléfono detecta “en vehículo”. El GPS no distingue con certeza carro, moto o bus.",
                     color = C.sub, fontSize = 13.sp)
             }
         }

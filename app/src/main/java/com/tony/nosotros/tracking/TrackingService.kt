@@ -66,6 +66,7 @@ class TrackingService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private lateinit var prefs: Prefs
     private lateinit var fused: FusedLocationProviderClient
+    private var presence: com.tony.nosotros.presence.PresenceMonitor? = null
     private lateinit var trip: TripRecorder
     private lateinit var engine: PlaceEngine
 
@@ -112,6 +113,7 @@ class TrackingService : Service() {
             me = runCatching { Repo.ensureSignedIn() }.getOrNull()
             if (me == null) { stopSelf(); return@launch }
             listenFirebase()
+            presence = com.tony.nosotros.presence.PresenceMonitor(this@TrackingService, prefs, scope, pairId!!, me!!).also { it.start() }
             registerActivityTransitions()
             applyPolicy(force = true)
             requestOneFix()
@@ -126,6 +128,7 @@ class TrackingService : Service() {
 
     override fun onDestroy() {
         running = null
+        presence?.stop()
         fused.removeLocationUpdates(callback)
         scope.cancel()
         super.onDestroy()
@@ -144,7 +147,7 @@ class TrackingService : Service() {
             intent.getStringArrayExtra(EXTRA_GEOFENCE_IDS)?.forEach { engine.onGeofence(it, enter) }
         }
         if (intent.getBooleanExtra(EXTRA_REFRESH, false)) {
-            applyPolicy(force = true); requestOneFix()
+            applyPolicy(force = true); requestOneFix(); presence?.refresh()
         }
     }
 
@@ -462,6 +465,7 @@ class TrackingService : Service() {
             var previousTarget: String? = null
             Repo.pairInfoFlow(pid).collect {
                 prefs.featureModes = it.featureFlags; prefs.featureAdmin = it.admin == uid
+                presence?.refresh()
                 Widgets.updateAll(this@TrackingService)
                 val target = if (it.admin == uid) it.testVersion else it.relVersion
                 if (target != previousTarget) {

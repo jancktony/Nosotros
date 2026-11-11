@@ -1,6 +1,10 @@
 package com.tony.nosotros.data
 
 enum class Feature(val id: String, val title: String, val defaultMode: String = "all") {
+    APP_PRESENCE("appPresence", "Compartir aplicación en uso (voluntario)", "off"),
+    SLEEP_STATUS("sleepStatus", "Descanso estimado (voluntario)", "off"),
+    MAP_PLACES("mapPlaces", "Nombres de universidades y lugares", "off"),
+    MAP_GLOBE("mapGlobe", "Globo terrestre experimental", "off"),
     WALKIE("walkie", "Walkie-talkie en directo", "off"),
     VOICE_NOTES("voiceNotes", "Notas de voz", "off"),
     MAP_3D("map3d", "Mapa inclinado y edificios"),

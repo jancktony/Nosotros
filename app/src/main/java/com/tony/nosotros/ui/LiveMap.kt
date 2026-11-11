@@ -7,6 +7,8 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.view.Gravity
+import android.widget.Toast
+import org.json.JSONObject
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -62,7 +64,7 @@ private const val SATELLITE_STYLE = """{"version":8,"sources":{
 "layers":[{"id":"sat","type":"raster","source":"sat"},{"id":"roads","type":"raster","source":"roads","paint":{"raster-opacity":0.7}},
 {"id":"names","type":"raster","source":"names"}]}"""
 
-private val OUR_LAYERS = setOf("route-glow", "route-line", "place-area", "place-label", "people-halo", "people-icon")
+private val OUR_LAYERS = setOf("route-glow", "route-line", "place-area", "place-label", "people-halo", "people-icon", "nosotros-poi", "nosotros-campus")
 
 data class MapPerson(
     val uid: String, val initial: String, val color: Int, val ink: Int,
@@ -98,12 +100,15 @@ fun LiveMap(
     val ctx = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val palette = C.p
+    val globe = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MAP_GLOBE)
+    val publicPlaces = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MAP_PLACES)
     val mapView = remember {
         MapLibre.getInstance(ctx)
         MapView(ctx).apply { onCreate(null) }
     }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var style by remember { mutableStateOf<Style?>(null) }
+    val currentPublicPlaces by rememberUpdatedState(publicPlaces)
     val longPress by rememberUpdatedState(onLongPress)
     val personTap by rememberUpdatedState(onPersonTap)
     val placeTap by rememberUpdatedState(onPlaceTap)
@@ -146,6 +151,7 @@ fun LiveMap(
                 setAttributionMargins((100 * d).toInt(), 0, 0, bottomInsetPx + (6 * d).toInt())
             }
             m.setMaxZoomPreference(19.5)
+            m.setMinZoomPreference(0.0)
             initialCenter?.let { m.cameraPosition = org.maplibre.android.camera.CameraPosition.Builder()
                 .target(LatLng(it.lat, it.lng)).zoom(16.0).build() }
             m.addOnMapLongClickListener { ll -> longPress?.invoke(ll.latitude, ll.longitude); longPress != null }
@@ -157,6 +163,11 @@ fun LiveMap(
                 if (person != null) { personTap?.invoke(person); return@addOnMapClickListener true }
                 val place = m.queryRenderedFeatures(box, "place-label").firstOrNull()?.getStringProperty("pid")
                 if (place != null) { placeTap?.invoke(place); return@addOnMapClickListener true }
+                if (currentPublicPlaces) {
+                    val poi = m.queryRenderedFeatures(box, "nosotros-campus", "nosotros-poi").firstOrNull()
+                    val name = poi?.getStringProperty("name")
+                    if (!name.isNullOrBlank()) { Toast.makeText(ctx, name, Toast.LENGTH_LONG).show(); return@addOnMapClickListener true }
+                }
                 mapTap?.invoke(); false
             }
             m.addOnCameraIdleListener {
@@ -169,13 +180,20 @@ fun LiveMap(
     })
 
     // Cargar (o recargar) el estilo cuando cambian el tema o la vista satélite
-    LaunchedEffect(map, palette.id, satellite) {
+    LaunchedEffect(map, palette.id, satellite, globe, publicPlaces) {
         val m = map ?: return@LaunchedEffect
         style = null
-        val builder = if (satellite) Style.Builder().fromJson(SATELLITE_STYLE) else Style.Builder().fromUri(palette.mapStyle)
+        val base = JSONObject(ctx.assets.open("maps/${if (palette.dark) "night" else "pink"}.json").bufferedReader().use { it.readText() })
+        val json = if (satellite) JSONObject(SATELLITE_STYLE).apply {
+            put("glyphs", base.getString("glyphs"))
+            if (publicPlaces) getJSONObject("sources").put("protomaps", base.getJSONObject("sources").getJSONObject("protomaps"))
+        } else base
+        if (globe) json.put("projection", JSONObject().put("type", "globe"))
+        val builder = Style.Builder().fromJson(json.toString())
         m.setStyle(builder) { s ->
             if (!satellite) tintStyle(s, palette)
             if (!satellite) setupBuildings(s, palette)
+            if (publicPlaces) setupPublicPlaces(s, satellite || palette.dark)
             setupLayers(s)
             style = s
         }
@@ -478,4 +496,33 @@ private fun labelBitmap(ctx: Context, pal: Palette, text: String): Bitmap {
     p.style = Paint.Style.STROKE; p.strokeWidth = 3f * d; p.color = pal.me.toArgb()
     c.drawCircle(w / 2f, h - 8 * d, 5.5f * d, p)
     return bmp
+}
+
+/** Named OSM POIs from the same tiled source: no location queries sent to an extra service. */
+private fun setupPublicPlaces(s: Style, dark: Boolean) {
+    if (s.getSource("protomaps") == null) return
+    fun label(id: String, campus: Boolean) {
+        val layer = SymbolLayer(id, "protomaps").apply {
+            sourceLayer = "pois"
+            minZoom = if (campus) 12f else 15f
+            val education = Expression.any(
+                Expression.eq(Expression.get("kind"), Expression.literal("university")),
+                Expression.eq(Expression.get("kind"), Expression.literal("college")),
+                Expression.eq(Expression.get("kind"), Expression.literal("school")))
+            setFilter(Expression.all(Expression.has("name"), if (campus) education else Expression.not(education)))
+            setProperties(
+                PropertyFactory.textField(Expression.coalesce(Expression.get("name:es"), Expression.get("name"))),
+                PropertyFactory.textFont(arrayOf("Open Sans Regular", "Noto Sans Regular")),
+                PropertyFactory.textSize(if (campus) 13f else 11f),
+                PropertyFactory.textMaxWidth(12f), PropertyFactory.textPadding(8f),
+                PropertyFactory.textAllowOverlap(false),
+                PropertyFactory.textColor(if (dark) "#FFFFFF" else "#253248"),
+                PropertyFactory.textHaloColor(if (dark) "#162133" else "#FFFFFF"),
+                PropertyFactory.textHaloWidth(1.8f)
+            )
+        }
+        s.addLayer(layer)
+    }
+    label("nosotros-campus", true)
+    label("nosotros-poi", false)
 }

@@ -13,6 +13,7 @@ import com.tony.nosotros.data.Visit
 import com.tony.nosotros.tracking.TrackingService
 import com.tony.nosotros.widget.Widgets
 import com.tony.nosotros.util.TimeFmt
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,6 +64,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val features = combine(pairInfo, uid) { info, user ->
         com.tony.nosotros.data.FeatureAccess(info.featureFlags, user != null && info.admin == user)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, com.tony.nosotros.data.FeatureAccess(prefs.featureModes, prefs.featureAdmin))
+    fun presenceFlow(sleep: Boolean, own: Boolean) = combine(pairId, uid, partnerUid, pairInfo) { p, me, partner, info ->
+        val target = if (own) me else partner
+        val feature = if (sleep) com.tony.nosotros.data.Feature.SLEEP_STATUS else com.tony.nosotros.data.Feature.APP_PRESENCE
+        val allowed = target != null && com.tony.nosotros.data.FeatureAccess(info.featureFlags, info.admin == target).enabled(feature)
+        if (p != null && target != null && allowed) p to target else null
+    }.flatMapLatest { key -> if (key != null) com.tony.nosotros.presence.PresenceRepo.flow(key.first, key.second, sleep)
+        else flowOf(com.tony.nosotros.presence.Presence()) }
+    val myAppPresence = StateFlowOf(presenceFlow(false, true), com.tony.nosotros.presence.Presence())
+    val partnerAppPresence = StateFlowOf(presenceFlow(false, false), com.tony.nosotros.presence.Presence())
+    val mySleepPresence = StateFlowOf(presenceFlow(true, true), com.tony.nosotros.presence.Presence())
+    val partnerSleepPresence = StateFlowOf(presenceFlow(true, false), com.tony.nosotros.presence.Presence())
+    val presenceMessage = MutableStateFlow<String?>(null)
+    fun setPresence(sleep: Boolean, enabled: Boolean) = viewModelScope.launch {
+        val feature = if (sleep) com.tony.nosotros.data.Feature.SLEEP_STATUS else com.tony.nosotros.data.Feature.APP_PRESENCE
+        if (enabled && (!features.value.enabled(feature) || (!sleep && !com.tony.nosotros.presence.UsagePermission.granted(getApplication())))) {
+            presenceMessage.value = "Primero habilita la función y el permiso en este teléfono."; return@launch
+        }
+        if (sleep) prefs.shareSleep = enabled else prefs.shareCurrentApp = enabled
+        refreshTracking()
+        if (!enabled) {
+            val p = pairId.value; val u = uid.value
+            presenceMessage.value = "Pausado en este teléfono. Revocando el estado compartido…"
+            if (p != null && u != null) runCatching {
+                kotlinx.coroutines.withTimeout(5000) { com.tony.nosotros.presence.PresenceRepo.clear(p, u, sleep).await() }
+            }.onSuccess { presenceMessage.value = "Estado compartido borrado." }
+             .onFailure { presenceMessage.value = "Pausado aquí. El borrado se enviará al recuperar conexión; el estado anterior caduca." }
+        } else presenceMessage.value = "Activado por ti en este teléfono. Puedes pausarlo aquí cuando quieras."
+    }
+
     val featureBusy = MutableStateFlow(false)
     fun setFeature(feature: com.tony.nosotros.data.Feature, mode: String) = viewModelScope.launch {
         if (!isAdmin.value || featureBusy.value) return@launch

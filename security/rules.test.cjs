@@ -205,3 +205,33 @@ test('solo el creador administrador puede cambiar su marca',async()=>{
  await assertFails(updateDoc(p(bob()),{creatorBrand:'otro'}));
  await assertFails(updateDoc(p(alice()),{creatorBrand:'x'.repeat(61)}));
 });
+
+test('actividad privada: solo su dueño puede compartir; el administrador no suplanta su consentimiento', async () => {
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{appPresence:'all',sleepStatus:'all'}}));
+  const target = 'pairs/p/appPresence/bob';
+  await assertFails(setDoc(p(alice(),target),{sharing:true,label:'Instagram',updatedAt:serverTimestamp()}));
+  await assertSucceeds(setDoc(p(bob(),target),{sharing:true,label:'WhatsApp',updatedAt:serverTimestamp()}));
+  await assertSucceeds(getDoc(p(alice(),target)));
+  await assertFails(getDoc(p(stranger(),target)));
+  await assertFails(setDoc(p(bob(),target),{sharing:false,label:'WhatsApp',updatedAt:serverTimestamp()}));
+  await assertSucceeds(setDoc(p(bob(),target),{sharing:false,updatedAt:serverTimestamp()}));
+  const result = await getDoc(p(alice(),target)); assert.equal(result.data().label,undefined);
+});
+test('apagar una función bloquea lecturas ajenas y publicaciones; permite revocar el propio estado', async () => {
+  const target = 'pairs/p/appPresence/bob';
+  await assertFails(setDoc(p(bob(),target),{sharing:true,label:'WhatsApp',updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{appPresence:'all'}}));
+  await assertSucceeds(setDoc(p(bob(),target),{sharing:true,label:'WhatsApp',updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{appPresence:'off'}}));
+  await assertFails(getDoc(p(alice(),target)));
+  await assertSucceeds(setDoc(p(bob(),target),{sharing:false,updatedAt:serverTimestamp()}));
+});
+test('descanso solo propio, estados limitados y marca de servidor', async () => {
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{sleepStatus:'all'}}));
+  const target = 'pairs/p/sleepPresence/bob';
+  await assertFails(setDoc(p(alice(),target),{sharing:true,state:'sleeping',since:0,updatedAt:serverTimestamp()}));
+  await assertFails(setDoc(p(bob(),target),{sharing:true,state:'certainly-asleep',since:0,updatedAt:serverTimestamp()}));
+  await assertFails(setDoc(p(bob(),target),{sharing:true,state:'sleeping',since:0,updatedAt:new Date(0)}));
+  await assertSucceeds(setDoc(p(bob(),target),{sharing:true,state:'sleeping',since:Date.now()-3600000,updatedAt:serverTimestamp()}));
+  await assertSucceeds(getDoc(p(alice(),target)));
+});
