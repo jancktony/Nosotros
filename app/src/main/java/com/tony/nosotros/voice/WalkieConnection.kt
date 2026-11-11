@@ -35,8 +35,10 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     @Volatile private var lastActivity = 0L
     private var closed = false
     private var epoch = 0
+    private var opening = false
+    private var openAttempt = 0
     val ready get() = audio != null
-    val active get() = pc != null
+    val active get() = pc != null || opening
     val currentCallId get() = call?.id
 
     init {
@@ -46,10 +48,12 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     private fun report(message: String, ready: Boolean = false) { if (!closed) status(message, ready) }
     fun dial(partner: String) = scope.launch {
         if (active) return@launch
+        opening = true
+        val attempt = ++openAttempt
         try {
             Repo.ensureSignedIn()
             val peerVersion = Repo.db.collection("pairs").document(pair).collection("members").document(partner).get().await().getString("appVersion").orEmpty()
-            require(VoiceWire.compatible(peerVersion)) { "Actualicen ambos teléfonos a 1.10 o posterior" }
+            if (!VoiceWire.compatible(peerVersion)) { report("Actualicen ambos teléfonos a 1.10 o posterior."); return@launch }
             val ref = calls.document(); call = ref
             begin(true)
             val offer = sdp { pc!!.createOffer(it, MediaConstraints()) }
@@ -59,9 +63,12 @@ class WalkieConnection(context: Context, private val pair: String, private val u
             published = true; flushLocal(); listen(ref)
         } catch (_: CancellationException) {
         } catch (_: Exception) { end("No se pudo conectar. Revisa conexión y permisos del servicio.") }
+        finally { if (attempt == openAttempt) opening = false }
     }
     fun accept(document: DocumentSnapshot) = scope.launch {
         if (active) return@launch
+        opening = true
+        val attempt = ++openAttempt
         try {
             Repo.ensureSignedIn()
             require(document.getString("to") == uid)
@@ -75,6 +82,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
             published = true; flushLocal(); listen(document.reference)
         } catch (_: CancellationException) {
         } catch (_: Exception) { end("No se pudo aceptar la conexión.") }
+        finally { if (attempt == openAttempt) opening = false }
     }
     private fun begin(outgoing: Boolean) {
         report(if (outgoing) "Llamando…" else "Conectando…")
@@ -191,7 +199,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     }
     fun stopTalking() { audio?.stop() }
     fun end(message: String = "Desconectado") {
-        ++epoch
+        ++epoch; ++openAttempt; opening = false
         scope.coroutineContext.cancelChildren()
         timeout?.cancel(); snapshot?.remove(); iceListener?.remove()
         snapshot = null; iceListener = null

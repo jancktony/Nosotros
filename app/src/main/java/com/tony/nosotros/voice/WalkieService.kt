@@ -99,7 +99,15 @@ class WalkieService : Service() {
     }
     fun refreshRelay() {
         val enabled = relayPermitted && App.instance.prefs.allowVoiceRelay && partner != null
-        if (!enabled) { relay?.close(); relay = null; relayPartner = null; return }
+        if (!enabled) {
+            if (relay != null) {
+                stopTalking(); relay?.close(); relay = null; relayPartner = null
+                val direct = connection?.ready == true
+                WalkieHub.state.value = WalkieHub.state.value.copy(connected = direct,
+                    message = if (direct) "Canal directo listo" else "En espera · pulsa para hablar")
+            }
+            return
+        }
         if (relay != null && relayPartner == partner) return
         relay?.close(); relayPartner = partner
         relay = WalkieRelay(pairId, uid, partner!!,

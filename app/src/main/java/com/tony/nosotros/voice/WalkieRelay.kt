@@ -98,7 +98,10 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
         ref.set(mapOf("uid" to uid, "to" to partner, "audio" to Blob.fromBytes(VoiceWire.bundle(list)),
             "createdAt" to FieldValue.serverTimestamp(), "expiresAt" to System.currentTimeMillis() + 15_000))
             .addOnSuccessListener { inFlight = false }
-            .addOnFailureListener { inFlight = false; pending.clear(); status("No se pudo enviar. Revisa la conexión o la cuota gratuita.", false) }
+            .addOnFailureListener {
+                inFlight = false; pending.clear(); ownReady = false
+                if (!closed) status("No se pudo enviar. Revisa la conexión o la cuota gratuita.", false)
+            }
         scope.launch { delay(15_000); ref.delete(); written.remove(ref) }
     }
     fun talk(stopped: () -> Unit): Boolean {

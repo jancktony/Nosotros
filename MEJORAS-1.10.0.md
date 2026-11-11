@@ -15,6 +15,7 @@ Las funciones nuevas comienzan apagadas en Administración → Funciones. El due
 ## Mapa
 
 - Migración a OpenFreeMap, que ofrece mapas públicos sin clave, registro ni facturación: https://openfreemap.org/
+- Se verificaron tiles públicos con Universidad del Norte / Universidad Libre Sede Norte en Barranquilla y Universidad de La Guajira en Riohacha.
 - Nombres de universidades, colegios y otros puntos de interés de OpenStreetMap, también sobre satélite. No registra automáticamente lugares personales ni inventa nombres donde falten datos.
 - Globo real al alejar, con MapLibre Native 2026.11.2-globe. Es una versión preliminar y queda detrás de la función «Globo terrestre experimental». No añade edificios fotografiados ni cobertura de Google Earth. Requiere prueba física en Fold4/A15 antes de liberar.
 - Estilos empaquetados con licencia y atribución, tiles mediante el endpoint estable `/planet`. Se mantiene el límite de imagen satélite disponible y su ampliación.
