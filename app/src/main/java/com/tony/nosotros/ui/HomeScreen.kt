@@ -28,7 +28,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -75,8 +74,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
     val otherApp by vm.partnerAppPresence.collectAsState()
     val mySleep by vm.mySleepPresence.collectAsState()
     val otherSleep by vm.partnerSleepPresence.collectAsState()
-    var presenceNow by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { presenceNow = System.currentTimeMillis(); kotlinx.coroutines.delay(30_000) } }
+    val presenceNow by vm.tick.collectAsState()
 
     val threeD by vm.map3d.collectAsState()
     vm.tick.collectAsState().value
