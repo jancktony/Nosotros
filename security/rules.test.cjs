@@ -235,3 +235,21 @@ test('descanso solo propio, estados limitados y marca de servidor', async () => 
   await assertSucceeds(setDoc(p(bob(),target),{sharing:true,state:'sleeping',since:Date.now()-3600000,updatedAt:serverTimestamp()}));
   await assertSucceeds(getDoc(p(alice(),target)));
 });
+
+test('relay de voz exige consentimiento propio y de la pareja, limita tamaño y permite limpiar al apagar', async () => {
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{walkie:'all',walkieRelay:'all'}}));
+  const presence = who => ({relay:true,protocol:'walkie-amrnb-v1',updatedAt:serverTimestamp()});
+  await assertFails(setDoc(p(alice(),'pairs/p/walkiePresence/bob'),presence()));
+  await assertSucceeds(setDoc(p(alice(),'pairs/p/walkiePresence/alice'),presence()));
+  const packet = {uid:'alice',to:'bob',audio:Bytes.fromUint8Array(new Uint8Array(30)),createdAt:serverTimestamp(),expiresAt:Date.now()+14000};
+  await assertFails(setDoc(p(alice(),'pairs/p/walkiePackets/a'),packet));
+  await assertSucceeds(setDoc(p(bob(),'pairs/p/walkiePresence/bob'),presence()));
+  await assertSucceeds(setDoc(p(alice(),'pairs/p/walkiePackets/a'),packet));
+  await assertSucceeds(getDoc(p(bob(),'pairs/p/walkiePackets/a')));
+  await assertFails(getDoc(p(stranger(),'pairs/p/walkiePackets/a')));
+  await assertFails(setDoc(p(alice(),'pairs/p/walkiePackets/large'),{...packet,audio:Bytes.fromUint8Array(new Uint8Array(4097))}));
+  await assertSucceeds(setDoc(p(bob(),'pairs/p/walkiePresence/bob'),{...presence(),relay:false}));
+  await assertFails(setDoc(p(alice(),'pairs/p/walkiePackets/b'),packet));
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{walkie:'off',walkieRelay:'off'}}));
+  await assertSucceeds(deleteDoc(p(bob(),'pairs/p/walkiePackets/a')));
+});

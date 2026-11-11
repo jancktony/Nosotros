@@ -30,6 +30,9 @@ class Prefs(ctx: Context) {
     var wakeHour: Int
         get() = p.getInt("wakeHour", 8)
         set(v) = p.edit().putInt("wakeHour", v.coerceIn(4, 12)).apply()
+    var allowVoiceRelay: Boolean
+        get() = p.getBoolean("allowVoiceRelay", false)
+        set(v) = p.edit().putBoolean("allowVoiceRelay", v).apply()
     var receiveWalkie: Boolean
         get() = p.getBoolean("receiveWalkie", false)
         set(v) = p.edit().putBoolean("receiveWalkie", v).apply()

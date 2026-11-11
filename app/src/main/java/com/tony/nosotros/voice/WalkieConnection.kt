@@ -35,6 +35,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     @Volatile private var lastActivity = 0L
     private var closed = false
     private var epoch = 0
+    val ready get() = audio != null
     val active get() = pc != null
     val currentCallId get() = call?.id
 
@@ -47,6 +48,8 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         if (active) return@launch
         try {
             Repo.ensureSignedIn()
+            val peerVersion = Repo.db.collection("pairs").document(pair).collection("members").document(partner).get().await().getString("appVersion").orEmpty()
+            require(VoiceWire.compatible(peerVersion)) { "Actualicen ambos teléfonos a 1.10 o posterior" }
             val ref = calls.document(); call = ref
             begin(true)
             val offer = sdp { pc!!.createOffer(it, MediaConstraints()) }
@@ -77,7 +80,8 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         report(if (outgoing) "Llamando…" else "Conectando…")
         val generation = ++epoch
         val configuration = PeerConnection.RTCConfiguration(listOf(
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun.cloudflare.com:3478").createIceServer()
         )).apply { sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN }
         pc = factory.createPeerConnection(configuration, object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) { handler.post {
@@ -99,20 +103,27 @@ class WalkieConnection(context: Context, private val pair: String, private val u
             override fun onRenegotiationNeeded() = Unit
             override fun onAddTrack(receiver: RtpReceiver, streams: Array<out MediaStream>) = Unit
         }) ?: error("WebRTC no disponible")
-        if (outgoing) attach(pc!!.createDataChannel("walkie-pcm16-16000", DataChannel.Init().apply {
+        if (outgoing) attach(pc!!.createDataChannel(VoiceWire.CHANNEL, DataChannel.Init().apply {
             ordered = false; maxRetransmits = 0
         }))
-        timeout = scope.launch { delay(45000); if (audio == null) end("Tu pareja no respondió o la red no permite conectar.") }
+        timeout = scope.launch { delay(12000); if (audio == null) end("La conexión directa no está disponible. Activen el modo de redes difíciles en ambos teléfonos.") }
     }
     private fun attach(data: DataChannel) {
+        if (data.label() != VoiceWire.CHANNEL) {
+            data.close(); data.dispose(); end("Actualicen ambos teléfonos a 1.10 o posterior."); return
+        }
         channel = data
         val generation = epoch
         fun changed() { handler.post {
             if (closed || generation != epoch) return@post
             when (data.state()) {
                 DataChannel.State.OPEN -> if (audio == null) {
-                    runCatching { audio = PushAudio(data) { lastActivity = android.os.SystemClock.elapsedRealtime() } }.onSuccess {
-                        timeout?.cancel(); report("Conectados · mantén pulsado para hablar", true)
+                    runCatching { audio = PushAudio({ bytes ->
+                        data.state() == DataChannel.State.OPEN && data.bufferedAmount() < 2048 &&
+                            data.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(bytes), true))
+                    }, { lastActivity = android.os.SystemClock.elapsedRealtime() },
+                        { handler.post { end("No se pudo reproducir el audio. Revisa el volumen multimedia.") } }) }.onSuccess {
+                        timeout?.cancel(); report("Directo · voz comprimida · mantén pulsado", true)
                         lastActivity = android.os.SystemClock.elapsedRealtime()
                         timeout = scope.launch {
                             while (true) { delay(1000)
@@ -173,10 +184,10 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         }
         localIce.clear()
     }
-    fun talk(stopped: () -> Unit) {
+    fun talk(stopped: () -> Unit): Boolean {
         lastActivity = android.os.SystemClock.elapsedRealtime()
-        try { audio?.start { handler.post(stopped) } ?: error("Canal desconectado") }
-        catch (_: Exception) { report("No se pudo usar el micrófono", audio != null); stopped() }
+        return try { audio?.start { handler.post(stopped) } ?: error("Canal desconectado"); true }
+        catch (_: Exception) { report("No se pudo usar el micrófono", audio != null); stopped(); false }
     }
     fun stopTalking() { audio?.stop() }
     fun end(message: String = "Desconectado") {

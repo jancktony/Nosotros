@@ -210,6 +210,34 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time;
         allow delete: if member(id) && (own(resource.data) || admin(id));
       }
+      match /walkiePresence/{uid} {
+        allow read: if member(id) && feature(id, 'walkieRelay', 'off');
+        allow create, update: if member(id) && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['relay', 'protocol', 'updatedAt'])
+          && request.resource.data.relay is bool && request.resource.data.protocol == 'walkie-amrnb-v1'
+          && request.resource.data.updatedAt == request.time
+          && (!request.resource.data.relay || (feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off')));
+      }
+      match /walkiePackets/{packet} {
+        function participant() { return resource.data.uid == request.auth.uid || resource.data.to == request.auth.uid; }
+        function optedIn(uid) {
+          let consent = get(/databases/$(database)/documents/pairs/$(id)/walkiePresence/$(uid)).data;
+          return consent.relay == true && consent.protocol == 'walkie-amrnb-v1'
+            && consent.updatedAt.toMillis() >= request.time.toMillis() - 480000;
+        }
+        allow read: if member(id) && feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off') && participant();
+        allow delete: if member(id) && participant();
+        allow create: if member(id) && feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off')
+          && own(request.resource.data) && request.resource.data.to in pairData(id).members
+          && request.resource.data.to != request.auth.uid && targetFeature('walkieRelay', request.resource.data.to)
+          && targetFeature('walkie', request.resource.data.to)
+          && optedIn(request.auth.uid) && optedIn(request.resource.data.to)
+          && request.resource.data.keys().hasOnly(['uid', 'to', 'audio', 'createdAt', 'expiresAt'])
+          && request.resource.data.audio is bytes && request.resource.data.audio.size() > 0 && request.resource.data.audio.size() <= 4096
+          && request.resource.data.createdAt == request.time && request.resource.data.expiresAt is int
+          && request.resource.data.expiresAt > request.time.toMillis()
+          && request.resource.data.expiresAt <= request.time.toMillis() + 15000;
+      }
       match /walkieCalls/{call} {
         function participant() { return member(id) && request.auth.uid in [resource.data.uid, resource.data.to]; }
         allow read: if member(id) && feature(id, 'walkie', 'off');

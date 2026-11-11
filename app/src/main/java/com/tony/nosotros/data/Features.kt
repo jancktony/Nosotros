@@ -1,6 +1,7 @@
 package com.tony.nosotros.data
 
 enum class Feature(val id: String, val title: String, val defaultMode: String = "all") {
+    WALKIE_RELAY("walkieRelay", "Walkie en redes difíciles (opcional)", "off"),
     APP_PRESENCE("appPresence", "Compartir aplicación en uso (voluntario)", "off"),
     SLEEP_STATUS("sleepStatus", "Descanso estimado (voluntario)", "off"),
     MAP_PLACES("mapPlaces", "Nombres de universidades y lugares", "off"),
