@@ -5,13 +5,13 @@ import {getFirestore,doc,setDoc,updateDoc,deleteDoc,onSnapshot,collection,query,
 const app=document.getElementById('app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ago=t=>{if(!t)return 'Sin señal';const m=Math.max(0,Math.floor((Date.now()-t)/60000));return m<1?'Ahora':m<60?`Hace ${m} min`:m<1440?`Hace ${Math.floor(m/60)} h`:`Hace ${Math.floor(m/1440)} días`};
-const FEATURES=[['walkie','Walkie-talkie en directo','off'],['voiceNotes','Notas de voz','off'],['map3d','Mapa inclinado y edificios','all'],['profilePhoto','Fotos de perfil','all'],['compactWidgets','Widgets compactos','all'],['placeAlerts','Avisos de llegada y salida','all'],['manualUpdates','Buscar actualizaciones','all'],['autoUpdates','Instalación de versiones aprobadas','all'],['lockDetails','Detalles en pantalla de bloqueo','all']];
-let db,auth,uid=null,pairId=null,map,unsub=[],selected=null,notice='';
-const S={pair:null,members:[],places:[],photos:[],releases:[],reviews:{}};
+const FEATURES=[['appPresence','Compartir aplicación en uso (voluntario)','off'],['sleepStatus','Descanso estimado (voluntario)','off'],['mapPlaces','Nombres de universidades y lugares','off'],['mapGlobe','Globo terrestre experimental','off'],['walkieRelay','Walkie en redes difíciles (opcional)','off'],['walkie','Walkie-talkie en directo','off'],['voiceNotes','Notas de voz','off'],['map3d','Mapa inclinado y edificios','all'],['profilePhoto','Fotos de perfil','all'],['compactWidgets','Widgets compactos','all'],['placeAlerts','Avisos de llegada y salida','all'],['manualUpdates','Buscar actualizaciones','all'],['autoUpdates','Instalación de versiones aprobadas','all'],['lockDetails','Detalles en pantalla de bloqueo','all']];
+let db,auth,uid=null,pairId=null,map,unsub=[],activityUnsub=[],activityKey='',selected=null,renderedSelection=null,notice='';
+const S={pair:null,members:[],places:[],photos:[],releases:[],reviews:{},activity:{}};
 const isAdmin=()=>uid&&S.pair?.admin===uid;
 const canLocate=m=>m&&Number.isFinite(m.lat)&&Number.isFinite(m.lng)&&(m.lat!==0||m.lng!==0)&&m.lat>=-90&&m.lat<=90&&m.lng>=-180&&m.lng<=180;
 const paused=m=>(m?.pausedUntil||0)>Date.now();
-function clear(){unsub.forEach(fn=>fn());unsub=[];map?.remove();map=null;uid=null;pairId=null;selected=null;Object.assign(S,{pair:null,members:[],places:[],photos:[],releases:[],reviews:{}})}
+function clear(){activityUnsub.forEach(fn=>fn());activityUnsub=[];activityKey='';unsub.forEach(fn=>fn());unsub=[];map?.remove();map=null;uid=null;pairId=null;selected=null;Object.assign(S,{pair:null,members:[],places:[],photos:[],releases:[],reviews:{},activity:{}})}
 function errorMessage(e){return e?.code==='auth/invalid-credential'||e?.code==='auth/wrong-password'||e?.code==='auth/user-not-found'?'Correo o contraseña incorrectos.':e?.code==='auth/too-many-requests'?'Espera un momento antes de intentarlo otra vez.':e?.code==='permission-denied'?'Esta cuenta no tiene acceso a este panel.':e?.message?.startsWith('Verifica')?e.message:'No se pudo completar. Revisa la conexión y vuelve a intentarlo.'}
 function login(message=''){
  clear();app.innerHTML=`<div class="center"><form class="card" id="login" style="max-width:420px;width:100%"><h1>Nosotros · Privado</h1><p class="sub">Entra con el mismo correo de la app para encontrar tu teléfono y ver sus datos.</p><p><input name="email" type="email" autocomplete="username" placeholder="Tu correo" required></p><p><input name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required></p><button type="submit">Entrar</button> <button type="button" data-act="forgot">Olvidé mi contraseña</button><p id="login-error" role="alert">${esc(message)}</p><p class="sub">Creado por Jancktony Murgas</p></form></div>`;
@@ -36,7 +36,7 @@ function start(){
  const p=doc(db,'pairs',pairId);let adminSubscriptions=false;
  unsub.push(onSnapshot(p,snapshot=>{
   const data=snapshot.data();if(!data?.members?.includes(uid)){signOut(auth);login('La cuenta ya no está vinculada.');return}
-  S.pair=data;
+  S.pair=data;watchActivity();
   if(isAdmin()&&!adminSubscriptions){adminSubscriptions=true;
    unsub.push(onSnapshot(query(collection(db,'releases'),orderBy('publishedAt','desc'),limit(20)),s=>{S.releases=s.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.ready&&r.pairId===pairId);render()},()=>{notice='No se pudieron cargar las versiones';render()}));
    unsub.push(onSnapshot(collection(p,'releaseReviews'),s=>{S.reviews=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));render()},()=>{}));
@@ -47,6 +47,36 @@ function start(){
  unsub.push(onSnapshot(collection(p,'places'),s=>{S.places=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
  unsub.push(onSnapshot(query(collection(p,'photos'),orderBy('at','desc'),limit(24)),s=>{S.photos=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
 }
+function enabled(key,target=uid){const mode=S.pair?.featureFlags?.[key]||'off';return mode==='all'||(mode==='admin'&&target===S.pair?.admin)}
+function watchActivity(){
+ const signature=JSON.stringify([S.pair.members,S.pair.admin,S.pair.featureFlags?.appPresence,S.pair.featureFlags?.sleepStatus]);
+ if(signature===activityKey)return;activityKey=signature;
+ activityUnsub.forEach(fn=>fn());activityUnsub=[];S.activity={};
+ for(const target of S.pair.members)for(const [key,collectionName] of [['appPresence','appPresence'],['sleepStatus','sleepPresence']]){
+  if(!enabled(key,target))continue;
+  const id=`${target}:${key}`;
+  activityUnsub.push(onSnapshot(doc(db,'pairs',pairId,collectionName,target),snapshot=>{
+   S.activity[id]=snapshot.metadata?.fromCache?null:snapshot.data();render();
+  },()=>{delete S.activity[id];render()}));
+ }
+}
+function activityText(member){
+ const now=Date.now(),parts=[];
+ for(const key of ['appPresence','sleepStatus']){
+  if(!enabled(key,member.id))continue;
+  const data=S.activity[`${member.id}:${key}`],age=now-(data?.updatedAt?.toMillis?.()||0);
+  if(!data?.sharing||age<0||age>(key==='appPresence'?180000:720000))continue;
+  if(key==='appPresence'&&data.label)parts.push(`Última app detectada: ${data.label}`);
+  if(key==='sleepStatus'){
+   const hours=Math.max(0,Math.floor((now-(data.since||now))/60000));
+   const duration=`${Math.floor(hours/60)} h ${hours%60} min`;
+   if(data.state==='awake')parts.push('Despierto · teléfono en uso');
+   if(data.state==='sleeping')parts.push(`Posiblemente durmiendo · ${duration} estimados`);
+   if(data.state==='overdue')parts.push(`Pasó su hora habitual de despertar · ${duration} estimados`);
+  }
+ }
+ return parts.map(text=>`<p class="sub">${esc(text)}</p>`).join('');
+}
 function person(member){
  if(!member)return '<p class="sub">Esperando la primera señal</p>';
  const available=canLocate(member),isPaused=paused(member),own=member.id===uid;
@@ -54,6 +84,7 @@ function person(member){
  <div class="row"><span class="grow sub">Última ubicación</span><b>${ago(member.updatedAt)}</b></div>
  <div class="row"><span class="grow sub">Batería</span>${member.battery>=0?`${member.battery}%${member.charging?' · Cargando':''}`:'Sin datos'}</div>
  <p>${isPaused?'Ubicación pausada':esc(member.placeName||'Ubicación disponible según la última señal')}</p>
+ ${activityText(member)}
  <button data-act="center" data-id="${esc(member.id)}" ${available?'':'disabled'}>Ver ${own?'mi teléfono':'teléfono'} en el mapa</button>
  <button data-act="locate" data-id="${esc(member.id)}" ${isPaused?'disabled':''}>Solicitar ubicación reciente</button>
  <p class="sub">${isPaused?'No se fuerza la ubicación mientras esté en pausa.': 'La solicitud necesita que el teléfono tenga internet, la app activa en segundo plano y permiso de ubicación.'}</p>`;
@@ -74,7 +105,8 @@ function render(){
  if(!S.pair||!uid)return;
  const live=S.members.filter(m=>S.pair.members.includes(m.id));
  const me=live.find(m=>m.id===uid),other=live.find(m=>m.id!==uid);
- map?.remove();map=null;
+ const savedCamera=map&&selected===renderedSelection&&map.getCenter?{center:map.getCenter(),zoom:map.getZoom(),bearing:map.getBearing(),pitch:map.getPitch()}:null;
+ map?.remove();map=null;renderedSelection=selected;
  app.innerHTML=`<header style="display:flex;gap:12px;align-items:center"><div class="grow"><h1>Nosotros · ${isAdmin()?'Tu panel':'Privado'}</h1><span class="sub">Creado por ${esc(S.pair.creatorBrand||'Jancktony Murgas')}</span></div><button data-act="logout">Cerrar sesión</button></header>
  ${notice?`<p class="card ok" role="status">${esc(notice)}</p>`:''}
  <section class="grid"><div class="card">${person(me)}</div><div class="card">${person(other)}</div></section>
@@ -85,10 +117,15 @@ function render(){
  const located=live.filter(canLocate);if(!located.length){document.getElementById('map').innerHTML='<p class="sub">No hay una ubicación recibida todavía.</p>';return}
  const focus=located.find(m=>m.id===selected)||located[0];
  try{
-  map=new maplibregl.Map({container:'map',style:'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',center:[focus.lng,focus.lat],zoom:selected?16:12});
+  map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/dark',center:[focus.lng,focus.lat],zoom:selected?16:12,...(savedCamera||{})});
+  map.on?.('style.load',()=>{
+   if(enabled('mapGlobe'))map.setProjection({type:'globe'});
+   if(enabled('mapPlaces'))map.addLayer({id:'universities',type:'symbol',source:'openmaptiles','source-layer':'poi',minzoom:12,
+    filter:['match',['get','class'],['college','university','school'],true,false],layout:{'text-field':['coalesce',['get','name:es'],['get','name']],'text-font':['Noto Sans Regular'],'text-size':13,'text-max-width':12},paint:{'text-color':'#ffffff','text-halo-color':'#162133','text-halo-width':1.5}});
+  });
   const bounds=new maplibregl.LngLatBounds();
   for(const member of located){new maplibregl.Marker({color:member.id===uid?'#5eead4':'#f9a8d4'}).setLngLat([member.lng,member.lat]).addTo(map);bounds.extend([member.lng,member.lat])}
-  if(!selected&&located.length>1)map.fitBounds(bounds,{padding:55,maxZoom:15,animate:false});
+  if(!savedCamera&&!selected&&located.length>1)map.fitBounds(bounds,{padding:55,maxZoom:15,animate:false});
  }catch{document.getElementById('map').textContent='No se pudo cargar el mapa. Revisa la conexión.'}
 }
 app.addEventListener('click',async event=>{
@@ -134,3 +171,5 @@ else{
  await setPersistence(auth,browserSessionPersistence);
  onAuthStateChanged(auth,user=>{if(user)enter(user);else login()});
 }
+
+setInterval(()=>{if(uid&&S.pair&&Object.keys(S.activity).length)render()},30000);

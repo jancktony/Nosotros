@@ -61,6 +61,8 @@ private fun VoicePanel(pair: String, uid: String, partner: String, direct: Boole
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
     val radio by WalkieHub.state.collectAsState()
+    var allowRelay by remember { mutableStateOf(App.instance.prefs.allowVoiceRelay) }
+    var confirmRelay by remember { mutableStateOf(false) }
     val voice = remember { VoiceNotes(context.applicationContext, pair) }
     var tab by remember { mutableIntStateOf(if (direct) 0 else 1) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -150,6 +152,22 @@ private fun VoicePanel(pair: String, uid: String, partner: String, direct: Boole
                     }
                     Switch(radio.enabled, { receive(it) })
                 }
+                if (LocalFeatures.current.enabled(Feature.WALKIE_RELAY)) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Modo redes difíciles", color = C.text)
+                        Text("Opcional en ambos teléfonos · fragmentos privados temporales", color = C.sub, fontSize = 11.sp)
+                    }
+                    Switch(allowRelay, { value -> if (value) confirmRelay = true else {
+                        allowRelay = false; App.instance.prefs.allowVoiceRelay = false; WalkieHub.service?.refreshRelay()
+                    } })
+                }
+                if (confirmRelay) AlertDialog(onDismissRequest = { confirmRelay = false },
+                    title = { Text("¿Activar voz en redes difíciles?") },
+                    text = { Text("Cuando la red no permita el canal directo, envía fragmentos de voz comprimida privados mediante Firebase. Se borran al recibirlos o a los 15 segundos; si las apps se cierran, el borrado pendiente continúa al abrirlas. Consume la cuota gratuita y puede tener más retraso. Ambos deben activarlo.") },
+                    confirmButton = { TextButton(onClick = {
+                        allowRelay = true; App.instance.prefs.allowVoiceRelay = true; confirmRelay = false; WalkieHub.service?.refreshRelay()
+                    }) { Text("Activar en mi teléfono") } },
+                    dismissButton = { TextButton(onClick = { confirmRelay = false }) { Text("Cancelar") } })
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     Box(Modifier.size(7.dp).clip(CircleShape).background(if (radio.connected) C.me else C.sub))
@@ -173,8 +191,16 @@ private fun VoicePanel(pair: String, uid: String, partner: String, direct: Boole
                             .clip(CircleShape).background(if (radio.talking) C.me else C.line))
                     }
                 }
-                Text("Se escucha directamente en el otro teléfono cuando tiene la recepción activada. Sin aceptar cada mensaje.",
+                Text("Ambos necesitan esta versión y recepción activada. Voz comprimida ~1 KB/s de audio, más datos de red. Revisa el volumen multimedia. El modo de redes difíciles añade retraso.",
                     color = C.sub, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        val tone = android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 70)
+                        tone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 300)
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ tone.release() }, 500)
+                    }) { Text("Probar altavoz", color = C.me) }
+                    TextButton(onClick = { WalkieHub.service?.reconnect() }) { Text("Reconectar", color = C.me) }
+                }
                 Text("El audio se cierra tras 1 minuto sin uso. Hasta 30 s por pulsación. Si debe reconectar, espera la señal antes de hablar.",
                     color = C.sub, fontSize = 11.sp)
             } else if (saved) {

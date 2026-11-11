@@ -18,6 +18,21 @@ class Prefs(ctx: Context) {
         set(v) = p.edit().putBoolean("featureAdmin", v).apply()
     fun featureEnabled(feature: Feature) = FeatureAccess(featureModes, featureAdmin).enabled(feature)
 
+    var shareCurrentApp: Boolean
+        get() = p.getBoolean("shareCurrentApp", false)
+        set(v) = p.edit().putBoolean("shareCurrentApp", v).apply()
+    var shareSleep: Boolean
+        get() = p.getBoolean("shareSleep", false)
+        set(v) = p.edit().putBoolean("shareSleep", v).apply()
+    var sleepStartHour: Int
+        get() = p.getInt("sleepStartHour", 22)
+        set(v) = p.edit().putInt("sleepStartHour", v.coerceIn(18, 23)).apply()
+    var wakeHour: Int
+        get() = p.getInt("wakeHour", 8)
+        set(v) = p.edit().putInt("wakeHour", v.coerceIn(4, 12)).apply()
+    var allowVoiceRelay: Boolean
+        get() = p.getBoolean("allowVoiceRelay", false)
+        set(v) = p.edit().putBoolean("allowVoiceRelay", v).apply()
     var receiveWalkie: Boolean
         get() = p.getBoolean("receiveWalkie", false)
         set(v) = p.edit().putBoolean("receiveWalkie", v).apply()

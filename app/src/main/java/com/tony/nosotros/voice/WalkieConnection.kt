@@ -35,7 +35,10 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     @Volatile private var lastActivity = 0L
     private var closed = false
     private var epoch = 0
-    val active get() = pc != null
+    private var opening = false
+    private var openAttempt = 0
+    val ready get() = audio != null
+    val active get() = pc != null || opening
     val currentCallId get() = call?.id
 
     init {
@@ -45,8 +48,12 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     private fun report(message: String, ready: Boolean = false) { if (!closed) status(message, ready) }
     fun dial(partner: String) = scope.launch {
         if (active) return@launch
+        opening = true
+        val attempt = ++openAttempt
         try {
             Repo.ensureSignedIn()
+            val peerVersion = Repo.db.collection("pairs").document(pair).collection("members").document(partner).get().await().getString("appVersion").orEmpty()
+            if (!VoiceWire.compatible(peerVersion)) { report("Actualicen ambos teléfonos a 1.10 o posterior."); return@launch }
             val ref = calls.document(); call = ref
             begin(true)
             val offer = sdp { pc!!.createOffer(it, MediaConstraints()) }
@@ -56,9 +63,12 @@ class WalkieConnection(context: Context, private val pair: String, private val u
             published = true; flushLocal(); listen(ref)
         } catch (_: CancellationException) {
         } catch (_: Exception) { end("No se pudo conectar. Revisa conexión y permisos del servicio.") }
+        finally { if (attempt == openAttempt) opening = false }
     }
     fun accept(document: DocumentSnapshot) = scope.launch {
         if (active) return@launch
+        opening = true
+        val attempt = ++openAttempt
         try {
             Repo.ensureSignedIn()
             require(document.getString("to") == uid)
@@ -72,12 +82,14 @@ class WalkieConnection(context: Context, private val pair: String, private val u
             published = true; flushLocal(); listen(document.reference)
         } catch (_: CancellationException) {
         } catch (_: Exception) { end("No se pudo aceptar la conexión.") }
+        finally { if (attempt == openAttempt) opening = false }
     }
     private fun begin(outgoing: Boolean) {
         report(if (outgoing) "Llamando…" else "Conectando…")
         val generation = ++epoch
         val configuration = PeerConnection.RTCConfiguration(listOf(
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun.cloudflare.com:3478").createIceServer()
         )).apply { sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN }
         pc = factory.createPeerConnection(configuration, object : PeerConnection.Observer {
             override fun onIceCandidate(candidate: IceCandidate) { handler.post {
@@ -99,20 +111,27 @@ class WalkieConnection(context: Context, private val pair: String, private val u
             override fun onRenegotiationNeeded() = Unit
             override fun onAddTrack(receiver: RtpReceiver, streams: Array<out MediaStream>) = Unit
         }) ?: error("WebRTC no disponible")
-        if (outgoing) attach(pc!!.createDataChannel("walkie-pcm16-16000", DataChannel.Init().apply {
+        if (outgoing) attach(pc!!.createDataChannel(VoiceWire.CHANNEL, DataChannel.Init().apply {
             ordered = false; maxRetransmits = 0
         }))
-        timeout = scope.launch { delay(45000); if (audio == null) end("Tu pareja no respondió o la red no permite conectar.") }
+        timeout = scope.launch { delay(12000); if (audio == null) end("La conexión directa no está disponible. Activen el modo de redes difíciles en ambos teléfonos.") }
     }
     private fun attach(data: DataChannel) {
+        if (data.label() != VoiceWire.CHANNEL) {
+            data.close(); data.dispose(); end("Actualicen ambos teléfonos a 1.10 o posterior."); return
+        }
         channel = data
         val generation = epoch
         fun changed() { handler.post {
             if (closed || generation != epoch) return@post
             when (data.state()) {
                 DataChannel.State.OPEN -> if (audio == null) {
-                    runCatching { audio = PushAudio(data) { lastActivity = android.os.SystemClock.elapsedRealtime() } }.onSuccess {
-                        timeout?.cancel(); report("Conectados · mantén pulsado para hablar", true)
+                    runCatching { audio = PushAudio({ bytes ->
+                        data.state() == DataChannel.State.OPEN && data.bufferedAmount() < 2048 &&
+                            data.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(bytes), true))
+                    }, { lastActivity = android.os.SystemClock.elapsedRealtime() },
+                        { handler.post { end("No se pudo reproducir el audio. Revisa el volumen multimedia.") } }) }.onSuccess {
+                        timeout?.cancel(); report("Directo · voz comprimida · mantén pulsado", true)
                         lastActivity = android.os.SystemClock.elapsedRealtime()
                         timeout = scope.launch {
                             while (true) { delay(1000)
@@ -173,14 +192,14 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         }
         localIce.clear()
     }
-    fun talk(stopped: () -> Unit) {
+    fun talk(stopped: () -> Unit): Boolean {
         lastActivity = android.os.SystemClock.elapsedRealtime()
-        try { audio?.start { handler.post(stopped) } ?: error("Canal desconectado") }
-        catch (_: Exception) { report("No se pudo usar el micrófono", audio != null); stopped() }
+        return try { audio?.start { handler.post(stopped) } ?: error("Canal desconectado"); true }
+        catch (_: Exception) { report("No se pudo usar el micrófono", audio != null); stopped(); false }
     }
     fun stopTalking() { audio?.stop() }
     fun end(message: String = "Desconectado") {
-        ++epoch
+        ++epoch; ++openAttempt; opening = false
         scope.coroutineContext.cancelChildren()
         timeout?.cancel(); snapshot?.remove(); iceListener?.remove()
         snapshot = null; iceListener = null

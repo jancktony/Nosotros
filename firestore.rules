@@ -15,7 +15,12 @@ service cloud.firestore {
     function changedOnly(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
     function own(data) { return data.uid == request.auth.uid; }
     function validFlags(flags) {
-      return flags is map && flags.keys().hasOnly(['walkie', 'voiceNotes', 'map3d', 'profilePhoto', 'compactWidgets', 'placeAlerts', 'manualUpdates', 'autoUpdates', 'lockDetails'])
+      return flags is map && flags.keys().hasOnly(['walkie', 'voiceNotes', 'map3d', 'profilePhoto', 'compactWidgets', 'placeAlerts', 'manualUpdates', 'autoUpdates', 'lockDetails', 'appPresence', 'sleepStatus', 'mapPlaces', 'mapGlobe', 'walkieRelay'])
+        && flags.get('appPresence', 'off') in ['off', 'admin', 'all']
+        && flags.get('sleepStatus', 'off') in ['off', 'admin', 'all']
+        && flags.get('mapPlaces', 'off') in ['off', 'admin', 'all']
+        && flags.get('mapGlobe', 'off') in ['off', 'admin', 'all']
+        && flags.get('walkieRelay', 'off') in ['off', 'admin', 'all']
         && flags.get('walkie', 'off') in ['off', 'admin', 'all']
         && flags.get('voiceNotes', 'off') in ['off', 'admin', 'all']
         && flags.get('map3d', 'all') in ['off', 'admin', 'all']
@@ -123,6 +128,33 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/codes/$(resource.data.code)).data.pairId == id
           && get(/databases/$(database)/documents/codes/$(resource.data.code)).data.expiresAt > request.time.toMillis())
       );
+      function targetFeature(key, uid) {
+        let data = pairData(id);
+        let mode = data.get('featureFlags', {}).get(key, 'off');
+        return mode == 'all' || (mode == 'admin' && data.admin == uid);
+      }
+      match /appPresence/{uid} {
+        allow read: if member(id) && (request.auth.uid == uid || targetFeature('appPresence', uid));
+        allow delete: if member(id) && request.auth.uid == uid;
+        allow create, update: if member(id) && request.auth.uid == uid
+          && request.resource.data.sharing is bool && request.resource.data.updatedAt == request.time
+          && ((!request.resource.data.sharing && request.resource.data.keys().hasOnly(['sharing', 'updatedAt']))
+            || (request.resource.data.sharing && targetFeature('appPresence', uid)
+              && request.resource.data.keys().hasOnly(['sharing', 'label', 'updatedAt'])
+              && request.resource.data.label is string && request.resource.data.label.size() <= 100));
+      }
+      match /sleepPresence/{uid} {
+        allow read: if member(id) && (request.auth.uid == uid || targetFeature('sleepStatus', uid));
+        allow delete: if member(id) && request.auth.uid == uid;
+        allow create, update: if member(id) && request.auth.uid == uid
+          && request.resource.data.sharing is bool && request.resource.data.updatedAt == request.time
+          && ((!request.resource.data.sharing && request.resource.data.keys().hasOnly(['sharing', 'updatedAt']))
+            || (request.resource.data.sharing && targetFeature('sleepStatus', uid)
+              && request.resource.data.keys().hasOnly(['sharing', 'state', 'since', 'updatedAt'])
+              && request.resource.data.state in ['awake', 'idle', 'sleeping', 'overdue']
+              && request.resource.data.since is int && request.resource.data.since >= 0
+              && request.resource.data.since <= request.time.toMillis()));
+      }
       match /members/{uid} {
         allow read: if member(id);
         allow create: if member(id) && uid == request.auth.uid && validProfile(request.resource.data);
@@ -177,6 +209,34 @@ service cloud.firestore {
           && request.resource.data.durationMs >= 300 && request.resource.data.durationMs <= 30000
           && request.resource.data.createdAt == request.time;
         allow delete: if member(id) && (own(resource.data) || admin(id));
+      }
+      match /walkiePresence/{uid} {
+        allow read: if member(id) && feature(id, 'walkieRelay', 'off');
+        allow create, update: if member(id) && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['relay', 'protocol', 'updatedAt'])
+          && request.resource.data.relay is bool && request.resource.data.protocol == 'walkie-amrnb-v1'
+          && request.resource.data.updatedAt == request.time
+          && (!request.resource.data.relay || (feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off')));
+      }
+      match /walkiePackets/{packet} {
+        function participant() { return resource.data.uid == request.auth.uid || resource.data.to == request.auth.uid; }
+        function optedIn(uid) {
+          let consent = get(/databases/$(database)/documents/pairs/$(id)/walkiePresence/$(uid)).data;
+          return consent.relay == true && consent.protocol == 'walkie-amrnb-v1'
+            && consent.updatedAt.toMillis() >= request.time.toMillis() - 480000;
+        }
+        allow read: if member(id) && feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off') && participant();
+        allow delete: if member(id) && participant();
+        allow create: if member(id) && feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off')
+          && own(request.resource.data) && request.resource.data.to in pairData(id).members
+          && request.resource.data.to != request.auth.uid && targetFeature('walkieRelay', request.resource.data.to)
+          && targetFeature('walkie', request.resource.data.to)
+          && optedIn(request.auth.uid) && optedIn(request.resource.data.to)
+          && request.resource.data.keys().hasOnly(['uid', 'to', 'audio', 'createdAt', 'expiresAt'])
+          && request.resource.data.audio is bytes && request.resource.data.audio.size() > 0 && request.resource.data.audio.size() <= 4096
+          && request.resource.data.createdAt == request.time && request.resource.data.expiresAt is int
+          && request.resource.data.expiresAt > request.time.toMillis()
+          && request.resource.data.expiresAt <= request.time.toMillis() + 15000;
       }
       match /walkieCalls/{call} {
         function participant() { return member(id) && request.auth.uid in [resource.data.uid, resource.data.to]; }

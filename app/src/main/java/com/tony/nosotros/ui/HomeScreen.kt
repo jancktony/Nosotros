@@ -70,6 +70,12 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
     val visits by vm.todayVisits.collectAsState()
     val since by vm.since.collectAsState()
     val satellite by vm.satellite.collectAsState()
+    val myApp by vm.myAppPresence.collectAsState()
+    val otherApp by vm.partnerAppPresence.collectAsState()
+    val mySleep by vm.mySleepPresence.collectAsState()
+    val otherSleep by vm.partnerSleepPresence.collectAsState()
+    val presenceNow by vm.tick.collectAsState()
+
     val threeD by vm.map3d.collectAsState()
     vm.tick.collectAsState().value
 
@@ -152,6 +158,17 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
                     MapChip("Yo", focus == Focus.ME, C.me) { focus = Focus.ME; fitKey++ }
                     MapChip(partner?.name?.ifBlank { null } ?: "Pareja", focus == Focus.PARTNER, C.partner) { focus = Focus.PARTNER; fitKey++ }
                 }
+            }
+            val activityLines = listOfNotNull(
+                otherApp.text(presenceNow, false)?.let { "${partner?.name?.ifBlank { null } ?: "Pareja"}: $it" },
+                otherSleep.text(presenceNow, true),
+                myApp.text(presenceNow, false)?.let { "Yo: $it" },
+                mySleep.text(presenceNow, true)?.let { "Yo: $it" },
+            )
+            if (activityLines.isNotEmpty()) Column(Modifier.align(Alignment.TopStart).statusBarsPadding()
+                .padding(top = 112.dp, start = 14.dp, end = 72.dp).clip(RoundedCornerShape(14.dp))
+                .background(C.surface).padding(10.dp)) {
+                activityLines.forEach { Text(it, color = C.text, fontSize = 12.sp) }
             }
             // Botones flotantes a la derecha
             Column(

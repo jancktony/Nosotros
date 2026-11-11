@@ -205,3 +205,51 @@ test('solo el creador administrador puede cambiar su marca',async()=>{
  await assertFails(updateDoc(p(bob()),{creatorBrand:'otro'}));
  await assertFails(updateDoc(p(alice()),{creatorBrand:'x'.repeat(61)}));
 });
+
+test('actividad privada: solo su dueño puede compartir; el administrador no suplanta su consentimiento', async () => {
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{appPresence:'all',sleepStatus:'all'}}));
+  const target = 'pairs/p/appPresence/bob';
+  await assertFails(setDoc(p(alice(),target),{sharing:true,label:'Instagram',updatedAt:serverTimestamp()}));
+  await assertSucceeds(setDoc(p(bob(),target),{sharing:true,label:'WhatsApp',updatedAt:serverTimestamp()}));
+  await assertSucceeds(getDoc(p(alice(),target)));
+  await assertFails(getDoc(p(stranger(),target)));
+  await assertFails(setDoc(p(bob(),target),{sharing:false,label:'WhatsApp',updatedAt:serverTimestamp()}));
+  await assertSucceeds(setDoc(p(bob(),target),{sharing:false,updatedAt:serverTimestamp()}));
+  const result = await getDoc(p(alice(),target)); assert.equal(result.data().label,undefined);
+});
+test('apagar una función bloquea lecturas ajenas y publicaciones; permite revocar el propio estado', async () => {
+  const target = 'pairs/p/appPresence/bob';
+  await assertFails(setDoc(p(bob(),target),{sharing:true,label:'WhatsApp',updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{appPresence:'all'}}));
+  await assertSucceeds(setDoc(p(bob(),target),{sharing:true,label:'WhatsApp',updatedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{appPresence:'off'}}));
+  await assertFails(getDoc(p(alice(),target)));
+  await assertSucceeds(setDoc(p(bob(),target),{sharing:false,updatedAt:serverTimestamp()}));
+});
+test('descanso solo propio, estados limitados y marca de servidor', async () => {
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{sleepStatus:'all'}}));
+  const target = 'pairs/p/sleepPresence/bob';
+  await assertFails(setDoc(p(alice(),target),{sharing:true,state:'sleeping',since:0,updatedAt:serverTimestamp()}));
+  await assertFails(setDoc(p(bob(),target),{sharing:true,state:'certainly-asleep',since:0,updatedAt:serverTimestamp()}));
+  await assertFails(setDoc(p(bob(),target),{sharing:true,state:'sleeping',since:0,updatedAt:new Date(0)}));
+  await assertSucceeds(setDoc(p(bob(),target),{sharing:true,state:'sleeping',since:Date.now()-3600000,updatedAt:serverTimestamp()}));
+  await assertSucceeds(getDoc(p(alice(),target)));
+});
+
+test('relay de voz exige consentimiento propio y de la pareja, limita tamaño y permite limpiar al apagar', async () => {
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{walkie:'all',walkieRelay:'all'}}));
+  const presence = who => ({relay:true,protocol:'walkie-amrnb-v1',updatedAt:serverTimestamp()});
+  await assertFails(setDoc(p(alice(),'pairs/p/walkiePresence/bob'),presence()));
+  await assertSucceeds(setDoc(p(alice(),'pairs/p/walkiePresence/alice'),presence()));
+  const packet = {uid:'alice',to:'bob',audio:Bytes.fromUint8Array(new Uint8Array(30)),createdAt:serverTimestamp(),expiresAt:Date.now()+14000};
+  await assertFails(setDoc(p(alice(),'pairs/p/walkiePackets/a'),packet));
+  await assertSucceeds(setDoc(p(bob(),'pairs/p/walkiePresence/bob'),presence()));
+  await assertSucceeds(setDoc(p(alice(),'pairs/p/walkiePackets/a'),packet));
+  await assertSucceeds(getDoc(p(bob(),'pairs/p/walkiePackets/a')));
+  await assertFails(getDoc(p(stranger(),'pairs/p/walkiePackets/a')));
+  await assertFails(setDoc(p(alice(),'pairs/p/walkiePackets/large'),{...packet,audio:Bytes.fromUint8Array(new Uint8Array(4097))}));
+  await assertSucceeds(setDoc(p(bob(),'pairs/p/walkiePresence/bob'),{...presence(),relay:false}));
+  await assertFails(setDoc(p(alice(),'pairs/p/walkiePackets/b'),packet));
+  await assertSucceeds(updateDoc(p(alice()), {featureFlags:{walkie:'off',walkieRelay:'off'}}));
+  await assertSucceeds(deleteDoc(p(bob(),'pairs/p/walkiePackets/a')));
+});
