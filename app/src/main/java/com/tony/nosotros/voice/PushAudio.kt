@@ -8,6 +8,11 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
+object VoiceCodec {
+    fun format() = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AMR_NB, VoiceWire.RATE, 1)
+        .apply { setInteger(MediaFormat.KEY_BIT_RATE, VoiceWire.BITRATE); setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 320) }
+}
+
 /** AMR-NB speech at 7.95 kbit/s (~1 KB/s payload), with short bounded playback queues.
  * The recorder and encoder exist only while the visible activity's button is held. */
 class PushAudio(private val sendPacket: (ByteArray) -> Boolean, private val activity: () -> Unit = {},
@@ -26,13 +31,11 @@ class PushAudio(private val sendPacket: (ByteArray) -> Boolean, private val acti
             .setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
         .setBufferSizeInBytes(maxOf(1600, AudioTrack.getMinBufferSize(VoiceWire.RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)))
         .setTransferMode(AudioTrack.MODE_STREAM).build()
-    private fun format() = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AMR_NB, VoiceWire.RATE, 1)
-        .apply { setInteger(MediaFormat.KEY_BIT_RATE, VoiceWire.BITRATE); setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 320) }
     private val playback = thread(name = "walkie-play") {
         var codec: MediaCodec? = null
         try {
             codec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_AUDIO_AMR_NB)
-            codec.configure(format(), null, null, 0); codec.start(); output.play()
+            codec.configure(VoiceCodec.format(), null, null, 0); codec.start(); output.play()
             val info = MediaCodec.BufferInfo()
             var time = 0L; var lastSequence = -1; var currentStream: Int? = null
             val previousStreams = LinkedHashSet<Int>()
@@ -84,7 +87,7 @@ class PushAudio(private val sendPacket: (ByteArray) -> Boolean, private val acti
             maxOf(3200, AudioRecord.getMinBufferSize(VoiceWire.RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)))
         val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AMR_NB)
         try {
-            encoder.configure(format(), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE); encoder.start()
+            encoder.configure(VoiceCodec.format(), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE); encoder.start()
             check(rec.state == AudioRecord.STATE_INITIALIZED); rec.startRecording()
         } catch (e: Exception) { rec.release(); encoder.release(); throw e }
         input = rec; talking = true

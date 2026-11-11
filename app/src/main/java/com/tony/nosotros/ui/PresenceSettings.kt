@@ -62,11 +62,11 @@ fun PresenceSettings(vm: MainViewModel) {
             else { sleepSharing = false; vm.setPresence(true, false) } },
             enabled = sleepSharing || access.enabled(Feature.SLEEP_STATUS))
     }
-    Text("Mi noche empieza a las $start:00", color = C.sub)
+    Text("Mi noche empieza a las ${start - 12}:00 p. m.", color = C.sub)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        (18..23).forEach { h -> FilterChip(start == h, { start = h; vm.prefs.sleepStartHour = h; vm.refreshTracking() }, { Text("$h:00") }) }
+        (18..23).forEach { h -> FilterChip(start == h, { start = h; vm.prefs.sleepStartHour = h; vm.refreshTracking() }, { Text("${h - 12}:00 p. m.") }) }
     }
-    Text("Mi hora habitual de despertar: ${if (wake > 12) wake - 12 else wake}:00 a. m.", color = C.sub)
+    Text("Mi hora habitual de despertar: ${wake}:00 ${if (wake == 12) "p. m." else "a. m."}", color = C.sub)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         (4..12).forEach { h -> FilterChip(wake == h, { wake = h; vm.prefs.wakeHour = h; vm.refreshTracking() }, { Text("$h:00") }) }
     }

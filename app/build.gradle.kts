@@ -35,6 +35,7 @@ android {
     defaultConfig {
         applicationId = "com.tony.nosotros"
         minSdk = 29
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
         versionCode = 15
         versionName = "1.10.0"
@@ -94,4 +95,6 @@ dependencies {
     implementation("io.github.webrtc-sdk:android:150.7871.04")
 
     testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
 }

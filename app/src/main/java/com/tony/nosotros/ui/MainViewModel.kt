@@ -276,6 +276,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun unlink() = viewModelScope.launch {
+        clearPresenceBeforeLeaving()
         val result = runCatching { pairId.value?.let { Repo.unlink(it) } }
         if (result.isFailure) {
             error.value = "No se pudo desvincular. Si eres administrador, cede primero la administración."
@@ -286,7 +287,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         pairId.value = null; createdCode.value = null
     }
 
-    fun signOut() {
+    private suspend fun clearPresenceBeforeLeaving() {
+        val p = pairId.value ?: return; val u = uid.value ?: return
+        prefs.shareCurrentApp = false; prefs.shareSleep = false
+        runCatching { kotlinx.coroutines.withTimeout(5000) {
+            com.tony.nosotros.presence.PresenceRepo.clear(p, u, false).await()
+            com.tony.nosotros.presence.PresenceRepo.clear(p, u, true).await()
+        } }
+    }
+
+    fun signOut() = viewModelScope.launch {
+        clearPresenceBeforeLeaving()
         com.tony.nosotros.voice.WalkieHub.disable(getApplication())
         TrackingService.stop(getApplication())
         Repo.signOut()

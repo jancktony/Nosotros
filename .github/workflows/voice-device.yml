@@ -1,0 +1,28 @@
+name: Verificar audio comprimido en Android
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  codec:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - name: Habilitar KVM
+        run: sudo chmod 666 /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: default
+          disable-animations: true
+          script: ./gradlew connectedDebugAndroidTest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audio-device-test-results
+          path: app/build/reports/androidTests/connected/
+          retention-days: 3
