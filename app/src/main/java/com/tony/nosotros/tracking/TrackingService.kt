@@ -13,6 +13,7 @@ import android.content.pm.ServiceInfo
 import android.location.Location
 import android.os.BatteryManager
 import android.os.IBinder
+import android.os.SystemClock
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -79,7 +80,7 @@ class TrackingService : Service() {
     private var lastFix: Location? = null
     private var lastUpload = 0L
     private var lastUploadedMode = Mode.UNKNOWN
-    private var fastSpeedHits = 0
+    private val motion = MotionDetector()
     private var anchor: Location? = null
     private var lastWidgetUpdate = 0L
     private var policyKey = ""
@@ -134,7 +135,10 @@ class TrackingService : Service() {
 
     fun handle(intent: Intent) {
         if (!App.firebaseConfigured || !Repo.authorizedSession || me == null) return
-        if (intent.hasExtra(EXTRA_ACTIVITY)) onActivity(intent.getIntExtra(EXTRA_ACTIVITY, -1))
+        if (intent.hasExtra(EXTRA_ACTIVITY)) onActivity(
+            intent.getIntExtra(EXTRA_ACTIVITY, -1),
+            intent.getLongExtra(EXTRA_ACTIVITY_ELAPSED, SystemClock.elapsedRealtime()),
+        )
         if (intent.hasExtra(EXTRA_GEOFENCE_IDS)) {
             val enter = intent.getBooleanExtra(EXTRA_GEOFENCE_ENTER, true)
             intent.getStringArrayExtra(EXTRA_GEOFENCE_IDS)?.forEach { engine.onGeofence(it, enter) }
@@ -144,7 +148,8 @@ class TrackingService : Service() {
         }
     }
 
-    private fun onActivity(type: Int) {
+    private fun onActivity(type: Int, elapsed: Long) {
+        if (SystemClock.elapsedRealtime() - elapsed !in 0..120_000) return
         val newMode = when (type) {
             DetectedActivity.IN_VEHICLE -> Mode.VEHICLE
             DetectedActivity.ON_BICYCLE -> Mode.BIKE
@@ -152,7 +157,8 @@ class TrackingService : Service() {
             DetectedActivity.STILL -> Mode.STILL
             else -> return
         }
-        setRawMode(newMode)
+        setRawMode(motion.activity(newMode, elapsed))
+        requestOneFix()
     }
 
     private fun setRawMode(newMode: Mode) {
@@ -247,12 +253,20 @@ class TrackingService : Service() {
         if (isPaused()) return
         val prevFix = lastFix
         if (prevFix != null && loc.time <= prevFix.time) return
+        val nowElapsed = SystemClock.elapsedRealtime()
+        val fixElapsed = loc.elapsedRealtimeNanos / 1_000_000
+        if (nowElapsed - fixElapsed !in 0..30_000 || !loc.hasAccuracy() || !loc.accuracy.isFinite()) return
         lastFix = loc
-        val speed = if (loc.hasSpeed()) loc.speed else 0f
-
-        // Respaldo: si va rápido y Android aún no detectó vehículo
-        if (speed > 8f && loc.accuracy < 40f) fastSpeedHits++ else fastSpeedHits = 0
-        if (fastSpeedHits >= 2 && !rawMode.isVehicle) setRawMode(Mode.VEHICLE)
+        val reliableSpeed = loc.speed.takeIf {
+            loc.hasSpeed() && it.isFinite() && it >= 0f &&
+                (!loc.hasSpeedAccuracy() || loc.speedAccuracyMetersPerSecond <= 1.5f)
+        }
+        val speed = reliableSpeed ?: 0f
+        val previous = prevFix?.takeIf { it.hasAccuracy() && it.accuracy <= 35f }
+        val interval = previous?.let { (loc.elapsedRealtimeNanos - it.elapsedRealtimeNanos) / 1_000_000 } ?: 0L
+        val displacement = previous?.let { Geo.dist(it.latitude, it.longitude, loc.latitude, loc.longitude) }
+        val uncertainty = (loc.accuracy + (previous?.accuracy ?: loc.accuracy)).toDouble()
+        setRawMode(motion.fix(fixElapsed, loc.accuracy, reliableSpeed, displacement, interval, uncertainty))
 
         val bm = getSystemService(BatteryManager::class.java)
         val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
@@ -265,7 +279,7 @@ class TrackingService : Service() {
         }
 
         detectStillByGps(loc)
-        trip.add(loc.latitude, loc.longitude, loc.accuracy, speed, loc.time)
+        trip.add(loc.latitude, loc.longitude, loc.accuracy, loc.time)
         engine.onLocation(loc.latitude, loc.longitude, loc.accuracy, speed, settled = rawMode == Mode.STILL)
         uploadStatus()
     }
@@ -273,24 +287,20 @@ class TrackingService : Service() {
     /**
      * Respaldo por si el sensor de actividad de Android tarda o no funciona:
      *  - si en 5 min no se ha movido más de 60 m  -> quieto
-     *  - si estando "quieto" aparece a más de 150 m -> se está moviendo
+     * Movement is confirmed separately by MotionDetector; a single GPS jump is not walking.
      */
     private fun detectStillByGps(loc: Location) {
         if (loc.accuracy > 80f) return
         val a = anchor
         if (a == null || Geo.dist(a.latitude, a.longitude, loc.latitude, loc.longitude) > 60) {
-            if (rawMode == Mode.STILL && a != null &&
-                Geo.dist(a.latitude, a.longitude, loc.latitude, loc.longitude) > 150) setRawMode(Mode.WALK)
-            if (rawMode != Mode.STILL) anchor = loc
+            anchor = loc
             return
         }
-        if (rawMode != Mode.STILL && rawMode != Mode.UNKNOWN && loc.time - a.time > 5 * 60_000L) setRawMode(Mode.STILL)
-        if (rawMode == Mode.UNKNOWN && loc.time - a.time > 5 * 60_000L) setRawMode(Mode.STILL)
+        if (rawMode != Mode.STILL && rawMode != Mode.UNKNOWN && loc.time - a.time > 5 * 60_000L) setRawMode(motion.activity(Mode.STILL, loc.elapsedRealtimeNanos / 1_000_000))
+        if (rawMode == Mode.UNKNOWN && loc.time - a.time > 5 * 60_000L) setRawMode(motion.activity(Mode.STILL, loc.elapsedRealtimeNanos / 1_000_000))
     }
 
     private fun displayMode(): Mode = when {
-        trip.active -> trip.classify().takeIf { it != Mode.UNKNOWN }
-            ?: if (rawMode.isVehicle) prefs.vehicle else rawMode
         rawMode == Mode.VEHICLE -> prefs.vehicle
         else -> rawMode
     }
@@ -385,7 +395,7 @@ class TrackingService : Service() {
     private fun registerActivityTransitions() {
         val types = listOf(
             DetectedActivity.IN_VEHICLE, DetectedActivity.ON_BICYCLE,
-            DetectedActivity.WALKING, DetectedActivity.RUNNING, DetectedActivity.STILL,
+            DetectedActivity.ON_FOOT, DetectedActivity.WALKING, DetectedActivity.RUNNING, DetectedActivity.STILL,
         )
         val transitions = types.map {
             ActivityTransition.Builder().setActivityType(it)
@@ -563,6 +573,7 @@ class TrackingService : Service() {
     companion object {
         private const val NOTIF_ID = 7
         const val EXTRA_ACTIVITY = "activity"
+        const val EXTRA_ACTIVITY_ELAPSED = "activity_elapsed"
         const val EXTRA_GEOFENCE_IDS = "gf_ids"
         const val EXTRA_GEOFENCE_ENTER = "gf_enter"
         const val EXTRA_REFRESH = "refresh"
