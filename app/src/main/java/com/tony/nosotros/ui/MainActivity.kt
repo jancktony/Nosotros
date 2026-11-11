@@ -80,6 +80,8 @@ class MainActivity : ComponentActivity() {
     }
     companion object {
         private var foreground: java.lang.ref.WeakReference<MainActivity>? = null
+        fun visibleForMicrophone() = foreground?.get()?.lifecycle?.currentState
+            ?.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) == true
         fun showPendingUpdate() { foreground?.get()?.let { activity -> activity.runOnUiThread { activity.consumeUpdateConsent() } } }
     }
 

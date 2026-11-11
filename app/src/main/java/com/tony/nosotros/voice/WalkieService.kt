@@ -137,23 +137,42 @@ class WalkieService : Service() {
     }
     private fun startTalking() {
         if (!requested || WalkieHub.state.value.talking) return
+        if (!MainActivity.visibleForMicrophone() || androidx.core.content.ContextCompat.checkSelfPermission(
+                this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requested = false
+            WalkieHub.state.value = WalkieHub.state.value.copy(message = "Abre Voz y concede permiso de micrófono para hablar")
+            return
+        }
+        try {
+            ServiceCompat.startForeground(this, ID, notification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+        } catch (_: Exception) {
+            requested = false
+            WalkieHub.state.value = WalkieHub.state.value.copy(message = "Android no permitió abrir el micrófono. Abre la app y revisa el permiso.")
+            return
+        }
         if (audioManager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             stopTalking(); return
         }
         val stopped = {
+            releaseMicrophoneType()
             requested = false
             WalkieHub.state.value = WalkieHub.state.value.copy(talking = false,
                 message = if (WalkieHub.state.value.connected) "Canal listo · mantén pulsado" else "En espera")
         }
         val started = if (connection?.ready == true) connection?.talk(stopped) == true else relay?.talk(stopped) == true
+        if (!started) releaseMicrophoneType()
         WalkieHub.state.value = WalkieHub.state.value.copy(talking = started,
             message = if (started) "Hablando · voz de bajo consumo" else "Aún no hay canal. Espera la señal antes de hablar.")
     }
     fun stopTalking() {
         requested = false
-        connection?.stopTalking(); relay?.stopTalking()
+        connection?.stopTalking(); relay?.stopTalking(); releaseMicrophoneType()
         WalkieHub.state.value = WalkieHub.state.value.copy(talking = false,
             message = if (WalkieHub.state.value.connected) "Canal listo · mantén pulsado" else WalkieHub.state.value.message)
+    }
+    private fun releaseMicrophoneType() {
+        runCatching { ServiceCompat.startForeground(this, ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK) }
     }
     override fun onDestroy() {
         stopTalking(); pairListener?.remove(); callsListener?.remove()

@@ -25,6 +25,7 @@ Las funciones nuevas comienzan apagadas en Administración → Funciones. El due
 
 - Reemplaza PCM de 256 kbit/s (~32 KB/s) por AMR-NB mono de 7,95 kbit/s (~1 KB/s de voz). El consumo real es mayor por paquetes, cifrado, señalización y Firebase. No funciona sin internet ni garantiza latencia con cobertura insuficiente.
 - Paquetes cortos, colas limitadas y descarte de voz atrasada. El micrófono y el codificador solo se abren al mantener pulsado con canal listo y la actividad visible; límite de 30 s. El audio se cierra por inactividad.
+- Se declara el tipo de servicio de micrófono exigido por Android moderno y solo se solicita mientras la actividad está visible y se mantiene pulsado. Al soltar, se retira y se detiene la captura.
 - Reproducción por volumen multimedia para evitar que quede en el auricular de llamadas. Botones «Probar altavoz» y «Reconectar».
 - Se detectan versiones antiguas para no enviar voz comprimida al receptor PCM. Ambos teléfonos necesitan 1.10 o posterior para probar esta versión del walkie.
 - Un segundo STUN y límite de 12 s evitan esperar 45 s por un canal directo bloqueado. STUN no sustituye a TURN ni atraviesa todos los NAT.
