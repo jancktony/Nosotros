@@ -39,7 +39,7 @@ object Palettes {
         partner = Color(0xFFF9A8D4), partnerInk = Color(0xFF3B0A24),
         ok = Color(0xFF86EFAC), warn = Color(0xFFFCD34D), danger = Color(0xFFFCA5A5),
         glass = Color(0xF0141B24),
-        mapStyle = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        mapStyle = "https://tiles.openfreemap.org/styles/dark",
     )
     val Pink = Palette(
         id = "pink", dark = false,
@@ -49,7 +49,7 @@ object Palettes {
         partner = Color(0xFF0F766E), partnerInk = Color(0xFFFFFFFF),
         ok = Color(0xFF15803D), warn = Color(0xFFB45309), danger = Color(0xFFB91C1C),
         glass = Color(0xF5FFFFFF),
-        mapStyle = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+        mapStyle = "https://tiles.openfreemap.org/styles/liberty",
     )
     fun of(id: String?) = if (id == "pink") Pink else Night
 }

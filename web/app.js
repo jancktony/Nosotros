@@ -85,7 +85,7 @@ function render(){
  const located=live.filter(canLocate);if(!located.length){document.getElementById('map').innerHTML='<p class="sub">No hay una ubicación recibida todavía.</p>';return}
  const focus=located.find(m=>m.id===selected)||located[0];
  try{
-  map=new maplibregl.Map({container:'map',style:'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',center:[focus.lng,focus.lat],zoom:selected?16:12});
+  map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/dark',center:[focus.lng,focus.lat],zoom:selected?16:12});
   const bounds=new maplibregl.LngLatBounds();
   for(const member of located){new maplibregl.Marker({color:member.id===uid?'#5eead4':'#f9a8d4'}).setLngLat([member.lng,member.lat]).addTo(map);bounds.extend([member.lng,member.lat])}
   if(!selected&&located.length>1)map.fitBounds(bounds,{padding:55,maxZoom:15,animate:false});

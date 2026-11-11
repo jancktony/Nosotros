@@ -186,7 +186,7 @@ fun LiveMap(
         val base = JSONObject(ctx.assets.open("maps/${if (palette.dark) "night" else "pink"}.json").bufferedReader().use { it.readText() })
         val json = if (satellite) JSONObject(SATELLITE_STYLE).apply {
             put("glyphs", base.getString("glyphs"))
-            if (publicPlaces) getJSONObject("sources").put("protomaps", base.getJSONObject("sources").getJSONObject("protomaps"))
+            if (publicPlaces) getJSONObject("sources").put("openmaptiles", base.getJSONObject("sources").getJSONObject("openmaptiles"))
         } else base
         if (globe) json.put("projection", JSONObject().put("type", "globe"))
         val builder = Style.Builder().fromJson(json.toString())
@@ -500,19 +500,19 @@ private fun labelBitmap(ctx: Context, pal: Palette, text: String): Bitmap {
 
 /** Named OSM POIs from the same tiled source: no location queries sent to an extra service. */
 private fun setupPublicPlaces(s: Style, dark: Boolean) {
-    if (s.getSource("protomaps") == null) return
+    if (s.getSource("openmaptiles") == null) return
     fun label(id: String, campus: Boolean) {
-        val layer = SymbolLayer(id, "protomaps").apply {
-            sourceLayer = "pois"
+        val layer = SymbolLayer(id, "openmaptiles").apply {
+            sourceLayer = "poi"
             minZoom = if (campus) 12f else 15f
             val education = Expression.any(
-                Expression.eq(Expression.get("kind"), Expression.literal("university")),
-                Expression.eq(Expression.get("kind"), Expression.literal("college")),
-                Expression.eq(Expression.get("kind"), Expression.literal("school")))
+                Expression.eq(Expression.get("class"), Expression.literal("university")),
+                Expression.eq(Expression.get("class"), Expression.literal("college")),
+                Expression.eq(Expression.get("class"), Expression.literal("school")))
             setFilter(Expression.all(Expression.has("name"), if (campus) education else Expression.not(education)))
             setProperties(
                 PropertyFactory.textField(Expression.coalesce(Expression.get("name:es"), Expression.get("name"))),
-                PropertyFactory.textFont(arrayOf("Open Sans Regular", "Noto Sans Regular")),
+                PropertyFactory.textFont(arrayOf("Noto Sans Regular")),
                 PropertyFactory.textSize(if (campus) 13f else 11f),
                 PropertyFactory.textMaxWidth(12f), PropertyFactory.textPadding(8f),
                 PropertyFactory.textAllowOverlap(false),
