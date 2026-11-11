@@ -395,7 +395,7 @@ class TrackingService : Service() {
     private fun registerActivityTransitions() {
         val types = listOf(
             DetectedActivity.IN_VEHICLE, DetectedActivity.ON_BICYCLE,
-            DetectedActivity.ON_FOOT, DetectedActivity.WALKING, DetectedActivity.RUNNING, DetectedActivity.STILL,
+            DetectedActivity.WALKING, DetectedActivity.RUNNING, DetectedActivity.STILL,
         )
         val transitions = types.map {
             ActivityTransition.Builder().setActivityType(it)
