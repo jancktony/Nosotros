@@ -22,7 +22,7 @@ jobs:
           arch: x86_64
           target: default
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest
+          script: ./gradlew connectedDebugAndroidTest -PcodecTest=1
       - uses: actions/upload-artifact@v4
         if: always()
         with:

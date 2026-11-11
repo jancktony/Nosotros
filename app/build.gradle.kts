@@ -40,7 +40,7 @@ android {
         versionCode = 15
         versionName = "1.10.0"
         buildConfigField("String", "GH_REPO", "\"${(project.findProperty("ghRepo") as String?) ?: ""}\"")
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        ndk { abiFilters += if (project.hasProperty("codecTest")) listOf("x86_64") else listOf("arm64-v8a", "armeabi-v7a") }
         buildConfigField("String", "FB_API_KEY", "\"${fb.apiKey}\"")
         buildConfigField("String", "FB_APP_ID", "\"${fb.appId}\"")
         buildConfigField("String", "FB_PROJECT_ID", "\"${fb.projectId}\"")
