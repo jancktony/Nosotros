@@ -28,6 +28,8 @@ class WalkieService : Service() {
     private var callsListener: ListenerRegistration? = null
     private var authListener: FirebaseAuth.AuthStateListener? = null
     private var partner: String? = null
+    private var retryAttempt = 0
+    private val retry = Runnable { if (WalkieHub.foregroundOpen && App.instance.prefs.receiveWalkie) prepare() }
     private var requested = false
     private var uid = ""
     private val handler = Handler(Looper.getMainLooper())
@@ -60,10 +62,14 @@ class WalkieService : Service() {
                 WalkieHub.state.value = WalkieHub.state.value.copy(enabled = true, connected = available,
                     message = if (!ready && relay?.ready == true) "Red lenta · voz comprimida lista" else message)
                 if (ready) {
+                    retryAttempt = 0; handler.removeCallbacks(retry)
                     if (audioManager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
                         connection?.end("El audio está ocupado"); return@WalkieConnection
                     }
                     if (requested) startTalking()
+                } else if (!available && WalkieHub.foregroundOpen && retryAttempt < 3 && !message.contains("inactividad")) {
+                    handler.removeCallbacks(retry); retryAttempt++
+                    handler.postDelayed(retry, 2000L * retryAttempt)
                 }
             }
         } catch (_: Exception) { WalkieHub.state.value = WalkieHub.State(message = "No se pudo abrir el walkie"); stopSelf(); return START_NOT_STICKY }
@@ -118,7 +124,7 @@ class WalkieService : Service() {
             }
         }.also { it.start() }
     }
-    fun reconnect() { stopTalking(); connection?.end("Reconectando…"); refreshRelay(); prepare() }
+    fun reconnect() { retryAttempt = 0; handler.removeCallbacks(retry); stopTalking(); connection?.end("Reconectando…"); refreshRelay(); prepare() }
     fun prepare() {
         val current = connection ?: return
         val to = partner ?: return
@@ -175,7 +181,7 @@ class WalkieService : Service() {
         runCatching { ServiceCompat.startForeground(this, ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK) }
     }
     override fun onDestroy() {
-        stopTalking(); pairListener?.remove(); callsListener?.remove()
+        handler.removeCallbacks(retry); stopTalking(); pairListener?.remove(); callsListener?.remove()
         authListener?.let { FirebaseAuth.getInstance().removeAuthStateListener(it) }
         relay?.close(); relay = null
         connection?.close(); connection = null

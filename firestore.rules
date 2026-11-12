@@ -221,6 +221,15 @@ service cloud.firestore {
         allow create: if member(id) && own(request.resource.data);
         allow update: if member(id) && own(resource.data) && changedOnly(['end']);
       }
+      match /improvementRequests/{requestId} {
+        allow read: if admin(id);
+        allow create: if admin(id) && own(request.resource.data)
+          && request.resource.data.keys().hasOnly(['uid','text','state','version','createdAt'])
+          && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+          && request.resource.data.state == 'received'
+          && request.resource.data.version is string && request.resource.data.version.size() <= 30
+          && request.resource.data.createdAt == request.time;
+      }
       match /releaseReviews/{version} {
         allow read: if admin(id);
         allow create, update: if admin(id)

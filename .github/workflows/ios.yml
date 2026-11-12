@@ -21,15 +21,15 @@ jobs:
           mkdir -p build/package/Payload
           cp -R build/Build/Products/Release-iphoneos/Nosotros.app build/package/Payload/
           cd build/package
-          zip -qry Nosotros-iOS-1.11.0-sin-firma.ipa Payload
+          zip -qry Nosotros-iOS-1.12.0-sin-firma.ipa Payload
       - uses: actions/upload-artifact@v4
         with:
-          name: Nosotros-iOS-1.11.0-sin-firma
-          path: ios/build/package/Nosotros-iOS-1.11.0-sin-firma.ipa
+          name: Nosotros-iOS-1.12.0-sin-firma
+          path: ios/build/package/Nosotros-iOS-1.12.0-sin-firma.ipa
           retention-days: 14
       - name: Guardar en candidata privada de GitHub
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view v1.11.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create v1.11.0 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title 'Nosotros 1.11.0 · pruebas privadas' --notes 'Candidata del dueño. El IPA iOS es un compañero del panel web, SIN FIRMA. No incluye ubicación ni walkie en segundo plano para iOS. Requiere firma/provisión válida para instalarse; no se garantiza compatibilidad con Scarlet.'
-          gh release upload v1.11.0 ios/build/package/Nosotros-iOS-1.11.0-sin-firma.ipa --repo "$GITHUB_REPOSITORY" --clobber
+          gh release view v1.12.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create v1.12.0 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title 'Nosotros 1.12.0 · pruebas privadas' --notes 'Candidata del dueño. El IPA iOS es un compañero del panel web, SIN FIRMA. No incluye ubicación ni walkie en segundo plano para iOS. Requiere firma/provisión válida para instalarse; no se garantiza compatibilidad con Scarlet.'
+          gh release upload v1.12.0 ios/build/package/Nosotros-iOS-1.12.0-sin-firma.ipa --repo "$GITHUB_REPOSITORY" --clobber

@@ -281,3 +281,14 @@ test('borrar un recuerdo propio elimina contenido y ficha en un solo lote', asyn
   await assertSucceeds(batch.commit());
   assert.equal((await getDoc(p(bob(),'pairs/p/photos/f'))).exists(),false);
 });
+test('improvement requests are private owner-only append-only submissions', async()=>{
+ const data={uid:'alice',text:'Corregir el canal de voz',state:'received',version:'1.12.0',createdAt:serverTimestamp()};
+ await assertSucceeds(setDoc(p(alice(),'pairs/p/improvementRequests/r'),data));
+ await assertSucceeds(getDoc(p(alice(),'pairs/p/improvementRequests/r')));
+ await assertFails(getDoc(p(bob(),'pairs/p/improvementRequests/r')));
+ await assertFails(getDoc(p(stranger(),'pairs/p/improvementRequests/r')));
+ await assertFails(setDoc(p(bob(),'pairs/p/improvementRequests/b'),{...data,uid:'bob'}));
+ await assertFails(setDoc(p(alice(),'pairs/p/improvementRequests/empty'),{...data,text:''}));
+ await assertFails(setDoc(p(alice(),'pairs/p/improvementRequests/long'),{...data,text:'x'.repeat(2001)}));
+ await assertFails(updateDoc(p(alice(),'pairs/p/improvementRequests/r'),{state:'released'}));
+});

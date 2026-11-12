@@ -92,7 +92,6 @@ class PushAudio(private val sendPacket: (ByteArray) -> Boolean, private val acti
         } catch (e: Exception) { rec.release(); encoder.release(); throw e }
         input = rec; talking = true
         capture = thread(name = "walkie-record") {
-            val started = android.os.SystemClock.elapsedRealtime()
             val frames = mutableListOf<ByteArray>()
             val info = MediaCodec.BufferInfo(); var time = 0L
             fun flush() { if (frames.isNotEmpty()) {
@@ -115,7 +114,7 @@ class PushAudio(private val sendPacket: (ByteArray) -> Boolean, private val acti
             }
             try {
                 val bytes = ByteArray(320)
-                while (alive && talking && android.os.SystemClock.elapsedRealtime() - started < 30_000) {
+                while (alive && talking) {
                     val size = rec.read(bytes, 0, bytes.size, AudioRecord.READ_BLOCKING)
                     if (size <= 0) break
                     val index = encoder.dequeueInputBuffer(20_000)

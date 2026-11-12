@@ -38,6 +38,8 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
     var confirmation by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
     var force by remember { mutableStateOf<Updater.Release?>(null) }
     var mobile by remember { mutableStateOf(false) }
+    var requests by remember { mutableStateOf(false) }
+    if(requests) { RequestsScreen(vm) { requests=false }; return }
     var corrections by remember { mutableStateOf<Updater.Release?>(null) }
     var notes by remember { mutableStateOf("") }
     val name = partner?.name?.ifBlank { null } ?: "tu pareja"
@@ -121,6 +123,7 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
             }
         }
         if (tab == "Herramientas") {
+            SettingsLink(Ic.Clock, "Mis solicitudes", "Correcciones e ideas · solo para ti") { requests = true }
             SettingsLink(Ic.Layers, "Abrir panel web", WebPanel.URL) { WebPanel.open(ctx) }
             ActionButton("Copiar enlace de la web", C.sub) {
                 ctx.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("Nosotros", WebPanel.URL))

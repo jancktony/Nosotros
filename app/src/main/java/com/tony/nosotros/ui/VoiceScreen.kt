@@ -75,6 +75,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
     var playing by remember { mutableStateOf<String?>(null) }
     var playJob by remember { mutableStateOf<Job?>(null) }
     var notes by remember { mutableStateOf(emptyList<VoiceNotes.Note>()) }
+    var openMic by remember { mutableStateOf(false) }
     var seconds by remember { mutableIntStateOf(0) }
     val audioManager = remember { context.getSystemService(android.media.AudioManager::class.java) }
     val interrupt by rememberUpdatedState {
@@ -96,7 +97,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
         micPermission.launch(Manifest.permission.RECORD_AUDIO); return false
     }
     fun receive(enabled: Boolean) {
-        if (!enabled) WalkieHub.disable(context)
+        if (!enabled) { openMic = false; WalkieHub.disable(context) }
         else if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         else WalkieHub.enable(context)
@@ -117,15 +118,16 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
         if (radio.talking) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         while (recording || radio.talking) { delay(1000); seconds++ }
     }
+    LaunchedEffect(radio.enabled) { if (!radio.enabled) openMic = false }
     DisposableEffect(lifecycle, direct) {
         WalkieHub.foregroundOpen = direct
         WalkieHub.prepare()
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) { WalkieHub.foregroundOpen = direct; if (direct && App.instance.prefs.receiveWalkie) WalkieHub.enable(context); WalkieHub.prepare() }
-            if (event == Lifecycle.Event.ON_PAUSE) { WalkieHub.foregroundOpen = false; WalkieHub.release(); voice.close(); recording = false; playJob?.cancel(); playing = null; audioManager.abandonAudioFocusRequest(noteFocus) }
+            if (event == Lifecycle.Event.ON_PAUSE) { openMic = false; WalkieHub.foregroundOpen = false; WalkieHub.release(); voice.close(); recording = false; playJob?.cancel(); playing = null; audioManager.abandonAudioFocusRequest(noteFocus) }
         }
         lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer); WalkieHub.foregroundOpen = false; WalkieHub.release(); voice.close(); playJob?.cancel(); audioManager.abandonAudioFocusRequest(noteFocus) }
+        onDispose { lifecycle.removeObserver(observer); openMic = false; WalkieHub.foregroundOpen = false; WalkieHub.release(); voice.close(); playJob?.cancel(); audioManager.abandonAudioFocusRequest(noteFocus) }
     }
     DisposableEffect(saved) {
         val listener = if (saved) voice.listen({ notes = it }, { message = "No se pudieron cargar las notas de voz" }) else null
@@ -150,7 +152,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
             }
             if (direct && saved) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.surface).padding(5.dp)) {
                 if (direct) RadioTab("En directo", tab == 0, Modifier.weight(1f)) { WalkieHub.release(); voice.close(); recording = false; playing = null; tab = 0; WalkieHub.prepare() }
-                if (saved) RadioTab("Notas de voz", tab == 1, Modifier.weight(1f)) { WalkieHub.release(); tab = 1 }
+                if (saved) RadioTab("Notas de voz", tab == 1, Modifier.weight(1f)) { openMic = false; WalkieHub.release(); tab = 1 }
             }
             message?.let { Text(it, color = C.me, fontSize = 13.sp) }
             if (tab == 0 && direct) {
@@ -181,7 +183,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                     dismissButton = { TextButton(onClick = { confirmRelay = false }) { Text("Cancelar") } })
 
                         Text("Voz comprimida de bajo consumo. Ambos necesitan una versión compatible y recepción activada. Revisa el volumen multimedia.", color = C.sub, fontSize = 13.sp)
-                        Text("El canal se cierra tras 1 minuto sin voz; hasta 30 s por pulsación.", color = C.sub, fontSize = 12.sp)
+                        Text("Sin límite de 30 s en directo. El canal descansa tras 1 minuto sin voz; se vuelve a conectar cuando lo necesitas.", color = C.sub, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = {
                         val tone = android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 70)
@@ -199,7 +201,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                         color = if (radio.connected) C.me else C.sub, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
                 BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment=Alignment.Center) {
-                RadioMic(radio.talking, radio.enabled && !recording && !sending,
+                RadioMic(radio.talking, radio.enabled && !openMic && !recording && !sending,
                     onStart = {
                         if (!microphone()) false else {
                             playJob?.cancel(); voice.stopPlayback(); playing = null
@@ -207,10 +209,17 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                         }
                     }, onRelease = { WalkieHub.release() }, onCancel = { WalkieHub.release() }, extent = minOf(maxHeight,maxWidth,226.dp).coerceAtLeast(48.dp))
                 }
-                Text(if (radio.talking) "0:${seconds.toString().padStart(2, '0')}" else "Mantén pulsado para hablar",
+                Text(if (radio.talking) "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}" else if (openMic) "Conectando micrófono…" else "Mantén pulsado para hablar",
                     color = C.text, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                if (!tiny) Text(if (radio.talking) "Suelta para terminar" else if (!radio.enabled) "Primero activa la recepción" else radio.message,
+                if (!tiny) Text(if (openMic) "Apaga el micrófono abierto para terminar" else if (radio.talking) "Suelta para terminar" else if (!radio.enabled) "Primero activa la recepción" else radio.message,
                     color = C.sub, fontSize = 13.sp)
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.surface).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Micrófono abierto", Modifier.weight(1f), color = C.text, fontSize = 14.sp)
+                    Switch(openMic, { enabled ->
+                        if (!enabled) { openMic = false; WalkieHub.release() }
+                        else if (microphone()) { playJob?.cancel(); voice.stopPlayback(); audioManager.abandonAudioFocusRequest(noteFocus); openMic = true; WalkieHub.press() }
+                    }, enabled = radio.enabled)
+                }
             } else if (saved) {
                 Text("Déjale tu voz", color = C.text, fontSize = 23.sp, fontWeight = FontWeight.Bold)
                 Text("La escuchará después, cuando pueda.", color = C.sub, fontSize = 13.sp)

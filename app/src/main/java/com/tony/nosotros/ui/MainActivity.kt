@@ -8,6 +8,12 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -191,20 +197,18 @@ private fun MainShell(vm: MainViewModel) {
     Scaffold(
         containerColor = C.bg,
         bottomBar = {
-            Box(Modifier.background(C.bg).navigationBarsPadding().padding(horizontal = 14.dp, vertical = 8.dp)) {
-            NavigationBar(containerColor = C.surface, tonalElevation = 0.dp,
-                windowInsets = WindowInsets(0,0,0,0), modifier = Modifier.height(74.dp).clip(RoundedCornerShape(25.dp))) {
-                val colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = C.me, selectedTextColor = C.me, indicatorColor = C.me.copy(alpha = 0.16f),
-                    unselectedIconColor = C.sub, unselectedTextColor = C.sub,
-                )
-                NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Ic.Map, null) }, label = { Text("Mapa", fontWeight = FontWeight.SemiBold) }, colors = colors)
-                NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Ic.Clock, null) }, label = { Text("Historial", fontWeight = FontWeight.SemiBold) }, colors = colors)
-                NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Ic.Pin, null) }, label = { Text("Lugares", fontWeight = FontWeight.SemiBold) }, colors = colors)
-                if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.WALKIE) || LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.VOICE_NOTES))
-                    NavigationBarItem(tab == 4, { tab = 4 }, { Icon(Ic.Mic, null) }, label = { Text("Voz") }, colors = colors)
-                NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Ic.Layers, null) }, label = { Text("Galería", fontWeight = FontWeight.SemiBold) }, colors = colors)
-            }
+            Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                NavigationBar(containerColor = C.surface.copy(alpha = .88f), tonalElevation = 0.dp,
+                    windowInsets = WindowInsets(0,0,0,0), modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth().height(72.dp)
+                        .clip(RoundedCornerShape(28.dp)).border(1.dp, C.line.copy(alpha = .6f), RoundedCornerShape(28.dp))) {
+                    val colors = NavigationBarItemDefaults.colors(selectedIconColor = C.me, selectedTextColor = C.me,
+                        indicatorColor = C.me.copy(alpha = .16f), unselectedIconColor = C.sub, unselectedTextColor = C.sub)
+                    val voiceAvailable = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.WALKIE) || LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.VOICE_NOTES)
+                    listOf(Triple(0, "Mapa", Ic.Map), Triple(5, "Encontrar", Ic.Locate), Triple(4, "Voz", Ic.Mic), Triple(6, "Más", Ic.More)).forEach { (id, label, icon) ->
+                        if (id != 4 || voiceAvailable) NavigationBarItem(tab == id, { tab = id }, { Icon(icon, null) },
+                            label = { Text(label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }, colors = colors)
+                    }
+                }
             }
         },
     ) { pad ->
@@ -216,6 +220,8 @@ private fun MainShell(vm: MainViewModel) {
                 1 -> HistoryScreen(vm)
                 3 -> PhotosScreen(vm)
                 4 -> VoiceScreen(vm)
+                5 -> FindScreen(vm, onSettings = { settings = true }, onDirections = { nav = true })
+                6 -> MoreScreen(onSettings = { settings = true }, onScreen = { tab = it })
                 else -> PlacesScreen(vm, onAdd = { picking = Place() }, onEdit = { editing = it })
             }
         }

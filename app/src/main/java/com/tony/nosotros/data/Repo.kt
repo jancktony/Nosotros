@@ -346,12 +346,12 @@ object Repo {
         pair(pairId).collection("trips").document(tripId).update("mode", mode.name)
     }
 
-    fun startVisit(pairId: String, placeId: String, placeName: String): String {
+    fun startVisit(pairId: String, placeId: String, placeName: String, lat: Double, lng: Double): String {
         val me = uid ?: return ""
         val ref = pair(pairId).collection("visits").document()
         val now = System.currentTimeMillis()
         ref.set(mapOf("uid" to me, "placeId" to placeId, "placeName" to placeName,
-            "start" to now, "end" to null, "day" to TimeFmt.dayKey(now)))
+            "start" to now, "end" to null, "day" to TimeFmt.dayKey(now), "lat" to lat, "lng" to lng))
         return ref.id
     }
 

@@ -143,6 +143,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
                 partner = partner, partnerUid = partnerUid, distance = distance, since = since,
                 timeline = buildTimeline(visits, trips, partnerUid),
                 liveRequested = liveRequested, eta = eta, leftName = lastLeft?.placeName, leftAt = lastLeft?.end ?: 0L,
+                activity = listOfNotNull(otherApp.text(presenceNow, false)?.let { "${partner?.name?.ifBlank { null } ?: "Pareja"}: $it" }, otherSleep.text(presenceNow,true), myApp.text(presenceNow,false)?.let { "Yo: $it" }, mySleep.text(presenceNow,true)?.let { "Yo: $it" }),
                 onLive = { vm.requestLive(); liveRequested = System.currentTimeMillis(); focus = Focus.PARTNER; fitKey++ },
             )
         },
@@ -168,17 +169,6 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
                     onMe = { focus = Focus.ME; fitKey++; selectedPerson = me?.uid },
                     onPartner = { focus = Focus.PARTNER; fitKey++; scope.launch { sheet.bottomSheetState.expand() } },
                     onBoth = { focus = Focus.BOTH; fitKey++ })
-            }
-            val activityLines = listOfNotNull(
-                otherApp.text(presenceNow, false)?.let { "${partner?.name?.ifBlank { null } ?: "Pareja"}: $it" },
-                otherSleep.text(presenceNow, true),
-                myApp.text(presenceNow, false)?.let { "Yo: $it" },
-                mySleep.text(presenceNow, true)?.let { "Yo: $it" },
-            )
-            if (!sheetHidden && activityLines.isNotEmpty()) Column(Modifier.align(Alignment.TopStart).statusBarsPadding()
-                .padding(top = 74.dp, start = 14.dp, end = 72.dp).clip(RoundedCornerShape(14.dp))
-                .background(C.surface).padding(10.dp)) {
-                activityLines.forEach { Text(it, color = C.text, fontSize = 12.sp) }
             }
             // Botones flotantes a la derecha
             Column(
@@ -320,7 +310,7 @@ private fun statusLine(m: Member): String = when {
 @Composable
 private fun PartnerSheet(
     partner: Member?, partnerUid: String?, distance: Double?, since: Long, timeline: List<TimelineItem>,
-    liveRequested: Long, eta: Eta.Result?, leftName: String?, leftAt: Long, onLive: () -> Unit,
+    liveRequested: Long, eta: Eta.Result?, leftName: String?, leftAt: Long, activity: List<String>, onLive: () -> Unit,
 ) {
     Column(
         Modifier.fillMaxWidth().height(600.dp).verticalScroll(rememberScrollState())
@@ -385,6 +375,9 @@ private fun PartnerSheet(
             )
         }
 
+        if (activity.isNotEmpty()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(C.surface2).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            activity.forEach { Text(it, color = C.text, fontSize = 13.sp) }
+        }
         TogetherCard(since)
 
         SectionLabel("Hoy")

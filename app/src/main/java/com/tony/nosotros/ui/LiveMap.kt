@@ -147,6 +147,7 @@ fun LiveMap(
                 isTiltGesturesEnabled = true
                 isZoomGesturesEnabled = true
                 isDoubleTapGesturesEnabled = true
+                isLogoEnabled = false
                 logoGravity = Gravity.BOTTOM or Gravity.START
                 attributionGravity = Gravity.BOTTOM or Gravity.START
                 setLogoMargins((12 * d).toInt(), 0, 0, bottomInsetPx + (6 * d).toInt())

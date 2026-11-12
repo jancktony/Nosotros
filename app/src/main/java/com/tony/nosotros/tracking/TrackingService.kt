@@ -356,7 +356,7 @@ class TrackingService : Service() {
         finishTrip(p.name)
         Repo.addEvent(pid, "arrive", p.name)
         Repo.incrementVisits(pid, p.id)
-        prefs.currentVisitId = Repo.startVisit(pid, p.id, p.name)
+        prefs.currentVisitId = Repo.startVisit(pid, p.id, p.name, p.lat, p.lng)
         uploadStatus(force = true)
     }
 

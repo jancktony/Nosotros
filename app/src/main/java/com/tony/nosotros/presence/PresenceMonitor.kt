@@ -54,7 +54,7 @@ class PresenceMonitor(private val context: Context, private val prefs: Prefs, pr
     private suspend fun send(sleep: Boolean, enabled: Boolean, label: String, state: String, since: Long, now: Long) {
         val i = if (sleep) 1 else 0
         val value = if (!enabled) "off" else "$label|$state|$since"
-        val heartbeat = if (sleep || !enabled) 5 * 60_000L else 120_000L
+        val heartbeat = if (sleep || !enabled) 5 * 60_000L else 30_000L
         if (value == lastValue[i] && (value == "off" || now - sentAt[i] < heartbeat)) return
         // Await server acknowledgment, so an offline queued write is not shown as fresh data.
         if (enabled) PresenceRepo.publish(pair, uid, sleep, label, state, since).await()

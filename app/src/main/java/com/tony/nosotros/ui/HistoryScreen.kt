@@ -45,6 +45,7 @@ import com.tony.nosotros.util.TimeFmt
 @Composable
 fun HistoryScreen(vm: MainViewModel) {
     val day by vm.historyDay.collectAsState()
+    val places by vm.places.collectAsState()
     val trips by vm.dayTrips.collectAsState()
     val visits by vm.dayVisits.collectAsState()
     val uid by vm.uid.collectAsState()
@@ -85,7 +86,15 @@ fun HistoryScreen(vm: MainViewModel) {
         ) {
             if (items.isEmpty()) item { SettingsHero("Un día tranquilo", "Aquí aparecerán sus recorridos y visitas cuando haya movimientos.", "SU HISTORIA") }
             items(items, key = { if (it is TimelineItem.T) "t" + it.t.id else "v" + (it as TimelineItem.V).v.id }) { item ->
-                TimelineRow(item, accent, onClick = if (item is TimelineItem.T) ({ openTrip = item.t }) else null)
+                Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    TimelineRow(item, accent, onClick = if (item is TimelineItem.T) ({ openTrip = item.t }) else null)
+                    if (item is TimelineItem.V) {
+                        val visit = item.v
+                        val place = places.firstOrNull { it.id == visit.placeId }
+                        StopAddress(if (visit.lat != null && visit.lng != null) com.tony.nosotros.util.Pt(visit.lat,visit.lng)
+                            else place?.let { com.tony.nosotros.util.Pt(it.lat,it.lng) })
+                    }
+                }
             }
         }
     }

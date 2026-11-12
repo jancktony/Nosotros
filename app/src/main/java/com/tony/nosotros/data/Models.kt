@@ -117,12 +117,12 @@ data class Trip(
 
 data class Visit(
     val id: String, val uid: String, val placeId: String, val placeName: String,
-    val start: Long, val end: Long?,
+    val start: Long, val end: Long?, val lat: Double? = null, val lng: Double? = null,
 ) {
     companion object {
         fun from(d: DocumentSnapshot) = Visit(
             d.id, d.getString("uid") ?: "", d.getString("placeId") ?: "",
-            d.getString("placeName") ?: "", d.getLong("start") ?: 0L, d.getLong("end"),
+            d.getString("placeName") ?: "", d.getLong("start") ?: 0L, d.getLong("end"), d.getDouble("lat"), d.getDouble("lng"),
         )
     }
 }

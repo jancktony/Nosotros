@@ -21,8 +21,10 @@ async function main(){
  const pair=valid[0];
  const docs=await pair.ref.collection('releaseReviews').orderBy('updatedAt','desc').limit(10).get();
  const reviews=docs.docs.filter(d=>d.get('uid')===pair.get('admin')).map(d=>({version:d.id,state:d.get('state'),notes:d.get('notes')||'',updatedAt:d.get('updatedAt')?.toDate().toISOString()}));
+ const requestsSnapshot=await pair.ref.collection('improvementRequests').orderBy('createdAt','desc').limit(20).get();
+ const requests=requestsSnapshot.docs.filter(d=>d.get('uid')===pair.get('admin')).map(d=>({id:d.id,text:d.get('text'),state:d.get('state'),version:d.get('version'),createdAt:d.get('createdAt')?.toDate().toISOString()}));
  const key=randomBytes(32),iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key,iv);
- const encrypted=Buffer.concat([cipher.update(JSON.stringify({reviews}),'utf8'),cipher.final()]);
+ const encrypted=Buffer.concat([cipher.update(JSON.stringify({reviews,requests}),'utf8'),cipher.final()]);
  const b64=b=>b.toString('base64');
  writeFileSync('reviews.encrypted.json',JSON.stringify({key:b64(publicEncrypt({key:recipient,padding:constants.RSA_PKCS1_OAEP_PADDING,oaepHash:'sha256'},key)),iv:b64(iv),tag:b64(cipher.getAuthTag()),data:b64(encrypted)}));
  console.log('Exportación cifrada lista; no se modificaron datos ni versiones.');
