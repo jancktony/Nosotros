@@ -350,11 +350,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val p = pairId.value ?: return
         viewModelScope.launch {
             val user = uid.value ?: return@launch
-            val existing = runCatching { Repo.db.collection("pairs").document(p).collection("members").document(user)
-                .get(com.google.firebase.firestore.Source.SERVER).await().getString("name") }.getOrNull()
+            val remote = runCatching { Repo.db.collection("pairs").document(p).collection("members").document(user)
+                .get(com.google.firebase.firestore.Source.SERVER).await().getString("name") }
+            val existing = remote.getOrNull()
             if (!existing.isNullOrBlank()) prefs.myName = existing
             val fields = mutableMapOf<String, Any?>("appVersion" to com.tony.nosotros.BuildConfig.VERSION_NAME)
-            if (existing.isNullOrBlank()) fields["name"] = prefs.myName
+            if (remote.isSuccess && existing.isNullOrBlank()) fields["name"] = prefs.myName
             Repo.updateMe(p, fields)
         }
     }

@@ -104,6 +104,7 @@ function person(member){
  const available=canLocate(member),isPaused=paused(member),own=member.id===uid;
  return `<h2>${esc(member.name|| (own?'Mi teléfono':'Teléfono de mi pareja'))}</h2><p class="sub">${own?'Tu cuenta':'Cuenta de tu pareja'} · ${esc(member.appVersion||'Sin versión informada')}</p>
  <div class="row"><span class="grow sub">Última ubicación</span><b>${ago(member.updatedAt)}</b></div>
+ <p class="sub">Actualización: ${esc(({downloading:'Descargando',installing:'Instalación enviada a Android',confirmation:'Pendiente de confirmar en el teléfono',installed:'Instalada',failed:'No se pudo instalar'})[member.updateStatus]||'Sin solicitud reciente')} ${esc(member.updateTarget||'')}</p>
  <div class="row"><span class="grow sub">Batería</span>${member.battery>=0?`${member.battery}%${member.charging?' · Cargando':''}`:'Sin datos'}</div>
  <p>${isPaused?'Ubicación pausada':esc(member.placeName||'Ubicación disponible según la última señal')}</p>
  ${activityText(member)}

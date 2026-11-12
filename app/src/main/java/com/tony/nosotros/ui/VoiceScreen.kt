@@ -58,7 +58,7 @@ fun VoiceScreen(vm: MainViewModel) {
 }
 
 @Composable
-private fun VoicePanel(pair: String, uid: String, partner: String, direct: Boolean, saved: Boolean, admin: Boolean) {
+internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Boolean, saved: Boolean, admin: Boolean) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val scope = rememberCoroutineScope()
@@ -134,10 +134,11 @@ private fun VoicePanel(pair: String, uid: String, partner: String, direct: Boole
     BoxWithConstraints(Modifier.fillMaxSize().background(C.bg), contentAlignment = Alignment.TopCenter) {
         val compact = maxHeight < 650.dp
         val tiny = maxHeight < 460.dp
-        val microphoneExtent = (maxHeight - if (tiny) 210.dp else 370.dp).coerceIn(96.dp, 226.dp)
-        Column(Modifier.widthIn(max = 600.dp).fillMaxWidth().statusBarsPadding()
-            .then(if (tab == 0 && direct) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.widthIn(max = 600.dp).fillMaxWidth()
+            .then(if (tab == 0 && direct) Modifier.fillMaxHeight() else Modifier)
+            .statusBarsPadding().then(if (tab == 0 && direct) Modifier else Modifier.verticalScroll(rememberScrollState()))
+            .padding(if(tiny) 10.dp else 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(if(tiny) 4.dp else 8.dp)) {
             if (!tiny) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Walkie-talkie", color = C.text, fontSize = 27.sp, fontWeight = FontWeight.Bold)
@@ -147,7 +148,7 @@ private fun VoicePanel(pair: String, uid: String, partner: String, direct: Boole
                     Text("PRIVADO", color = C.me, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                 }
             }
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.surface).padding(5.dp)) {
+            if (direct && saved) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.surface).padding(5.dp)) {
                 if (direct) RadioTab("En directo", tab == 0, Modifier.weight(1f)) { WalkieHub.release(); voice.close(); recording = false; playing = null; tab = 0; WalkieHub.prepare() }
                 if (saved) RadioTab("Notas de voz", tab == 1, Modifier.weight(1f)) { WalkieHub.release(); tab = 1 }
             }
@@ -197,16 +198,18 @@ private fun VoicePanel(pair: String, uid: String, partner: String, direct: Boole
                     Text(when { radio.talking -> "TRANSMITIENDO"; radio.connected -> "CANAL LISTO"; radio.enabled -> "EN ESPERA"; else -> "RECEPCIÓN APAGADA" },
                         color = if (radio.connected) C.me else C.sub, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
+                BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment=Alignment.Center) {
                 RadioMic(radio.talking, radio.enabled && !recording && !sending,
                     onStart = {
                         if (!microphone()) false else {
                             playJob?.cancel(); voice.stopPlayback(); playing = null
                             audioManager.abandonAudioFocusRequest(noteFocus); WalkieHub.press(); true
                         }
-                    }, onRelease = { WalkieHub.release() }, onCancel = { WalkieHub.release() }, extent = microphoneExtent)
+                    }, onRelease = { WalkieHub.release() }, onCancel = { WalkieHub.release() }, extent = minOf(maxHeight,maxWidth,226.dp).coerceAtLeast(48.dp))
+                }
                 Text(if (radio.talking) "0:${seconds.toString().padStart(2, '0')}" else "Mantén pulsado para hablar",
                     color = C.text, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                Text(if (radio.talking) "Suelta para terminar" else if (!radio.enabled) "Primero activa la recepción" else radio.message,
+                if (!tiny) Text(if (radio.talking) "Suelta para terminar" else if (!radio.enabled) "Primero activa la recepción" else radio.message,
                     color = C.sub, fontSize = 13.sp)
             } else if (saved) {
                 Text("Déjale tu voz", color = C.text, fontSize = 23.sp, fontWeight = FontWeight.Bold)
@@ -243,7 +246,7 @@ private fun VoicePanel(pair: String, uid: String, partner: String, direct: Boole
                     }
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            if (tab != 0 || !direct) Spacer(Modifier.height(8.dp))
         }
     }
 }
