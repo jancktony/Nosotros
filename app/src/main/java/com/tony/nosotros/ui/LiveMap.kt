@@ -94,6 +94,7 @@ fun LiveMap(
     onPersonTap: ((String) -> Unit)? = null,
     onPlaceTap: ((String) -> Unit)? = null,
     onMapTap: (() -> Unit)? = null,
+    onGesture: (() -> Unit)? = null,
     /** Centro de la cámara cada vez que el mapa se detiene (para elegir un punto exacto). */
     onCenter: ((Double, Double) -> Unit)? = null,
 ) {
@@ -113,6 +114,7 @@ fun LiveMap(
     val personTap by rememberUpdatedState(onPersonTap)
     val placeTap by rememberUpdatedState(onPlaceTap)
     val mapTap by rememberUpdatedState(onMapTap)
+    val gesture by rememberUpdatedState(onGesture)
     val center by rememberUpdatedState(onCenter)
 
     DisposableEffect(lifecycle) {
@@ -170,6 +172,9 @@ fun LiveMap(
                 }
                 mapTap?.invoke(); false
             }
+            m.addOnCameraMoveStartedListener { reason ->
+                if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) gesture?.invoke()
+            }
             m.addOnCameraIdleListener {
                 val t = m.cameraPosition.target ?: return@addOnCameraIdleListener
                 center?.invoke(t.latitude, t.longitude)
@@ -178,6 +183,15 @@ fun LiveMap(
         }
         mapView
     })
+
+    LaunchedEffect(map, topInsetPx, bottomInsetPx) {
+        val d = ctx.resources.displayMetrics.density
+        map?.uiSettings?.apply {
+            setCompassMargins(0, topInsetPx + (8 * d).toInt(), (20 * d).toInt(), 0)
+            setLogoMargins((12 * d).toInt(), 0, 0, bottomInsetPx + (6 * d).toInt())
+            setAttributionMargins((100 * d).toInt(), 0, 0, bottomInsetPx + (6 * d).toInt())
+        }
+    }
 
     // Cargar (o recargar) el estilo cuando cambian el tema o la vista satélite
     LaunchedEffect(map, palette.id, satellite, globe, publicPlaces) {

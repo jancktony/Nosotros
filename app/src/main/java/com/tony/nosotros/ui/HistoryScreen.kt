@@ -62,7 +62,7 @@ fun HistoryScreen(vm: MainViewModel) {
 
     Column(Modifier.fillMaxSize().background(C.bg).statusBarsPadding()) {
         Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Historial", style = MaterialTheme.typography.headlineMedium)
+            SettingsHero("Su recorrido", "Un día a la vez, sus lugares y sus momentos.", "LO QUE VIVIERON")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { vm.historyDay.value = day - 1 }) { Icon(Ic.Left, "Día anterior", tint = C.text) }
                 Text(TimeFmt.niceDayOffset(day), Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
@@ -71,10 +71,8 @@ fun HistoryScreen(vm: MainViewModel) {
                     Icon(Ic.Right, "Día siguiente", tint = if (day < 0) C.text else C.sub.copy(alpha = 0.3f))
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip(partner?.name?.ifBlank { null } ?: "Pareja", !showMe, C.partner) { showMe = false }
-                Chip(me?.name?.ifBlank { null } ?: "Yo", showMe, C.me) { showMe = true }
-            }
+            val personName = partner?.name?.ifBlank { null } ?: "Pareja"
+            PanelTabs(listOf(personName, "Yo"), if (showMe) "Yo" else personName) { showMe = it == "Yo" }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Stat("Trayectos", "${whoTrips.size}", Modifier.weight(1f))
                 Stat("Distancia", TimeFmt.km(totalKm), Modifier.weight(1f))
@@ -85,7 +83,7 @@ fun HistoryScreen(vm: MainViewModel) {
             Modifier.fillMaxSize(), state = rememberLazyListState(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 8.dp),
         ) {
-            if (items.isEmpty()) item { Text("Sin movimientos este día.", color = C.sub, modifier = Modifier.padding(top = 24.dp)) }
+            if (items.isEmpty()) item { SettingsHero("Un día tranquilo", "Aquí aparecerán sus recorridos y visitas cuando haya movimientos.", "SU HISTORIA") }
             items(items, key = { if (it is TimelineItem.T) "t" + it.t.id else "v" + (it as TimelineItem.V).v.id }) { item ->
                 TimelineRow(item, accent, onClick = if (item is TimelineItem.T) ({ openTrip = item.t }) else null)
             }

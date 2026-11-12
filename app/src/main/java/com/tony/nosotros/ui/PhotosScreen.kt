@@ -25,6 +25,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -74,93 +82,135 @@ private fun jpeg(b: Bitmap, maxBytes: Int): ByteArray {
     }
 }
 
-/** Fotos que se mandan entre los dos, con el lugar donde se tomaron. */
+/** Private shared album: thumbnails, filters and a full-screen paged viewer. */
 @Composable
 fun PhotosScreen(vm: MainViewModel) {
     val ctx = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val photos by vm.photos.collectAsState()
     val uid by vm.uid.collectAsState()
     val partner by vm.partner.collectAsState()
-    val isAdmin by vm.isAdmin.collectAsState()
+    val admin by vm.isAdmin.collectAsState()
     val sending by vm.sending.collectAsState()
+    var filter by remember { mutableStateOf("Todas") }
     var picked by remember { mutableStateOf<Uri?>(null) }
     var caption by remember { mutableStateOf("") }
-    var viewing by remember { mutableStateOf<Photo?>(null) }
-    val camUri = remember {
-        val f = File(ctx.cacheDir, "cam").apply { mkdirs() }.resolve("foto.jpg")
-        FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", f)
-    }
+    var viewing by remember { mutableStateOf<String?>(null) }
+    var processing by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val visible = photos.filter { filter == "Todas" || if (filter == "Mis fotos") it.uid == uid else it.uid != uid }
+    val partnerName = partner?.name?.ifBlank { null } ?: "Tu pareja"
+    val cameraUri = remember { FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", File(ctx.cacheDir,"cam").apply { mkdirs() }.resolve("foto.jpg")) }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { if (it != null) picked = it }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> if (ok) picked = camUri }
-
-    viewing?.let { ph ->
-        BackHandler { viewing = null }
-        Viewer(vm, ph, canDelete = ph.uid == uid || isAdmin, onClose = { viewing = null })
-        return
-    }
-
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { if (it) picked = cameraUri }
+    val month = remember { java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale("es")) }
     Box(Modifier.fillMaxSize().background(C.bg)) {
-        LazyColumn(
-            Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item { Text("Fotos", style = MaterialTheme.typography.headlineMedium) }
-            item { Text("Mándense fotos de donde están o de lo que ven. Cada foto guarda el lugar y la hora.", color = C.sub, fontSize = 14.sp) }
-            if (sending) item { Text("Enviando foto…", color = C.me, fontWeight = FontWeight.SemiBold) }
-            if (photos.isEmpty()) item { Text("Aún no hay fotos. ¡Manda la primera!", color = C.sub, fontSize = 14.sp) }
-            items(photos, key = { it.id }) { ph ->
-                val mine = ph.uid == uid
-                val bmp = remember(ph.id) { BitmapFactory.decodeByteArray(ph.thumb, 0, ph.thumb.size) }
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.surface).clickable { viewing = ph }) {
-                    if (bmp != null) Image(bmp.asImageBitmap(), ph.caption, contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f))
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        if (ph.caption.isNotBlank()) Text(ph.caption, color = C.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                        Text(listOfNotNull(if (mine) "Tú" else partner?.name?.ifBlank { null } ?: "Tu pareja",
-                            ph.place?.let { "en $it" }, TimeFmt.ago(ph.at)).joinToString(" · "),
-                            color = if (mine) C.me else C.partner, fontSize = 13.sp)
+        androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+            columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(104.dp), modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
+                    SettingsHero("Sus recuerdos", "${photos.size} momentos compartidos · solo ustedes", "EL ÁLBUM DE USTEDES")
+                    PanelTabs(listOf("Todas", "Mis fotos", "De $partnerName"), filter) { filter = it }
+                    if (processing || sending) Text("Preparando su recuerdo…", color = C.me, fontSize = 12.sp)
+                    error?.let { Text(it, color = C.warn, fontSize = 12.sp) }
+                    if (visible.isEmpty()) Text("El primer recuerdo los está esperando. Elige una foto o abre la cámara.", color = C.sub, fontSize = 14.sp, modifier = Modifier.padding(vertical = 25.dp))
+                }
+            }
+            visible.groupBy { month.format(java.util.Date(it.at)) }.forEach { (date, group) ->
+                item(key = "month-$date", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                    Text(date.replaceFirstChar { it.titlecase() }, color = C.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 17.dp, bottom = 7.dp))
+                }
+                items(group.size, key = { group[it].id }) { index ->
+                    val photo = group[index]
+                    val image = remember(photo.id) { BitmapFactory.decodeByteArray(photo.thumb,0,photo.thumb.size) }
+                    Box(Modifier.aspectRatio(.88f).clip(RoundedCornerShape(15.dp)).background(C.surface2).clickable { viewing = photo.id }) {
+                        image?.let { Image(it.asImageBitmap(),photo.caption.ifBlank { "Foto compartida" }, Modifier.fillMaxSize(),contentScale=ContentScale.Crop) }
+                        if (photo.caption.isNotBlank()) Text(photo.caption, color=Color.White,fontSize=10.sp,maxLines=2,
+                            modifier=Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha=.4f)).padding(9.dp))
                     }
                 }
             }
-            item { Spacer(Modifier.height(80.dp)) }
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(88.dp)) }
         }
-        Row(Modifier.align(Alignment.BottomEnd).padding(20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ExtendedFloatingActionButton(onClick = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                containerColor = C.surface2, contentColor = C.text, icon = { Icon(Ic.Layers, null) }, text = { Text("Galería") })
-            ExtendedFloatingActionButton(onClick = { camera.launch(camUri) },
-                containerColor = C.me, contentColor = C.meInk, icon = { Icon(Ic.Plus, null) }, text = { Text("Cámara", fontWeight = FontWeight.Bold) })
+        Row(Modifier.align(Alignment.BottomEnd).padding(18.dp), horizontalArrangement=Arrangement.spacedBy(9.dp)) {
+            ExtendedFloatingActionButton(onClick={gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},containerColor=C.surface2,contentColor=C.text,
+                icon={Icon(Ic.Layers,null)},text={Text("Elegir foto")})
+            ExtendedFloatingActionButton(onClick={camera.launch(cameraUri)},containerColor=C.me,contentColor=C.meInk,icon={Icon(Ic.Plus,null)},text={Text("Cámara")})
         }
     }
-
-    picked?.let { uri ->
-        AlertDialog(
-            onDismissRequest = { picked = null }, containerColor = C.surface,
-            title = { Text("Enviar foto") },
-            text = { OutlinedTextField(caption, { caption = it.take(120) }, label = { Text("Escribe algo (opcional)") }) },
-            confirmButton = { TextButton(onClick = {
-                runCatching { jpeg(load(ctx, uri, 640), 90_000) to jpeg(load(ctx, uri, 1600), 850_000) }
-                    .onSuccess { (thumb, full) -> vm.sendPhoto(thumb, full, caption.trim()) }
-                picked = null; caption = ""
-            }) { Text("Enviar", color = C.me) } },
-            dismissButton = { TextButton(onClick = { picked = null }) { Text("Cancelar", color = C.sub) } },
-        )
+    viewing?.let { id ->
+        if (visible.isNotEmpty()) AlbumViewer(visible,id,loadFull={vm.fullPhoto(it)},canDelete={it.uid==uid||admin},onDelete={vm.deletePhoto(it)},onClose={viewing=null})
+        else viewing=null
     }
+    picked?.let { uri -> AlertDialog(onDismissRequest={if(!processing)picked=null},title={Text("Un recuerdo para ustedes")},
+        text={Column { OutlinedTextField(caption,{caption=it.take(120)},label={Text("Escribe algo, si quieres")});error?.let{Text(it,color=C.warn)} }},
+        confirmButton={TextButton(enabled=!processing,onClick={
+            processing=true;error=null
+            scope.launch {
+                runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    jpeg(load(ctx,uri,640),90_000) to jpeg(load(ctx,uri,1600),850_000)
+                } }.onSuccess { (thumb,full) -> vm.sendPhoto(thumb,full,caption.trim());picked=null;caption="" }
+                    .onFailure { error="No se pudo preparar esta foto. Prueba con otra." }
+                processing=false
+            }
+        }){Text(if(processing)"Preparando…" else "Compartir recuerdo")}},dismissButton={TextButton(enabled=!processing,onClick={picked=null}){Text("Cancelar")}}) }
 }
 
 @Composable
-private fun Viewer(vm: MainViewModel, ph: Photo, canDelete: Boolean, onClose: () -> Unit) {
-    var bmp by remember { mutableStateOf(BitmapFactory.decodeByteArray(ph.thumb, 0, ph.thumb.size)) }
-    LaunchedEffect(ph.id) { vm.fullPhoto(ph.id)?.let { bmp = BitmapFactory.decodeByteArray(it, 0, it.size) } }
-    Box(Modifier.fillMaxSize().background(Color.Black).clickable(onClick = onClose)) {
-        bmp?.let { Image(it.asImageBitmap(), ph.caption, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
-        Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color(0x99000000)).padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                if (ph.caption.isNotBlank()) Text(ph.caption, color = Color.White, fontWeight = FontWeight.SemiBold)
-                Text(listOfNotNull(ph.place, TimeFmt.hour(ph.at)).joinToString(" · "), color = Color(0xFFD1D5DB), fontSize = 13.sp)
+internal fun AlbumViewer(photos: List<Photo>, initialId: String, loadFull: suspend (String)->ByteArray?, canDelete:(Photo)->Boolean,
+                         onDelete:(String)->Unit,onClose:()->Unit) {
+    val pager = androidx.compose.foundation.pager.rememberPagerState(initialPage=photos.indexOfFirst{it.id==initialId}.coerceAtLeast(0),pageCount={photos.size})
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val zoomed = remember { androidx.compose.runtime.mutableStateMapOf<String,Boolean>() }
+    var confirmDelete by remember { mutableStateOf<Photo?>(null) }
+    val current = photos.getOrNull(pager.currentPage)
+    androidx.compose.ui.window.Dialog(onDismissRequest=onClose,properties=androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
+        Column(Modifier.fillMaxSize().background(Color.Black).systemBarsPadding()) {
+            Row(Modifier.fillMaxWidth().padding(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                androidx.compose.material3.IconButton(onClick=onClose){Icon(Ic.Close,"Cerrar galería",tint=Color.White)}
+                Text("${pager.currentPage+1} / ${photos.size}",Modifier.weight(1f),color=Color.White,fontSize=13.sp)
+                if(current!=null&&canDelete(current)) TextButton(onClick={confirmDelete=current}){Text("Borrar",color=Color(0xFFFCA5A5))}
             }
-            Spacer(Modifier.width(8.dp))
-            if (canDelete) TextButton(onClick = { vm.deletePhoto(ph.id); onClose() }) { Text("Borrar", color = Color(0xFFFCA5A5)) }
+            androidx.compose.foundation.pager.HorizontalPager(state=pager,key={photos[it].id},userScrollEnabled=zoomed[current?.id]!=true,modifier=Modifier.weight(1f)) { index ->
+                val photo=photos[index]
+                AlbumPage(photo,loadFull,index==pager.currentPage){zoomed[photo.id]=it}
+            }
+            current?.let { photo -> Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                Text(photo.caption.ifBlank {"Un momento juntos"},color=Color.White,fontWeight=FontWeight.SemiBold,fontSize=17.sp)
+                Text(listOfNotNull(photo.place,TimeFmt.hour(photo.at)).joinToString(" · "),color=Color.LightGray,fontSize=12.sp)
+                Text("Pellizca para ampliar · doble toque para restablecer",color=Color.Gray,fontSize=10.sp)
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                    TextButton(enabled=pager.currentPage>0,onClick={scope.launch{pager.animateScrollToPage(pager.currentPage-1)}}){Text("Anterior",color=Color.White)}
+                    TextButton(enabled=pager.currentPage<photos.lastIndex,onClick={scope.launch{pager.animateScrollToPage(pager.currentPage+1)}}){Text("Siguiente",color=Color.White)}
+                }
+            } }
         }
+    }
+    confirmDelete?.let { photo -> AlertDialog(onDismissRequest={confirmDelete=null},title={Text("¿Borrar este recuerdo?")},text={Text("Se quitará de su galería compartida.")},
+        confirmButton={TextButton(onClick={onDelete(photo.id);confirmDelete=null;if(photos.size<=1)onClose()}){Text("Borrar",color=C.danger)}},dismissButton={TextButton(onClick={confirmDelete=null}){Text("Conservar")}}) }
+}
+
+@Composable
+private fun AlbumPage(photo:Photo,loadFull:suspend(String)->ByteArray?,active:Boolean,onZoom:(Boolean)->Unit) {
+    var bitmap by remember(photo.id){mutableStateOf(BitmapFactory.decodeByteArray(photo.thumb,0,photo.thumb.size))}
+    var scale by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var size by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    var failed by remember { mutableStateOf(false) }
+    var retry by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(photo.id,retry){runCatching{loadFull(photo.id)}.onSuccess{bytes->if(bytes!=null)bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.size) else failed=true}.onFailure{failed=true}}
+    LaunchedEffect(active){if(!active){scale=1f;offset=androidx.compose.ui.geometry.Offset.Zero};onZoom(scale>1.01f)}
+    LaunchedEffect(scale){onZoom(scale>1.01f)}
+    val transform=androidx.compose.foundation.gestures.rememberTransformableState { zoom,pan,_ ->
+        scale=(scale*zoom).coerceIn(1f,4f)
+        offset=if(scale==1f)androidx.compose.ui.geometry.Offset.Zero else androidx.compose.ui.geometry.Offset(
+            (offset.x+pan.x).coerceIn(-size.width*(scale-1)/2,size.width*(scale-1)/2),
+            (offset.y+pan.y).coerceIn(-size.height*(scale-1)/2,size.height*(scale-1)/2))
+    }
+    Box(Modifier.fillMaxSize().clipToBounds().onSizeChanged{size=it}.transformable(transform)
+        .pointerInput(photo.id){detectTapGestures(onDoubleTap={scale=if(scale>1f)1f else 2f;offset=androidx.compose.ui.geometry.Offset.Zero})},contentAlignment=Alignment.Center) {
+        bitmap?.let{Image(it.asImageBitmap(),photo.caption,contentScale=ContentScale.Fit,modifier=Modifier.fillMaxSize().graphicsLayer{scaleX=scale;scaleY=scale;translationX=offset.x;translationY=offset.y})}
+        if(failed)TextButton(onClick={failed=false;retry++},modifier=Modifier.align(Alignment.BottomCenter)){Text("Reintentar foto completa",color=Color.White)}
     }
 }

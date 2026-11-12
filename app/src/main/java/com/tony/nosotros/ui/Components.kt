@@ -84,9 +84,8 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
 fun Card(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(
         modifier
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(C.surface)
-            .border(1.dp, C.line, RoundedCornerShape(18.dp))
             .padding(16.dp)
     ) { content() }
 }

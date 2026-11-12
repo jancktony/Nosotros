@@ -33,25 +33,28 @@ data class Palette(
 object Palettes {
     val Night = Palette(
         id = "night", dark = true,
-        bg = Color(0xFF0B0F14), surface = Color(0xFF141B24), surface2 = Color(0xFF1F2935),
-        line = Color(0x29FFFFFF), text = Color(0xFFF8FAFC), sub = Color(0xFFC9D1DC),
-        me = Color(0xFF5EEAD4), meInk = Color(0xFF04211D),
-        partner = Color(0xFFF9A8D4), partnerInk = Color(0xFF3B0A24),
+        bg = Color(0xFF0E171E), surface = Color(0xFF18232C), surface2 = Color(0xFF202F39),
+        line = Color(0xFF2C3A43), text = Color(0xFFF2F3EF), sub = Color(0xFF97A9B1),
+        me = Color(0xFFA1E4CF), meInk = Color(0xFF04211D),
+        partner = Color(0xFFEFC4D3), partnerInk = Color(0xFF3B0A24),
         ok = Color(0xFF86EFAC), warn = Color(0xFFFCD34D), danger = Color(0xFFFCA5A5),
         glass = Color(0xF0141B24),
         mapStyle = "https://tiles.openfreemap.org/styles/dark",
     )
     val Pink = Palette(
         id = "pink", dark = false,
-        bg = Color(0xFFFFF1F6), surface = Color(0xFFFFFFFF), surface2 = Color(0xFFFCE4EF),
+        bg = Color(0xFFF9F0F3), surface = Color(0xFFFFFFFF), surface2 = Color(0xFFFCE4EF),
         line = Color(0x33BE185D), text = Color(0xFF3B0A24), sub = Color(0xFF7A2E55),
-        me = Color(0xFFDB2777), meInk = Color(0xFFFFFFFF),
+        me = Color(0xFFA95476), meInk = Color(0xFFFFFFFF),
         partner = Color(0xFF0F766E), partnerInk = Color(0xFFFFFFFF),
         ok = Color(0xFF15803D), warn = Color(0xFFB45309), danger = Color(0xFFB91C1C),
         glass = Color(0xF5FFFFFF),
         mapStyle = "https://tiles.openfreemap.org/styles/liberty",
     )
-    fun of(id: String?) = if (id == "pink") Pink else Night
+    val Light = Pink.copy(id = "light", bg = Color(0xFFF5F4F0), surface = Color.White, surface2 = Color(0xFFEBECE6),
+        line = Color(0xFFE4E7DE), text = Color(0xFF223B33), sub = Color(0xFF728177), me = Color(0xFF376F5A),
+        meInk = Color.White, partner = Color(0xFFAB6880), partnerInk = Color.White, glass = Color(0xF5FFFFFF))
+    fun of(id: String?) = when (id) { "pink" -> Pink; "light" -> Light; else -> Night }
 }
 
 /** Colores del tema activo. Cambiar [p] repinta toda la app. */

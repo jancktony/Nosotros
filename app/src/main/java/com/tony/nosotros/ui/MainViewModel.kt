@@ -133,12 +133,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { adminMessage.value = "No se pudo guardar la marca." }
     }
     val newCode = MutableStateFlow<String?>(null)
-    fun release(r: com.tony.nosotros.update.Updater.Release) = viewModelScope.launch {
+    fun release(r: com.tony.nosotros.update.Updater.Release, force: Boolean = false, metered: Boolean = false) = viewModelScope.launch {
         val id = pairId.value ?: return@launch
         if (!isAdmin.value) return@launch
         if (releaseReviews.value[r.version]?.state != "approved") { adminMessage.value = "Aprueba tu prueba primero."; return@launch }
-        runCatching { Repo.setRelease(id, r.version, r.apkUrl, r.notes) }
-            .onSuccess { adminMessage.value = "Versión ${r.version} habilitada para tu pareja." }
+        runCatching { Repo.setRelease(id, r.version, r.apkUrl, r.notes, force, metered) }
+            .onSuccess { adminMessage.value = if (force) "Instalación solicitada a tu pareja. Android puede pedir confirmación." else "Versión ${r.version} liberada para tu pareja." }
             .onFailure { adminMessage.value = "No se pudo liberar la versión. Revisa la conexión." }
     }
     fun giveAdmin() { val p = pairId.value ?: return; partnerUid.value?.let { Repo.setAdmin(p, it) } }
@@ -326,12 +326,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val adminMessage = MutableStateFlow<String?>(null)
     // ---------- Perfil ----------
-    fun setName(name: String) { prefs.myName = name.trim(); pushProfile() }
+    fun setName(name: String) {
+        prefs.myName = name.trim()
+        pairId.value?.let { Repo.updateMe(it, mapOf("name" to prefs.myName)) }
+    }
     fun setVehicle(m: Mode) { prefs.vehicle = m }
 
     private fun pushProfile() {
         val p = pairId.value ?: return
-        Repo.updateMe(p, mapOf("name" to prefs.myName, "appVersion" to com.tony.nosotros.BuildConfig.VERSION_NAME))
+        viewModelScope.launch {
+            val user = uid.value ?: return@launch
+            val existing = runCatching { Repo.db.collection("pairs").document(p).collection("members").document(user)
+                .get(com.google.firebase.firestore.Source.SERVER).await().getString("name") }.getOrNull()
+            if (!existing.isNullOrBlank()) prefs.myName = existing
+            val fields = mutableMapOf<String, Any?>("appVersion" to com.tony.nosotros.BuildConfig.VERSION_NAME)
+            if (existing.isNullOrBlank()) fields["name"] = prefs.myName
+            Repo.updateMe(p, fields)
+        }
     }
 
     // ---------- Acciones ----------

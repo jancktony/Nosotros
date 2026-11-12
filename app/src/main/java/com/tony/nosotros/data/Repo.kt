@@ -152,6 +152,8 @@ object Repo {
         return PairInfo(
             admin = s?.getString("admin") ?: members.firstOrNull() ?: "",
             relVersion = s?.getString("relVersion"), relUrl = s?.getString("relUrl") ?: "", relNotes = s?.getString("relNotes") ?: "",
+            forceUpdateVersion = s?.getString("forceUpdateVersion"), updateRequestAt = s?.getTimestamp("updateRequestAt")?.toDate()?.time ?: 0L,
+            forceAllowMetered = s?.getBoolean("forceAllowMetered") ?: false,
             testVersion = s?.getString("testVersion"), creatorBrand = s?.getString("creatorBrand") ?: "Jancktony Murgas",
             featureFlags = (s?.get("featureFlags") as? Map<*, *>)?.entries?.mapNotNull { (k, v) -> if (k is String && v is String) k to v else null }?.toMap().orEmpty(),
         )
@@ -165,8 +167,10 @@ object Repo {
     suspend fun pairInfo(pairId: String): PairInfo = info(pair(pairId).get().await())
 
     /** El administrador elige qué versión recibe la pareja. */
-    suspend fun setRelease(pairId: String, version: String, url: String, notes: String) {
-        pair(pairId).update(mapOf("relVersion" to version, "relUrl" to url, "relNotes" to notes)).await()
+    suspend fun setRelease(pairId: String, version: String, url: String, notes: String, force: Boolean = false, metered: Boolean = false) {
+        pair(pairId).update(mapOf("relVersion" to version, "relUrl" to url, "relNotes" to notes,
+            "forceUpdateVersion" to if (force) version else FieldValue.delete(),
+            "forceAllowMetered" to (force && metered), "updateRequestAt" to FieldValue.serverTimestamp())).await()
     }
 
     fun reviewsFlow(pairId: String): Flow<Map<String, ReleaseReview>> = callbackFlow {

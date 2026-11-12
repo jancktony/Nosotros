@@ -34,6 +34,9 @@ data class Member(
     val saving: Boolean = false,
     val appVersion: String = "",
     val avatar: String = "",
+    val findPhoneEnabled: Boolean = false,
+    val updateStatus: String = "",
+    val updateTarget: String = "",
 ) {
     val hasLocation get() = updatedAt > 0 && (lat != 0.0 || lng != 0.0)
     val paused get() = pausedUntil > System.currentTimeMillis()
@@ -57,6 +60,8 @@ data class Member(
             saving = d.getBoolean("saving") ?: false,
             appVersion = d.getString("appVersion") ?: "",
             avatar = d.getString("avatar") ?: "",
+            findPhoneEnabled = d.getBoolean("findPhoneEnabled") ?: false,
+            updateStatus = d.getString("updateStatus").orEmpty(), updateTarget = d.getString("updateTarget").orEmpty(),
         )
     }
 }
@@ -126,6 +131,7 @@ data class Visit(
 data class PairInfo(
     val admin: String = "", val relVersion: String? = null, val relUrl: String = "", val relNotes: String = "",
     val featureFlags: Map<String, String> = emptyMap(),
+    val forceUpdateVersion: String? = null, val updateRequestAt: Long = 0L, val forceAllowMetered: Boolean = false,
     val testVersion: String? = null, val creatorBrand: String = "Jancktony Murgas",
 )
 

@@ -15,6 +15,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -111,10 +116,17 @@ private fun Root(vm: MainViewModel) {
     if (!hasSession) { AuthScreen(vm, upgrade = false); return }
     if (account == null && !skipped) { AuthScreen(vm, upgrade = true); return }
     val ctx = LocalContext.current
+    val phoneRinging by com.tony.nosotros.find.PhoneFinder.ringing.collectAsState()
+    if (phoneRinging) androidx.compose.material3.AlertDialog(onDismissRequest = { com.tony.nosotros.find.PhoneFinder.stop() },
+        title = { Text("Encontrar teléfono") }, text = { Text("Se solicitó hacer sonar este teléfono desde una de sus cuentas.") },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { com.tony.nosotros.find.PhoneFinder.stop() }) { Text("Detener sonido") } })
     var update by remember { mutableStateOf<com.tony.nosotros.update.Updater.Release?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val versionPolicy by vm.pairInfo.collectAsState()
     val automaticUpdates = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.AUTO_UPDATES)
+    LaunchedEffect(versionPolicy.updateRequestAt) {
+        if (!vm.releaseBusy.value) runCatching { com.tony.nosotros.update.Updater.tryAutomatic(ctx.applicationContext, vm.pairId.value) }
+    }
     LaunchedEffect(automaticUpdates, versionPolicy.testVersion, versionPolicy.relVersion) {
         update = if (automaticUpdates && !vm.releaseBusy.value) runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() else null
     }
@@ -179,7 +191,9 @@ private fun MainShell(vm: MainViewModel) {
     Scaffold(
         containerColor = C.bg,
         bottomBar = {
-            NavigationBar(containerColor = C.surface, tonalElevation = 0.dp) {
+            Box(Modifier.background(C.bg).navigationBarsPadding().padding(horizontal = 14.dp, vertical = 8.dp)) {
+            NavigationBar(containerColor = C.surface, tonalElevation = 0.dp,
+                windowInsets = WindowInsets(0,0,0,0), modifier = Modifier.height(74.dp).clip(RoundedCornerShape(25.dp))) {
                 val colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = C.me, selectedTextColor = C.me, indicatorColor = C.me.copy(alpha = 0.16f),
                     unselectedIconColor = C.sub, unselectedTextColor = C.sub,
@@ -188,8 +202,9 @@ private fun MainShell(vm: MainViewModel) {
                 NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Ic.Clock, null) }, label = { Text("Historial", fontWeight = FontWeight.SemiBold) }, colors = colors)
                 NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Ic.Pin, null) }, label = { Text("Lugares", fontWeight = FontWeight.SemiBold) }, colors = colors)
                 if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.WALKIE) || LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.VOICE_NOTES))
-                    NavigationBarItem(tab == 4, { tab = 4 }, { Text("🎙") }, label = { Text("Voz") }, colors = colors)
-                NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Ic.Heart, null) }, label = { Text("Fotos", fontWeight = FontWeight.SemiBold) }, colors = colors)
+                    NavigationBarItem(tab == 4, { tab = 4 }, { Icon(Ic.Sparkle, null) }, label = { Text("Voz") }, colors = colors)
+                NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Ic.Layers, null) }, label = { Text("Galería", fontWeight = FontWeight.SemiBold) }, colors = colors)
+            }
             }
         },
     ) { pad ->
