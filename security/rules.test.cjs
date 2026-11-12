@@ -276,8 +276,8 @@ test('sonar requiere permiso previo; la otra cuenta no puede activarlo ni confir
   await assertFails(setDoc(p(alice(),'pairs/p/deviceCommands/alice'),{...command,expiresAt:Date.now()+120000}));
 });
 test('borrar un recuerdo propio elimina contenido y ficha en un solo lote', async () => {
-  const batch=writeBatch(bob().firestore());
-  batch.delete(p(bob(),'pairs/p/photos/f/full/img'));batch.delete(p(bob(),'pairs/p/photos/f'));
+  const context=bob();const batch=writeBatch(context.firestore());
+  batch.delete(p(context,'pairs/p/photos/f/full/img'));batch.delete(p(context,'pairs/p/photos/f'));
   await assertSucceeds(batch.commit());
   assert.equal((await getDoc(p(bob(),'pairs/p/photos/f'))).exists(),false);
 });

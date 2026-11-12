@@ -1,0 +1,21 @@
+name: Verificar compatibilidad instalada sin cambiar versiones
+on:
+  push:
+    branches: [feature/ajustes-buscar-ios]
+    paths: ['security/audit-client-versions.cjs', '.github/workflows/audit-versions.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Leer solo versiones, sin modificar datos
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node security/audit-client-versions.cjs
