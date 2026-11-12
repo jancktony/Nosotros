@@ -24,7 +24,12 @@ class HoldGestureTest {
             Box(Modifier.size(130.dp).background(Color.Green).testTag("hold").holdToTalk(true,{held=true;true},{held=false;released++},{held=false;canceled++}))
             Spacer(Modifier.height(1800.dp))
         } }
-        ui.onNodeWithTag("hold").performTouchInput { down(center);moveBy(Offset(40f,180f));advanceEventTime(300) }
+        val buttonHeightPx=ui.onNodeWithTag("hold").fetchSemanticsNode().boundsInRoot.height
+        ui.onNodeWithTag("hold").performTouchInput {
+            down(center);moveBy(Offset(40f,180f))
+            // Coordinates are pixels; exceed the measured height at every emulator density.
+            moveBy(Offset(0f,buttonHeightPx+90f));advanceEventTime(300)
+        }
         ui.runOnIdle { assertTrue(held);assertEquals(0,canceled);assertEquals(0,released) }
         ui.onNodeWithTag("hold").performTouchInput { up() }
         ui.runOnIdle { assertFalse(held);assertEquals(1,released);assertEquals(0,canceled) }
