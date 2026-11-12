@@ -82,7 +82,10 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
     var arrived by remember { mutableStateOf(false) }
     var fitKey by remember { mutableIntStateOf(0) }
 
-    val myPt = me?.takeIf { it.hasLocation }?.let { Pt(it.lat, it.lng) }
+    val localFix = navigationLocation(navigating)
+    val sharedPt = me?.takeIf { it.hasLocation }?.let { Pt(it.lat, it.lng) }
+
+    val myPt = localFix?.let { Pt(it.latitude,it.longitude) } ?: sharedPt
 
     fun search() {
         keyboard.clearFocus()
@@ -106,7 +109,7 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
 
     val people = buildList {
         me?.takeIf { it.hasLocation }?.let {
-            add(MapPerson(it.uid, initialOf(it.name, "Yo"), C.me.toArgb(), C.meInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt(), it.avatar))
+            add(MapPerson(it.uid, initialOf(it.name, "Yo"), C.me.toArgb(), C.meInk.toArgb(), (localFix?.latitude ?: it.lat), (localFix?.longitude ?: it.lng), it.mode, it.paused, it.speedKmh.toInt(), it.avatar))
         }
         partner?.takeIf { it.hasLocation }?.let {
             add(MapPerson(it.uid, initialOf(it.name, "P"), C.partner.toArgb(), C.partnerInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt(), it.avatar))
@@ -115,8 +118,8 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
     val r = route
 
     val now by vm.tick.collectAsState()
-    val fresh = me?.let { !it.paused && it.updatedAt > 0 && now-it.updatedAt in 0..60_000 && it.acc <= 80 } == true
-    LaunchedEffect(me?.updatedAt, navigating, route) {
+    val fresh = localFix?.let { now-it.time in 0..15_000 && it.accuracy<=80 } ?: me?.let { !it.paused && it.updatedAt > 0 && now-it.updatedAt in 0..60_000 && it.acc <= 80 } == true
+    LaunchedEffect(me?.updatedAt, localFix?.time, navigating, route) {
         val current = route ?: return@LaunchedEffect
         val point = myPt ?: return@LaunchedEffect
         if(!navigating || !fresh)return@LaunchedEffect
