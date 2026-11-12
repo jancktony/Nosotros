@@ -213,9 +213,9 @@ private fun MainShell(vm: MainViewModel) {
             }
         },
     ) { pad ->
-        Box(Modifier.fillMaxSize().padding(bottom = pad.calculateBottomPadding())) {
+        Box(Modifier.fillMaxSize().padding(bottom = if(tab == 0) 0.dp else pad.calculateBottomPadding())) {
             when (tab) {
-                0 -> HomeScreen(vm, onSettings = { settings = true }, onNavigate = { navDestination = null; nav = true },
+                0 -> HomeScreen(vm, bottomInset = pad.calculateBottomPadding(), onSettings = { settings = true }, onNavigate = { navDestination = null; nav = true },
                     onAddPlace = { lat, lng -> editing = Place(lat = lat, lng = lng) },
                     onEditPlace = { editing = it })
                 1 -> HistoryScreen(vm)

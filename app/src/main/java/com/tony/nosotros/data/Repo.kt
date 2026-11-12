@@ -355,6 +355,12 @@ object Repo {
         return ref.id
     }
 
+    fun recordStop(pairId: String, start: Long, end: Long, lat: Double, lng: Double) {
+        val user = uid ?: return
+        pair(pairId).collection("visits").add(mapOf("uid" to user,"placeId" to "","placeName" to "Parada sin registrar",
+            "start" to start,"end" to end,"day" to TimeFmt.dayKey(start),"lat" to lat,"lng" to lng))
+    }
+
     fun endVisit(pairId: String, visitId: String) {
         pair(pairId).collection("visits").document(visitId).update("end", System.currentTimeMillis())
     }

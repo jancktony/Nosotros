@@ -83,6 +83,7 @@ class TrackingService : Service() {
     private var lastUploadedMode = Mode.UNKNOWN
     private val motion = MotionDetector()
     private var anchor: Location? = null
+    private var stopHadRegisteredPlace = false
     private var lastWidgetUpdate = 0L
     private var policyKey = ""
     private var stillJob: Job? = null
@@ -189,6 +190,7 @@ class TrackingService : Service() {
             prefs.stillSince = now
             anchor = lastFix
             engine.onStill()
+            stopHadRegisteredPlace = engine.current != null
             requestOneFix()
             stillJob?.cancel()
             stillJob = scope.launch {
@@ -199,7 +201,10 @@ class TrackingService : Service() {
             stillJob?.cancel()
             if (wasStill) {
                 val since = prefs.stillSince
-                val fix = lastFix
+                val fix = anchor ?: lastFix
+                if(since > 0 && now-since >= 3*60_000L && fix != null && fix.accuracy <= 100 && !stopHadRegisteredPlace && engine.current == null && !isPaused()) {
+                    pairId?.let { pid -> Repo.recordStop(pid,since,now,fix.latitude,fix.longitude) }
+                }
                 if (since > 0 && fix != null) engine.onStayEnded(since, now, fix.latitude, fix.longitude)
                 prefs.stillSince = 0L
             }
@@ -352,11 +357,12 @@ class TrackingService : Service() {
     // ---------------- Lugares ----------------
 
     private fun onArrive(p: Place) {
+        stopHadRegisteredPlace = true
         val pid = pairId ?: return
         finishTrip(p.name)
         Repo.addEvent(pid, "arrive", p.name)
         Repo.incrementVisits(pid, p.id)
-        prefs.currentVisitId = Repo.startVisit(pid, p.id, p.name, p.lat, p.lng)
+        prefs.currentVisitId = Repo.startVisit(pid, p.id, p.name, lastFix?.latitude ?: p.lat, lastFix?.longitude ?: p.lng)
         uploadStatus(force = true)
     }
 

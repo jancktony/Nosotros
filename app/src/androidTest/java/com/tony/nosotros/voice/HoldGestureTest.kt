@@ -39,7 +39,7 @@ class HoldGestureTest {
         ui.setContent {
             com.tony.nosotros.ui.NosotrosTheme {
                 Box(Modifier.width(350.dp).height(if(short.value)320.dp else 620.dp).testTag("voice-frame")) {
-                    com.tony.nosotros.ui.VoicePanel("demo","demo","Kelly",true,false,true)
+                    com.tony.nosotros.ui.VoicePanel("demo","demo","Kelly",true,true,true)
                 }
             }
         }

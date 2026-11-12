@@ -67,7 +67,7 @@ private enum class Focus { BOTH, ME, PARTNER }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit, onAddPlace: (Double, Double) -> Unit, onEditPlace: (Place) -> Unit) {
+fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.dp, onSettings: () -> Unit, onNavigate: () -> Unit, onAddPlace: (Double, Double) -> Unit, onEditPlace: (Place) -> Unit) {
     val me by vm.me.collectAsState()
     val partner by vm.partner.collectAsState()
     val places by vm.places.collectAsState()
@@ -130,7 +130,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
 
     BottomSheetScaffold(
         scaffoldState = sheet,
-        sheetPeekHeight = 88.dp,
+        sheetPeekHeight = 88.dp + bottomInset,
         sheetContainerColor = C.surface,
         sheetContentColor = C.text,
         sheetShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
@@ -139,13 +139,13 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
         },
         containerColor = C.bg,
         sheetContent = {
-            PartnerSheet(
+            Box(Modifier.padding(bottom = bottomInset)) { PartnerSheet(
                 partner = partner, partnerUid = partnerUid, distance = distance, since = since,
                 timeline = buildTimeline(visits, trips, partnerUid),
                 liveRequested = liveRequested, eta = eta, leftName = lastLeft?.placeName, leftAt = lastLeft?.end ?: 0L,
                 activity = listOfNotNull(otherApp.text(presenceNow, false)?.let { "${partner?.name?.ifBlank { null } ?: "Pareja"}: $it" }, otherSleep.text(presenceNow,true), myApp.text(presenceNow,false)?.let { "Yo: $it" }, mySleep.text(presenceNow,true)?.let { "Yo: $it" }),
                 onLive = { vm.requestLive(); liveRequested = System.currentTimeMillis(); focus = Focus.PARTNER; fitKey++ },
-            )
+            ) }
         },
     ) { _ ->
         Box(Modifier.fillMaxSize()) {
@@ -154,7 +154,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
                 people = people, places = places, routes = routes, fitKey = fitKey, focus = focusPts,
                 satellite = satellite, threeD = threeD,
                 topInsetPx = with(density) { 80.dp.roundToPx() },
-                bottomInsetPx = with(density) { (if (sheetHidden) 0.dp else 88.dp).roundToPx() },
+                bottomInsetPx = with(density) { (bottomInset + if (sheetHidden) 0.dp else 88.dp).roundToPx() },
                 onLongPress = onAddPlace,
                 onPersonTap = { selectedPerson = it; selectedPlace = null },
                 onPlaceTap = { selectedPlace = it; selectedPerson = null },
@@ -172,7 +172,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
             }
             // Botones flotantes a la derecha
             Column(
-                Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = if (sheetHidden) 16.dp else 104.dp),
+                Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = bottomInset + if (sheetHidden) 16.dp else 104.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 RoundButton(Ic.Nav, "Buscar dirección y ruta", onNavigate)
@@ -184,7 +184,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
                 }
             }
             if (sheetHidden) TextButton(onClick = { scope.launch { sheet.bottomSheetState.expand() } },
-                modifier = Modifier.align(Alignment.BottomStart).padding(16.dp).clip(RoundedCornerShape(24.dp)).background(C.glass)) {
+                modifier = Modifier.align(Alignment.BottomStart).padding(start=16.dp,end=16.dp,top=16.dp,bottom=16.dp+bottomInset).clip(RoundedCornerShape(24.dp)).background(C.glass)) {
                 Text("Ver a ${partner?.name?.ifBlank { null } ?: "tu pareja"}  ↑", color = C.text, fontWeight = FontWeight.SemiBold)
             }
             if (people.isEmpty()) {
