@@ -143,7 +143,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
             .then(if (tab == 0 && direct) Modifier.fillMaxHeight() else Modifier)
             .statusBarsPadding().then(if (tab == 0 && direct) Modifier else Modifier.verticalScroll(rememberScrollState()))
             .padding(if(tiny) 10.dp else 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(if(tiny) 4.dp else 8.dp)) {
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(if(tiny) 2.dp else 8.dp)) {
             if (!tiny) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Walkie-talkie", color = C.text, fontSize = 27.sp, fontWeight = FontWeight.Bold)
@@ -154,8 +154,8 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                 }
             }
             if (direct && saved) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.surface).padding(5.dp)) {
-                if (direct) RadioTab("En directo", tab == 0, Modifier.weight(1f)) { WalkieHub.release(); voice.close(); recording = false; playing = null; tab = 0; WalkieHub.prepare() }
-                if (saved) RadioTab("Notas de voz", tab == 1, Modifier.weight(1f)) { openMic = false; WalkieHub.release(); tab = 1 }
+                if (direct) RadioTab("En directo", tab == 0, Modifier.weight(1f), compact = tiny) { WalkieHub.release(); voice.close(); recording = false; playing = null; tab = 0; WalkieHub.prepare() }
+                if (saved) RadioTab("Notas de voz", tab == 1, Modifier.weight(1f), compact = tiny) { openMic = false; WalkieHub.release(); tab = 1 }
             }
             message?.let { Text(it, color = C.me, fontSize = 13.sp) }
             if (tab == 0 && direct) {
@@ -210,7 +210,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                             playJob?.cancel(); voice.stopPlayback(); playing = null
                             audioManager.abandonAudioFocusRequest(noteFocus); WalkieHub.press(); true
                         }
-                    }, onRelease = { WalkieHub.release() }, onCancel = { WalkieHub.release() }, extent = minOf(maxHeight,maxWidth,226.dp).coerceAtLeast(48.dp))
+                    }, onRelease = { WalkieHub.release() }, onCancel = { WalkieHub.release() }, extent = minOf(maxHeight,maxWidth,226.dp).coerceAtLeast(68.dp))
                 }
                 Text(if (radio.talking) "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}" else if (openMic) "Conectando micrófono…" else "Mantén pulsado para hablar",
                     color = C.text, fontSize = 23.sp, fontWeight = FontWeight.Bold)
@@ -264,9 +264,9 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
 }
 
 @Composable
-private fun RadioTab(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun RadioTab(label: String, selected: Boolean, modifier: Modifier, compact: Boolean = false, onClick: () -> Unit) {
     Box(modifier.clip(RoundedCornerShape(14.dp)).background(if (selected) C.me.copy(alpha = .15f) else Color.Transparent)
-        .clickable(onClick = onClick).padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+        .clickable(onClick = onClick).padding(vertical = if(compact) 6.dp else 12.dp), contentAlignment = Alignment.Center) {
         Text(label, color = if (selected) C.me else C.sub, fontSize = 14.sp, fontWeight = FontWeight.Bold)
     }
 }

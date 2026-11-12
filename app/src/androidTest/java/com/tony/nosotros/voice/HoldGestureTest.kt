@@ -55,7 +55,7 @@ class HoldGestureTest {
             ui.onAllNodes(hasScrollAction()).assertCountEquals(0)
             val frame=ui.onNodeWithTag("voice-frame").getUnclippedBoundsInRoot()
             val mic=ui.onNodeWithTag("walkie-hold").getUnclippedBoundsInRoot()
-            assertTrue(mic.top>=frame.top);assertTrue(mic.bottom<=frame.bottom);assertTrue(mic.bottom-mic.top>=48.dp)
+            assertTrue("Mic top $mic outside $frame",mic.top>=frame.top);assertTrue("Mic bottom $mic outside $frame",mic.bottom<=frame.bottom);assertTrue("Mic must remain 48dp: $mic",mic.bottom-mic.top>=48.dp)
         }
         check();ui.runOnIdle{short.value=false};check()
     }
