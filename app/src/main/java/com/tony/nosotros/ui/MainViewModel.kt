@@ -149,9 +149,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { error.value = "No se pudo regenerar el código." }
     }
 
+    private val olderPhotos = MutableStateFlow<List<com.tony.nosotros.data.Photo>>(emptyList())
+    private val recentPhotos = pairId.flatMapLatest { it?.let { Repo.photosFlow(it) } ?: flowOf(emptyList()) }
     val photos: StateFlow<List<com.tony.nosotros.data.Photo>> = StateFlowOf(
-        pairId.flatMapLatest { it?.let { Repo.photosFlow(it) } ?: flowOf(emptyList()) }, emptyList()
-    )
+        combine(recentPhotos, olderPhotos) { latest, older -> (latest + older).distinctBy { it.id }.sortedWith(compareByDescending<com.tony.nosotros.data.Photo> { it.at }.thenByDescending { it.id }) }, emptyList())
+    val morePhotosBusy = MutableStateFlow(false)
+    val morePhotosAvailable = MutableStateFlow(true)
+    init { viewModelScope.launch { pairId.collect { olderPhotos.value = emptyList(); morePhotosAvailable.value = true } } }
+    fun loadOlderPhotos() = viewModelScope.launch {
+        val p = pairId.value ?: return@launch
+        val last = photos.value.lastOrNull() ?: return@launch
+        if (morePhotosBusy.value) return@launch
+        morePhotosBusy.value = true
+        runCatching { Repo.olderPhotos(p, last) }.onSuccess {
+            if (pairId.value == p) { olderPhotos.value = (olderPhotos.value + it).distinctBy { photo -> photo.id }; morePhotosAvailable.value = it.size == 40 }
+        }.onFailure { error.value = "No se pudieron cargar recuerdos anteriores. Revisa la conexión." }
+        morePhotosBusy.value = false
+    }
     val sending = MutableStateFlow(false)
     fun sendPhoto(thumb: ByteArray, full: ByteArray, caption: String) = viewModelScope.launch {
         val p = pairId.value ?: return@launch
@@ -161,7 +175,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { error.value = "No se pudo enviar la foto" }
         sending.value = false
     }
-    fun deletePhoto(id: String) { pairId.value?.let { Repo.deletePhoto(it, id) } }
+    fun deletePhoto(id: String) { olderPhotos.value = olderPhotos.value.filterNot { it.id == id }; pairId.value?.let { Repo.deletePhoto(it, id) } }
     suspend fun fullPhoto(id: String): ByteArray? = pairId.value?.let { Repo.fullPhoto(it, id) }
 
     val since: StateFlow<Long> = StateFlowOf(

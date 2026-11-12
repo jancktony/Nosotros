@@ -10,4 +10,3 @@ object UpdatePolicy {
         return (forced || preference && feature) && (wifi || forced && allowMetered)
     }
 }
-

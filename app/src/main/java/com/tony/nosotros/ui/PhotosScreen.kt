@@ -92,6 +92,8 @@ fun PhotosScreen(vm: MainViewModel) {
     val partner by vm.partner.collectAsState()
     val admin by vm.isAdmin.collectAsState()
     val sending by vm.sending.collectAsState()
+    val moreBusy by vm.morePhotosBusy.collectAsState()
+    val moreAvailable by vm.morePhotosAvailable.collectAsState()
     var filter by remember { mutableStateOf("Todas") }
     var picked by remember { mutableStateOf<Uri?>(null) }
     var caption by remember { mutableStateOf("") }
@@ -130,6 +132,9 @@ fun PhotosScreen(vm: MainViewModel) {
                             modifier=Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha=.4f)).padding(9.dp))
                     }
                 }
+            }
+            if (moreAvailable && photos.isNotEmpty()) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                TextButton(enabled = !moreBusy, onClick = {vm.loadOlderPhotos()}) { Text(if(moreBusy) "Cargando…" else "Ver recuerdos anteriores", color=C.me) }
             }
             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(88.dp)) }
         }

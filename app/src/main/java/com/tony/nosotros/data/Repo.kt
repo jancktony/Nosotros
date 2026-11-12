@@ -246,6 +246,10 @@ object Repo {
         awaitClose { reg.remove() }
     }
 
+    suspend fun olderPhotos(pairId: String, after: Photo): List<Photo> = pair(pairId).collection("photos")
+        .orderBy("at", Query.Direction.DESCENDING).orderBy(com.google.firebase.firestore.FieldPath.documentId(), Query.Direction.DESCENDING)
+        .startAfter(after.at, after.id).limit(40).get().await().documents.map { Photo.from(it) }
+
     suspend fun fullPhoto(pairId: String, id: String): ByteArray? = runCatching {
         pair(pairId).collection("photos").document(id).collection("full").document("img").get().await().getBlob("img")?.toBytes()
     }.getOrNull()
