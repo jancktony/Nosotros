@@ -24,7 +24,7 @@ import android.content.pm.PackageManager
 import java.io.File
 
 /**
- * Versiones privadas en Firestore, sin bucket ni dependencia de GitHub. El administrador recibe siempre la última;
+ * Versiones privadas en Firestore, sin bucket ni dependencia de GitHub. El administrador recibe la candidata que selecciona;
  * la pareja solo la que el administrador haya liberado. Se instala encima, sin perder datos.
  */
 object Updater {

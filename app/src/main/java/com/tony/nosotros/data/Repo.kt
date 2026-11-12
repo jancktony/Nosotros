@@ -256,7 +256,8 @@ object Repo {
 
     fun deletePhoto(pairId: String, id: String) {
         val ref = pair(pairId).collection("photos").document(id)
-        ref.collection("full").document("img").delete(); ref.delete()
+        val batch = db.batch()
+        batch.delete(ref.collection("full").document("img")); batch.delete(ref); batch.commit()
     }
 
     suspend fun cleanupCode(pairId: String) {

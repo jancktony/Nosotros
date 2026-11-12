@@ -1,0 +1,7 @@
+Interfaz renovada según la vista previa aprobada: navegación, mapa, historial, lugares, voz, galería y ajustes.
+Walkie fijo: la pulsación continúa al mover el dedo; se detiene al soltar o salir.
+Perfiles compactos y panel del mapa ocultable al acercar o mover, con botón para recuperarlo.
+Galería privada con filtros, recuerdos anteriores, navegación y ampliación.
+Administración organizada: probar solo para mí, aprobar, liberar o solicitar instalación de la versión aprobada.
+Panel web privado con perfil propio, fecha compartida, versiones y búsqueda de teléfonos; sonido con permiso local previo.
+Acceso a la categoría Android para ocultar solo el aviso fijo. Android puede mantener su indicador de aplicaciones activas.

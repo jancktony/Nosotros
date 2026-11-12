@@ -2,7 +2,7 @@
 const {initializeApp,cert} = require('firebase-admin/app');
 const {getAuth} = require('firebase-admin/auth');
 const {getFirestore} = require('firebase-admin/firestore');
-const {readFileSync} = require('node:fs');
+const {readFileSync,existsSync} = require('node:fs');
 const {createHash} = require('node:crypto');
 const CHUNK=512*1024, MAX_APK=100*1024*1024;
 let stage='inicio';
@@ -56,7 +56,7 @@ async function main() {
   const chunkCount=Math.ceil(apk.length/CHUNK);
   const manifest={version,pairId,transport:'firestore-chunks-v1',apkPath:`firestore://releases/${version}`,
     sha256,size:apk.length,chunkSize:CHUNK,chunkCount,publishedAt:Date.now(),
-    date:new Date().toISOString().slice(0,10),notes:process.env.RELEASE_NOTES||'Versión de prueba para el administrador.'};
+    date:new Date().toISOString().slice(0,10),notes:process.env.RELEASE_NOTES||(existsSync(`release-notes/${version}.txt`)?readFileSync(`release-notes/${version}.txt`,'utf8'):'Versión de prueba para el administrador.')};
   await timed(ref.set({...manifest,ready:false}),'crear manifiesto incompleto');
   console.log(`Cargando candidata ${version}: ${chunkCount} fragmentos.`);
   for(let i=0;i<chunkCount;i+=4){
