@@ -168,7 +168,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
         // ---------- Nosotros ----------
         if (category == "General") {
             Section(Ic.Calendar, "Nuestro aniversario") {
-                val fmt = SimpleDateFormat("d 'de' MMMM 'de' yyyy · H:mm", Locale("es"))
+                val fmt = SimpleDateFormat("d 'de' MMMM 'de' yyyy · h:mm a", Locale("es"))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(if (since > 0) fmt.format(Date(since)) else "Sin fecha", fontWeight = FontWeight.SemiBold, color = C.text)

@@ -163,6 +163,7 @@ object Ic {
     val Widget get() = icon("widget", listOf("M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"))
     val Info get() = icon("info", listOf(circle(12f, 12f, 9f), "M12 11v6M12 7.5v.01"))
     val Link get() = icon("link", listOf("M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1", "M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"))
+    val Mic get() = icon("microphone", listOf("M8 5a4 4 0 0 1 8 0v7a4 4 0 0 1-8 0V5z", "M4 11a8 8 0 0 0 16 0M12 19v4M8 23h8"))
     val Sparkle get() = icon("sparkle", listOf("M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"))
 }
 

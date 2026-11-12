@@ -202,7 +202,7 @@ private fun MainShell(vm: MainViewModel) {
                 NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Ic.Clock, null) }, label = { Text("Historial", fontWeight = FontWeight.SemiBold) }, colors = colors)
                 NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Ic.Pin, null) }, label = { Text("Lugares", fontWeight = FontWeight.SemiBold) }, colors = colors)
                 if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.WALKIE) || LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.VOICE_NOTES))
-                    NavigationBarItem(tab == 4, { tab = 4 }, { Icon(Ic.Sparkle, null) }, label = { Text("Voz") }, colors = colors)
+                    NavigationBarItem(tab == 4, { tab = 4 }, { Icon(Ic.Mic, null) }, label = { Text("Voz") }, colors = colors)
                 NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Ic.Layers, null) }, label = { Text("Galería", fontWeight = FontWeight.SemiBold) }, colors = colors)
             }
             }
