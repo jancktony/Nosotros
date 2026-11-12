@@ -118,6 +118,9 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
         if (radio.talking) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         while (recording || radio.talking) { delay(1000); seconds++ }
     }
+    LaunchedEffect(openMic, radio.talking) {
+        if(openMic && !radio.talking) { delay(15_000); if(!WalkieHub.state.value.talking){openMic=false;WalkieHub.release()} }
+    }
     LaunchedEffect(radio.enabled) { if (!radio.enabled) openMic = false }
     DisposableEffect(lifecycle, direct) {
         WalkieHub.foregroundOpen = direct

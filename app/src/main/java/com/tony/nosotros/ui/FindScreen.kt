@@ -32,7 +32,7 @@ fun MoreScreen(onSettings: () -> Unit, onScreen: (Int) -> Unit) {
 }
 
 @Composable
-fun FindScreen(vm: MainViewModel, onSettings: () -> Unit, onDirections: () -> Unit) {
+fun FindScreen(vm: MainViewModel, onSettings: () -> Unit, onDirections: (Member) -> Unit) {
     val me by vm.me.collectAsState(); val partner by vm.partner.collectAsState()
     val info by vm.pairInfo.collectAsState(); val now by vm.tick.collectAsState()
     var own by remember { mutableStateOf(false) }; var confirm by remember { mutableStateOf(false) }
@@ -59,7 +59,7 @@ fun FindScreen(vm: MainViewModel, onSettings: () -> Unit, onDirections: () -> Un
                 if(m.battery >= 0) Text("Batería ${m.battery} %", color=C.sub)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(onClick = { confirm = true }, enabled = canRing && !busy, modifier = Modifier.weight(1f)) { Text("Hacer sonar") }
-                    OutlinedButton(onClick = onDirections, enabled = m.hasLocation && !m.paused, modifier = Modifier.weight(1f)) { Text("Indicaciones") }
+                    OutlinedButton(onClick = { onDirections(m) }, enabled = m.hasLocation && !m.paused, modifier = Modifier.weight(1f)) { Text("Indicaciones") }
                 }
                 TextButton(enabled = !m.paused && !busy, onClick = {
                     val pair = vm.pairId.value ?: return@TextButton

@@ -61,8 +61,8 @@ fun HistoryScreen(vm: MainViewModel) {
     val whoTrips = trips.filter { it.uid == who }
     val totalKm = whoTrips.sumOf { it.distanceM }
 
-    Column(Modifier.fillMaxSize().background(C.bg).statusBarsPadding()) {
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(Modifier.fillMaxSize().background(C.bg).statusBarsPadding(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
+        item { Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SettingsHero("Su recorrido", "Un día a la vez, sus lugares y sus momentos.", "LO QUE VIVIERON")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { vm.historyDay.value = day - 1 }) { Icon(Ic.Left, "Día anterior", tint = C.text) }
@@ -80,10 +80,7 @@ fun HistoryScreen(vm: MainViewModel) {
                 Stat("Lugares", "${visits.count { it.uid == who }}", Modifier.weight(1f))
             }
         }
-        LazyColumn(
-            Modifier.fillMaxSize(), state = rememberLazyListState(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-        ) {
+        }
             if (items.isEmpty()) item { SettingsHero("Un día tranquilo", "Aquí aparecerán sus recorridos y visitas cuando haya movimientos.", "SU HISTORIA") }
             items(items, key = { if (it is TimelineItem.T) "t" + it.t.id else "v" + (it as TimelineItem.V).v.id }) { item ->
                 Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
@@ -96,7 +93,6 @@ fun HistoryScreen(vm: MainViewModel) {
                     }
                 }
             }
-        }
     }
 
     openTrip?.let { t ->

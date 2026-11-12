@@ -59,7 +59,7 @@ import kotlinx.coroutines.launch
 /** Buscar una dirección y ver la ruta paso a paso, a pie o en vehículo. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
+fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClose: () -> Unit) {
     val me by vm.me.collectAsState()
     val partner by vm.partner.collectAsState()
     val satellite by vm.satellite.collectAsState()
@@ -70,7 +70,7 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
 
     var query by remember { mutableStateOf("") }
     var hits by remember { mutableStateOf<List<Routing.Hit>?>(null) }
-    var dest by remember { mutableStateOf<Routing.Hit?>(null) }
+    var dest by remember(initialDestination) { mutableStateOf(initialDestination) }
     var foot by remember { mutableStateOf(true) }
     var route by remember { mutableStateOf<Routing.Route?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -94,7 +94,7 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
         }
     }
 
-    LaunchedEffect(dest, foot) {
+    LaunchedEffect(dest, foot, myPt != null) {
         val d = dest ?: return@LaunchedEffect
         val from = myPt
         if (from == null) { error = "Aún no tengo tu ubicación."; return@LaunchedEffect }

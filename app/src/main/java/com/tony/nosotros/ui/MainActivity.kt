@@ -161,6 +161,7 @@ private fun Root(vm: MainViewModel) {
 private fun MainShell(vm: MainViewModel) {
     var tab by remember { mutableIntStateOf(0) }
     var settings by remember { mutableStateOf(false) }
+    var navDestination by remember { mutableStateOf<com.tony.nosotros.data.Routing.Hit?>(null) }
     var nav by remember { mutableStateOf(false) }
     var admin by remember { mutableStateOf(false) }
     /** Lugar en edición (nuevo o existente). */
@@ -179,7 +180,7 @@ private fun MainShell(vm: MainViewModel) {
     }
     if (nav) {
         BackHandler { nav = false }
-        NavScreen(vm) { nav = false }
+        NavScreen(vm, initialDestination = navDestination) { nav = false }
         return
     }
     if (admin) {
@@ -214,13 +215,13 @@ private fun MainShell(vm: MainViewModel) {
     ) { pad ->
         Box(Modifier.fillMaxSize().padding(bottom = pad.calculateBottomPadding())) {
             when (tab) {
-                0 -> HomeScreen(vm, onSettings = { settings = true }, onNavigate = { nav = true },
+                0 -> HomeScreen(vm, onSettings = { settings = true }, onNavigate = { navDestination = null; nav = true },
                     onAddPlace = { lat, lng -> editing = Place(lat = lat, lng = lng) },
                     onEditPlace = { editing = it })
                 1 -> HistoryScreen(vm)
                 3 -> PhotosScreen(vm)
                 4 -> VoiceScreen(vm)
-                5 -> FindScreen(vm, onSettings = { settings = true }, onDirections = { nav = true })
+                5 -> FindScreen(vm, onSettings = { settings = true }, onDirections = { member -> navDestination = com.tony.nosotros.data.Routing.Hit(member.name,member.lat,member.lng); nav = true })
                 6 -> MoreScreen(onSettings = { settings = true }, onScreen = { tab = it })
                 else -> PlacesScreen(vm, onAdd = { picking = Place() }, onEdit = { editing = it })
             }
