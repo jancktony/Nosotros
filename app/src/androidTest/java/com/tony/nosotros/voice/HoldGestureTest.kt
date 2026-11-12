@@ -13,11 +13,19 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import com.tony.nosotros.ui.holdToTalk
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
 class HoldGestureTest {
     @get:Rule val ui=createComposeRule()
+    @Before fun offlineTestBackend() {
+        val context=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        if(com.google.firebase.FirebaseApp.getApps(context).isEmpty())com.google.firebase.FirebaseApp.initializeApp(context,
+            com.google.firebase.FirebaseOptions.Builder().setProjectId("demo-nosotros")
+                .setApplicationId("1:123456789:android:abcdef0123456789").setApiKey("offline-test-key").build())
+        com.google.android.gms.tasks.Tasks.await(com.google.firebase.firestore.FirebaseFirestore.getInstance().disableNetwork(),10,java.util.concurrent.TimeUnit.SECONDS)
+    }
     @Test fun movingOutsideButtonDoesNotCancelUntilFingerIsLifted() {
         var held=false;var released=0;var canceled=0
         ui.setContent { Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
