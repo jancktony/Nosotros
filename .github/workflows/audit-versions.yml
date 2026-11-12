@@ -4,6 +4,11 @@ on:
     branches: [feature/ajustes-buscar-ios]
     paths: ['security/audit-client-versions.cjs', '.github/workflows/audit-versions.yml']
   workflow_dispatch:
+    inputs:
+      review_recipient:
+        description: Clave pública RSA PEM en base64 para leer revisiones cifradas (vacío lee solo versiones)
+        required: false
+        type: string
 permissions:
   contents: read
 jobs:
@@ -16,6 +21,19 @@ jobs:
         with: { node-version: '22', cache: npm }
       - run: npm ci --no-audit --no-fund
       - name: Leer solo versiones, sin modificar datos
+        if: ${{ !inputs.review_recipient }}
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node security/audit-client-versions.cjs
+      - name: Leer correcciones sin publicarlas en registros
+        if: ${{ inputs.review_recipient != '' }}
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          REVIEW_RECIPIENT: ${{ inputs.review_recipient }}
+        run: node security/read-release-reviews.cjs
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.review_recipient != '' }}
+        with:
+          name: revision-cifrada
+          path: reviews.encrypted.json
+          retention-days: 1
