@@ -46,6 +46,7 @@ fun PlacesScreen(vm: MainViewModel, onAdd: () -> Unit, onEdit: (Place) -> Unit) 
     val mine = places.filter { it.owner == uid && !it.suggested }.sortedByDescending { it.visits }
     val theirs = places.filter { it.owner != uid && !it.suggested }.sortedByDescending { it.visits }
     val suggestions = places.filter { it.owner == uid && it.suggested }
+    var search by remember { mutableStateOf("") }
     val partnerName = partner?.name?.ifBlank { null } ?: "Tu pareja"
 
     Box(Modifier.fillMaxSize().background(C.bg)) {
@@ -54,7 +55,8 @@ fun PlacesScreen(vm: MainViewModel, onAdd: () -> Unit, onEdit: (Place) -> Unit) 
             contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            item { Text("Lugares", style = MaterialTheme.typography.headlineMedium) }
+            item { SettingsHero("Sus lugares", "Casa, trabajo y esos rincones especiales.", "SUS PUNTOS DE ENCUENTRO") }
+            item { OutlinedTextField(search, {search=it}, label={Text("Buscar un lugar")},singleLine=true,modifier=Modifier.fillMaxWidth()) }
             item {
                 Text("Toca “Agregar lugar” y mueve el mapa hasta el punto exacto. También puedes mantener presionado el mapa principal.",
                     color = C.sub, fontSize = 14.sp)
@@ -78,10 +80,10 @@ fun PlacesScreen(vm: MainViewModel, onAdd: () -> Unit, onEdit: (Place) -> Unit) 
             }
             item { SectionLabel("Mis lugares", Modifier.padding(top = 10.dp)) }
             if (mine.isEmpty()) item { Text("Aún no tienes lugares.", color = C.sub, fontSize = 14.sp) }
-            items(mine, key = { it.id }) { PlaceRow(it, C.me, onEdit = { onEdit(it) }, onDelete = { vm.deletePlace(it.id) }) }
+            items(mine.filter {it.name.contains(search,true)}, key = { it.id }) { PlaceRow(it, C.me, onEdit = { onEdit(it) }, onDelete = { vm.deletePlace(it.id) }) }
             item { SectionLabel("Lugares de $partnerName", Modifier.padding(top = 10.dp)) }
             if (theirs.isEmpty()) item { Text("Aún no tiene lugares.", color = C.sub, fontSize = 14.sp) }
-            items(theirs, key = { it.id }) { PlaceRow(it, C.partner, onEdit = if (isAdmin) ({ onEdit(it) }) else null, onDelete = if (isAdmin) ({ vm.deletePlace(it.id) }) else null) }
+            items(theirs.filter {it.name.contains(search,true)}, key = { it.id }) { PlaceRow(it, C.partner, onEdit = if (isAdmin) ({ onEdit(it) }) else null, onDelete = if (isAdmin) ({ vm.deletePlace(it.id) }) else null) }
             item { Spacer(Modifier.padding(40.dp)) }
         }
         ExtendedFloatingActionButton(

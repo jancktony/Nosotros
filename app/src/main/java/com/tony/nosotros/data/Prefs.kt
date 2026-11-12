@@ -49,6 +49,15 @@ class Prefs(ctx: Context) {
     var vehicle: Mode
         get() = Mode.of(p.getString("vehicle", Mode.CAR.name))
         set(v) = p.edit().putString("vehicle", v.name).apply()
+    var allowFindPhone: Boolean
+        get() = p.getBoolean("allowFindPhone", false)
+        set(v) = p.edit().putBoolean("allowFindPhone", v).apply()
+    var lastRingRequest: String
+        get() = p.getString("lastRingRequest", "").orEmpty()
+        set(v) = p.edit().putString("lastRingRequest", v).apply()
+    var handledForceUpdate: Long
+        get() = p.getLong("handledForceUpdate", 0L)
+        set(v) = p.edit().putLong("handledForceUpdate", v).apply()
     var autoUpdate: Boolean
         get() = p.getBoolean("autoUpdate", true)
         set(v) = p.edit().putBoolean("autoUpdate", v).apply()

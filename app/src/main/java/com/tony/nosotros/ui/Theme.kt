@@ -33,25 +33,28 @@ data class Palette(
 object Palettes {
     val Night = Palette(
         id = "night", dark = true,
-        bg = Color(0xFF0B0F14), surface = Color(0xFF141B24), surface2 = Color(0xFF1F2935),
-        line = Color(0x29FFFFFF), text = Color(0xFFF8FAFC), sub = Color(0xFFC9D1DC),
-        me = Color(0xFF5EEAD4), meInk = Color(0xFF04211D),
-        partner = Color(0xFFF9A8D4), partnerInk = Color(0xFF3B0A24),
+        bg = Color(0xFF0E171E), surface = Color(0xFF18232C), surface2 = Color(0xFF202F39),
+        line = Color(0xFF2C3A43), text = Color(0xFFF2F3EF), sub = Color(0xFF97A9B1),
+        me = Color(0xFFA1E4CF), meInk = Color(0xFF04211D),
+        partner = Color(0xFFEFC4D3), partnerInk = Color(0xFF3B0A24),
         ok = Color(0xFF86EFAC), warn = Color(0xFFFCD34D), danger = Color(0xFFFCA5A5),
         glass = Color(0xF0141B24),
         mapStyle = "https://tiles.openfreemap.org/styles/dark",
     )
     val Pink = Palette(
         id = "pink", dark = false,
-        bg = Color(0xFFFFF1F6), surface = Color(0xFFFFFFFF), surface2 = Color(0xFFFCE4EF),
+        bg = Color(0xFFF9F0F3), surface = Color(0xFFFFFFFF), surface2 = Color(0xFFFCE4EF),
         line = Color(0x33BE185D), text = Color(0xFF3B0A24), sub = Color(0xFF7A2E55),
-        me = Color(0xFFDB2777), meInk = Color(0xFFFFFFFF),
+        me = Color(0xFFA95476), meInk = Color(0xFFFFFFFF),
         partner = Color(0xFF0F766E), partnerInk = Color(0xFFFFFFFF),
         ok = Color(0xFF15803D), warn = Color(0xFFB45309), danger = Color(0xFFB91C1C),
         glass = Color(0xF5FFFFFF),
         mapStyle = "https://tiles.openfreemap.org/styles/liberty",
     )
-    fun of(id: String?) = if (id == "pink") Pink else Night
+    val Light = Pink.copy(id = "light", bg = Color(0xFFF5F4F0), surface = Color.White, surface2 = Color(0xFFEBECE6),
+        line = Color(0xFFE4E7DE), text = Color(0xFF223B33), sub = Color(0xFF728177), me = Color(0xFF376F5A),
+        meInk = Color.White, partner = Color(0xFFAB6880), partnerInk = Color.White, glass = Color(0xF5FFFFFF))
+    fun of(id: String?) = when (id) { "pink" -> Pink; "light" -> Light; else -> Night }
 }
 
 /** Colores del tema activo. Cambiar [p] repinta toda la app. */
@@ -139,7 +142,8 @@ object Ic {
     val Home get() = icon("home", listOf("M3 10.5 12 3l9 7.5V21H3z", "M9 21v-6h6v6"))
     val Clock get() = icon("clock", listOf(circle(12f, 12f, 9f), "M12 7v5l3 2"))
     val Map get() = icon("map", listOf("M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z", "M9 4v14M15 6v14"))
-    val Gear get() = icon("gear", listOf(circle(12f, 12f, 3f), "M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"))
+    val More get() = icon("more", listOf(circle(5f,12f,1f),circle(12f,12f,1f),circle(19f,12f,1f)))
+    val Gear get() = icon("gear", listOf("M9.5 2h5l.6 2.4 2 .9 2.1-.7 2.5 4.3-1.6 1.7v2.8l1.6 1.7-2.5 4.3-2.1-.7-2 .9-.6 2.4h-5l-.6-2.4-2-.9-2.1.7-2.5-4.3 1.6-1.7v-2.8L2.3 8.9l2.5-4.3 2.1.7 2-.9.6-2.4", circle(12f,12f,4f)))
     val Live get() = icon("live", listOf(circle(12f, 12f, 2f), "M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.2a6 6 0 0 1 0-8.5M19.1 4.9a10 10 0 0 1 0 14.1M4.9 19.1a10 10 0 0 1 0-14.1"))
     val Nav get() = icon("nav", listOf("M3 11l19-9-9 19-2-8-8-2z"))
     val Plus get() = icon("plus", listOf("M12 5v14M5 12h14"))
@@ -160,6 +164,7 @@ object Ic {
     val Widget get() = icon("widget", listOf("M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"))
     val Info get() = icon("info", listOf(circle(12f, 12f, 9f), "M12 11v6M12 7.5v.01"))
     val Link get() = icon("link", listOf("M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1", "M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"))
+    val Mic get() = icon("microphone", listOf("M8 5a4 4 0 0 1 8 0v7a4 4 0 0 1-8 0V5z", "M4 11a8 8 0 0 0 16 0M12 19v4M8 23h8"))
     val Sparkle get() = icon("sparkle", listOf("M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"))
 }
 

@@ -8,6 +8,12 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +21,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -111,10 +122,17 @@ private fun Root(vm: MainViewModel) {
     if (!hasSession) { AuthScreen(vm, upgrade = false); return }
     if (account == null && !skipped) { AuthScreen(vm, upgrade = true); return }
     val ctx = LocalContext.current
+    val phoneRinging by com.tony.nosotros.find.PhoneFinder.ringing.collectAsState()
+    if (phoneRinging) androidx.compose.material3.AlertDialog(onDismissRequest = { com.tony.nosotros.find.PhoneFinder.stop() },
+        title = { Text("Encontrar teléfono") }, text = { Text("Se solicitó hacer sonar este teléfono desde una de sus cuentas.") },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { com.tony.nosotros.find.PhoneFinder.stop() }) { Text("Detener sonido") } })
     var update by remember { mutableStateOf<com.tony.nosotros.update.Updater.Release?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val versionPolicy by vm.pairInfo.collectAsState()
     val automaticUpdates = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.AUTO_UPDATES)
+    LaunchedEffect(versionPolicy.updateRequestAt) {
+        if (!vm.releaseBusy.value) runCatching { com.tony.nosotros.update.Updater.tryAutomatic(ctx.applicationContext, vm.pairId.value) }
+    }
     LaunchedEffect(automaticUpdates, versionPolicy.testVersion, versionPolicy.relVersion) {
         update = if (automaticUpdates && !vm.releaseBusy.value) runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() else null
     }
@@ -143,6 +161,7 @@ private fun Root(vm: MainViewModel) {
 private fun MainShell(vm: MainViewModel) {
     var tab by remember { mutableIntStateOf(0) }
     var settings by remember { mutableStateOf(false) }
+    var navDestination by remember { mutableStateOf<com.tony.nosotros.data.Routing.Hit?>(null) }
     var nav by remember { mutableStateOf(false) }
     var admin by remember { mutableStateOf(false) }
     /** Lugar en edición (nuevo o existente). */
@@ -161,7 +180,7 @@ private fun MainShell(vm: MainViewModel) {
     }
     if (nav) {
         BackHandler { nav = false }
-        NavScreen(vm) { nav = false }
+        NavScreen(vm, initialDestination = navDestination) { nav = false }
         return
     }
     if (admin) {
@@ -179,28 +198,31 @@ private fun MainShell(vm: MainViewModel) {
     Scaffold(
         containerColor = C.bg,
         bottomBar = {
-            NavigationBar(containerColor = C.surface, tonalElevation = 0.dp) {
-                val colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = C.me, selectedTextColor = C.me, indicatorColor = C.me.copy(alpha = 0.16f),
-                    unselectedIconColor = C.sub, unselectedTextColor = C.sub,
-                )
-                NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Ic.Map, null) }, label = { Text("Mapa", fontWeight = FontWeight.SemiBold) }, colors = colors)
-                NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Ic.Clock, null) }, label = { Text("Historial", fontWeight = FontWeight.SemiBold) }, colors = colors)
-                NavigationBarItem(tab == 2, { tab = 2 }, { Icon(Ic.Pin, null) }, label = { Text("Lugares", fontWeight = FontWeight.SemiBold) }, colors = colors)
-                if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.WALKIE) || LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.VOICE_NOTES))
-                    NavigationBarItem(tab == 4, { tab = 4 }, { Text("🎙") }, label = { Text("Voz") }, colors = colors)
-                NavigationBarItem(tab == 3, { tab = 3 }, { Icon(Ic.Heart, null) }, label = { Text("Fotos", fontWeight = FontWeight.SemiBold) }, colors = colors)
+            Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                NavigationBar(containerColor = C.surface.copy(alpha = .88f), tonalElevation = 0.dp,
+                    windowInsets = WindowInsets(0,0,0,0), modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth().height(72.dp)
+                        .clip(RoundedCornerShape(28.dp)).border(1.dp, C.line.copy(alpha = .6f), RoundedCornerShape(28.dp))) {
+                    val colors = NavigationBarItemDefaults.colors(selectedIconColor = C.me, selectedTextColor = C.me,
+                        indicatorColor = C.me.copy(alpha = .16f), unselectedIconColor = C.sub, unselectedTextColor = C.sub)
+                    val voiceAvailable = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.WALKIE) || LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.VOICE_NOTES)
+                    listOf(Triple(0, "Mapa", Ic.Map), Triple(5, "Encontrar", Ic.Locate), Triple(4, "Voz", Ic.Mic), Triple(6, "Más", Ic.More)).forEach { (id, label, icon) ->
+                        if (id != 4 || voiceAvailable) NavigationBarItem(tab == id, { tab = id }, { Icon(icon, null) },
+                            label = { Text(label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }, colors = colors)
+                    }
+                }
             }
         },
     ) { pad ->
-        Box(Modifier.fillMaxSize().padding(bottom = pad.calculateBottomPadding())) {
+        Box(Modifier.fillMaxSize().padding(bottom = if(tab == 0) 0.dp else pad.calculateBottomPadding())) {
             when (tab) {
-                0 -> HomeScreen(vm, onSettings = { settings = true }, onNavigate = { nav = true },
+                0 -> HomeScreen(vm, bottomInset = pad.calculateBottomPadding(), onSettings = { settings = true }, onNavigate = { navDestination = null; nav = true },
                     onAddPlace = { lat, lng -> editing = Place(lat = lat, lng = lng) },
                     onEditPlace = { editing = it })
                 1 -> HistoryScreen(vm)
                 3 -> PhotosScreen(vm)
                 4 -> VoiceScreen(vm)
+                5 -> FindScreen(vm, onSettings = { settings = true }, onDirections = { member -> navDestination = com.tony.nosotros.data.Routing.Hit(member.name,member.lat,member.lng); nav = true })
+                6 -> MoreScreen(onSettings = { settings = true }, onScreen = { tab = it })
                 else -> PlacesScreen(vm, onAdd = { picking = Place() }, onEdit = { editing = it })
             }
         }

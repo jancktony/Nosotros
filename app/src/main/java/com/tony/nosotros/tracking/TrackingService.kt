@@ -83,12 +83,22 @@ class TrackingService : Service() {
     private var lastUploadedMode = Mode.UNKNOWN
     private val motion = MotionDetector()
     private var anchor: Location? = null
+    private var stopHadRegisteredPlace = false
     private var lastWidgetUpdate = 0L
     private var policyKey = ""
     private var stillJob: Job? = null
     private var timerJob: Job? = null
     private var partnerJob: Job? = null
     private val notifiedEvents = HashSet<String>()
+    @Volatile private var unmetered = false
+    private val updateNetwork = object : android.net.ConnectivityManager.NetworkCallback() {
+        override fun onCapabilitiesChanged(network: android.net.Network, capabilities: android.net.NetworkCapabilities) {
+            val ready = capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+            if (ready && !unmetered) scope.launch { delay(1000); runCatching { autoUpdate() } }
+            unmetered = ready
+        }
+        override fun onLost(network: android.net.Network) { unmetered = false }
+    }
 
     private val callback = object : LocationCallback() {
         override fun onLocationResult(r: LocationResult) {
@@ -106,6 +116,7 @@ class TrackingService : Service() {
         trip = TripRecorder(prefs)
         engine = PlaceEngine(prefs, ::onArrive, ::onLeave, ::onSuggest)
         startInForeground()
+        runCatching { getSystemService(android.net.ConnectivityManager::class.java).registerDefaultNetworkCallback(updateNetwork) }
 
         pairId = prefs.pairId
         if (pairId == null || !App.firebaseConfigured) { stopSelf(); return }
@@ -113,6 +124,7 @@ class TrackingService : Service() {
             me = runCatching { Repo.ensureSignedIn() }.getOrNull()
             if (me == null) { stopSelf(); return@launch }
             listenFirebase()
+            com.tony.nosotros.find.PhoneFinder.listen(this@TrackingService, prefs, pairId!!, me!!)
             presence = com.tony.nosotros.presence.PresenceMonitor(this@TrackingService, prefs, scope, pairId!!, me!!).also { it.start() }
             registerActivityTransitions()
             applyPolicy(force = true)
@@ -128,7 +140,9 @@ class TrackingService : Service() {
 
     override fun onDestroy() {
         running = null
+        runCatching { getSystemService(android.net.ConnectivityManager::class.java).unregisterNetworkCallback(updateNetwork) }
         presence?.stop()
+        com.tony.nosotros.find.PhoneFinder.close()
         fused.removeLocationUpdates(callback)
         scope.cancel()
         super.onDestroy()
@@ -148,6 +162,7 @@ class TrackingService : Service() {
         }
         if (intent.getBooleanExtra(EXTRA_REFRESH, false)) {
             applyPolicy(force = true); requestOneFix(); presence?.refresh()
+            if (!prefs.allowFindPhone) com.tony.nosotros.find.PhoneFinder.stop()
         }
     }
 
@@ -175,6 +190,7 @@ class TrackingService : Service() {
             prefs.stillSince = now
             anchor = lastFix
             engine.onStill()
+            stopHadRegisteredPlace = engine.current != null
             requestOneFix()
             stillJob?.cancel()
             stillJob = scope.launch {
@@ -185,7 +201,10 @@ class TrackingService : Service() {
             stillJob?.cancel()
             if (wasStill) {
                 val since = prefs.stillSince
-                val fix = lastFix
+                val fix = anchor ?: lastFix
+                if(since > 0 && now-since >= 3*60_000L && fix != null && fix.accuracy <= 100 && !stopHadRegisteredPlace && engine.current == null && !isPaused()) {
+                    pairId?.let { pid -> Repo.recordStop(pid,since,now,fix.latitude,fix.longitude) }
+                }
                 if (since > 0 && fix != null) engine.onStayEnded(since, now, fix.latitude, fix.longitude)
                 prefs.stillSince = 0L
             }
@@ -318,14 +337,13 @@ class TrackingService : Service() {
         lastUpload = now; lastUploadedMode = mode
         val bm = getSystemService(BatteryManager::class.java)
         val fields = mutableMapOf<String, Any?>(
-            "name" to prefs.myName,
             "mode" to mode.name,
             "battery" to bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY),
             "charging" to bm.isCharging,
             "updatedAt" to now,
             "route" to if (trip.active) trip.tail() else "",
             "placeName" to engine.current?.name,
-            "saving" to lowBattery,
+            "saving" to lowBattery, "findPhoneEnabled" to prefs.allowFindPhone,
         )
         lastFix?.let {
             fields["lat"] = it.latitude; fields["lng"] = it.longitude
@@ -339,11 +357,12 @@ class TrackingService : Service() {
     // ---------------- Lugares ----------------
 
     private fun onArrive(p: Place) {
+        stopHadRegisteredPlace = true
         val pid = pairId ?: return
         finishTrip(p.name)
         Repo.addEvent(pid, "arrive", p.name)
         Repo.incrementVisits(pid, p.id)
-        prefs.currentVisitId = Repo.startVisit(pid, p.id, p.name)
+        prefs.currentVisitId = Repo.startVisit(pid, p.id, p.name, lastFix?.latitude ?: p.lat, lastFix?.longitude ?: p.lng)
         uploadStatus(force = true)
     }
 
@@ -420,6 +439,7 @@ class TrackingService : Service() {
         scope.launch {
             Repo.memberFlow(pid, uid).collect { m ->
                 if (m == null) return@collect
+                if (m.name.isNotBlank()) prefs.myName = m.name
                 var changed = false
                 if (m.liveRequestedUntil != liveUntil) { liveUntil = m.liveRequestedUntil; changed = true }
                 if (m.pausedUntil != pausedUntil) { pausedUntil = m.pausedUntil; changed = true }
@@ -463,13 +483,15 @@ class TrackingService : Service() {
         }
         scope.launch {
             var previousTarget: String? = null
+            var previousRequest = 0L
             Repo.pairInfoFlow(pid).collect {
                 prefs.featureModes = it.featureFlags; prefs.featureAdmin = it.admin == uid
                 presence?.refresh()
+                if (!prefs.featureEnabled(com.tony.nosotros.data.Feature.FIND_PHONE)) com.tony.nosotros.find.PhoneFinder.stop()
                 Widgets.updateAll(this@TrackingService)
                 val target = if (it.admin == uid) it.testVersion else it.relVersion
-                if (target != previousTarget) {
-                    previousTarget = target
+                if (target != previousTarget || it.updateRequestAt != previousRequest) {
+                    previousTarget = target; previousRequest = it.updateRequestAt
                     if (target != null) launch { runCatching { autoUpdate() } }
                 }
             }
@@ -512,12 +534,7 @@ class TrackingService : Service() {
     }
 
     /** Instala sola la versión que toca, una vez por versión y solo con Wi-Fi. */
-    private suspend fun autoUpdate() {
-        if (!prefs.featureEnabled(com.tony.nosotros.data.Feature.AUTO_UPDATES) || !prefs.autoUpdate || !com.tony.nosotros.update.Updater.onWifi(this)) return
-        val r = com.tony.nosotros.update.Updater.target(pairId) ?: return
-        if (prefs.autoUpdateTried == r.version) return
-        if (com.tony.nosotros.update.Updater.install(applicationContext, r)) prefs.autoUpdateTried = r.version
-    }
+    private suspend fun autoUpdate() { com.tony.nosotros.update.Updater.tryAutomatic(applicationContext, pairId) }
 
     private fun notifyPartnerEvent(e: EventItem) {
         if (e.type !in listOf("arrive", "leave") || !prefs.featureEnabled(com.tony.nosotros.data.Feature.PLACE_ALERTS)) return

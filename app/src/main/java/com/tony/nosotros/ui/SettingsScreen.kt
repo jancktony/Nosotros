@@ -98,7 +98,9 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
     var extreme by remember { mutableStateOf(p.extremeSaving) }
     var confirmUnlink by remember { mutableStateOf(false) }
     var confirmSignOut by remember { mutableStateOf(false) }
-    var category by rememberSaveable { mutableStateOf("General") }
+    var category by rememberSaveable { mutableStateOf<String?>(null) }
+    var allowFind by remember { mutableStateOf(p.allowFindPhone) }
+    var confirmFind by remember { mutableStateOf(false) }
     var lockDetails by remember { mutableStateOf(p.lockDetails) }
     val threeD by vm.map3d.collectAsState()
     val account by vm.account.collectAsState()
@@ -111,38 +113,38 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        androidx.activity.compose.BackHandler(enabled = category != null) { category = null }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Ic.Left, "Volver", tint = C.text) }
-            Text("Ajustes", style = MaterialTheme.typography.headlineMedium, color = C.text)
+            IconButton(onClick = { if (category == null) onBack() else category = null }) { Icon(Ic.Left, "Volver", tint = C.text) }
+            Text(category ?: "Tu espacio", style = MaterialTheme.typography.titleLarge, color = C.text, fontWeight = FontWeight.Bold)
         }
 
-        // Cabecera con los dos
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
-                .background(Brush.linearGradient(listOf(C.me.copy(alpha = 0.22f), C.partner.copy(alpha = 0.22f))))
-                .border(1.dp, C.line, RoundedCornerShape(22.dp)).padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Avatar(initialOf(p.myName, "Yo"), C.me, C.meInk, 48.dp, photo = me?.avatar ?: p.myAvatar)
-            Spacer(Modifier.width(6.dp))
-            Icon(Ic.Heart, null, tint = C.partner, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(6.dp))
-            Avatar(initialOf(partner?.name ?: "", "P"), C.partner, C.partnerInk, 48.dp, photo = partner?.avatar.orEmpty())
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text("${p.myName.ifBlank { "Tú" }} y ${partner?.name?.ifBlank { null } ?: "tu pareja"}",
-                    fontWeight = FontWeight.Bold, fontSize = 17.sp, color = C.text)
-                val s = Together.span(since)
-                Text(if (s != null) "${s.totalDays} días juntos" else "Agrega su fecha de aniversario", color = C.sub, fontSize = 14.sp)
+        if (category == null) {
+            SettingsHero(p.myName.ifBlank { "Tu espacio" }, "A tu manera, junto a ${partner?.name?.ifBlank { null } ?: "tu pareja"}") {
+                Avatar(initialOf(p.myName, "Yo"), C.me, C.meInk, 54.dp, photo = me?.avatar ?: p.myAvatar)
             }
-        }
-
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("General", "Perfil", "Actividad", "Ubicación", "Avisos", "Widgets", "Cuenta").forEach { title ->
-                Chip(title, category == title) { category = title }
-            }
-            if (isAdmin) Chip("Administración", false) { onAdmin() }
-        }
+            Text("PERSONALIZA TU EXPERIENCIA", color = C.sub, fontSize = 10.sp, letterSpacing = 1.5.sp, modifier = Modifier.padding(top = 12.dp))
+            listOf(
+                Triple("General", Ic.Palette, "Apariencia, mapa y actualizaciones"),
+                Triple("Perfil", Ic.User, "Tu foto, nombre y vehículo"),
+                Triple("Actividad", Ic.Sparkle, "Lo que decides compartir"),
+                Triple("Ubicación", Ic.Pin, "Privacidad, precisión y encontrar teléfono"),
+                Triple("Avisos", Ic.Bell, "Llegadas y salidas de sus lugares"),
+                Triple("Widgets", Ic.Widget, "Sus días juntos y la distancia"),
+                Triple("Cuenta", Ic.Link, "Vinculación y acceso seguro"),
+            ).forEach { (title, icon, description) -> SettingsLink(icon, title, description) { category = title } }
+            SettingsLink(Ic.Layers, "Panel web", "Encuentra tu teléfono desde cualquier dispositivo") { WebPanel.open(ctx) }
+            if (isAdmin) SettingsLink(Ic.Gear, "Administración", "Tus pruebas, versiones y funciones", C.partner, onAdmin)
+            Text("Creado por ${creatorInfo.creatorBrand} · ${com.tony.nosotros.BuildConfig.VERSION_NAME}", color = C.sub, fontSize = 11.sp, modifier = Modifier.padding(vertical = 12.dp))
+        } else SettingsHero(category.orEmpty(), when (category) {
+            "General" -> "Tu apariencia y tus preferencias"
+            "Perfil" -> "Así te verá tu pareja"
+            "Actividad" -> "Tu información, tus decisiones"
+            "Ubicación" -> "Conectados, con tu permiso"
+            "Widgets" -> "Un pedacito de ustedes en tu pantalla"
+            "Avisos" -> "Solo lo que te importa"
+            else -> "Tu acceso privado a Nosotros"
+        }, "TU ESPACIO")
 
         if (category == "Actividad") PresenceSettings(vm)
 
@@ -152,6 +154,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                 Text("Tema", color = C.sub, fontSize = 14.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ThemeTile("Noche", Palettes.Night, theme == "night", Modifier.weight(1f)) { vm.setTheme("night") }
+                    ThemeTile("Claro", Palettes.Light, theme == "light", Modifier.weight(1f)) { vm.setTheme("light") }
                     ThemeTile("Rosa", Palettes.Pink, theme == "pink", Modifier.weight(1f)) { vm.setTheme("pink") }
                 }
             }
@@ -165,7 +168,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
         // ---------- Nosotros ----------
         if (category == "General") {
             Section(Ic.Calendar, "Nuestro aniversario") {
-                val fmt = SimpleDateFormat("d 'de' MMMM 'de' yyyy · H:mm", Locale("es"))
+                val fmt = SimpleDateFormat("d 'de' MMMM 'de' yyyy · h:mm a", Locale("es"))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(if (since > 0) fmt.format(Date(since)) else "Sin fecha", fontWeight = FontWeight.SemiBold, color = C.text)
@@ -204,7 +207,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                     ActionButton("Reanudar ahora", C.me) { vm.resume() }
                 } else {
                     Text("Compartiendo con tu pareja", fontWeight = FontWeight.SemiBold, color = C.ok)
-                    Text("Pausar (tu pareja verá “en pausa” y recibirá un aviso):", color = C.sub, fontSize = 14.sp)
+                    Text("Pausar: tu pareja verá el estado en pausa.", color = C.sub, fontSize = 14.sp)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         val now = System.currentTimeMillis()
                         Chip("1 hora", false, icon = Ic.Pause) { vm.pause(now + 3_600_000) }
@@ -216,6 +219,25 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
             }
         }
 
+        if (category == "Ubicación") Section(Ic.Locate, "Encontrar este teléfono") {
+            Text("Consulta la última señal o solicita un sonido desde tu cuenta en la web. Necesita internet y Nosotros funcionando; respeta las pausas de ubicación.", color = C.sub, fontSize = 13.sp)
+            if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.FIND_PHONE) || allowFind)
+                Toggle("Permitir hacer sonar este teléfono", allowFind) { value ->
+                    if (value) confirmFind = true else {
+                        allowFind = false; p.allowFindPhone = false; com.tony.nosotros.find.PhoneFinder.stop()
+                        vm.pairId.value?.let { com.tony.nosotros.data.Repo.updateMe(it, mapOf("findPhoneEnabled" to false)) }; vm.refreshTracking()
+                    }
+                }
+            else Text("El administrador todavía no habilitó esta función.", color = C.sub, fontSize = 13.sp)
+            ActionButton("Abrir panel web", C.me) { WebPanel.open(ctx) }
+        }
+        if (confirmFind) AlertDialog(onDismissRequest = { confirmFind = false }, title = { Text("¿Permitir encontrar este teléfono?") },
+            text = { Text("Sus dos cuentas podrán solicitar un sonido de hasta 30 segundos desde la web. No cambia el volumen ni omite los controles de Android. Puedes apagar esta opción aquí.") },
+            confirmButton = { TextButton(onClick = {
+                allowFind = true; p.allowFindPhone = true; confirmFind = false
+                vm.pairId.value?.let { com.tony.nosotros.data.Repo.updateMe(it, mapOf("findPhoneEnabled" to true)) }; vm.refreshTracking()
+            }) { Text("Permitir en este teléfono") } }, dismissButton = { TextButton(onClick = { confirmFind = false }) { Text("Cancelar") } })
+
         // ---------- Avisos ----------
         if (category == "Avisos") {
             Section(Ic.Bell, "Avisos que recibo") {
@@ -226,6 +248,12 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                 Divider()
                 if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.LOCK_DETAILS)) Toggle("Mostrar lugar y acción en pantalla de bloqueo", lockDetails) { lockDetails = it; p.lockDetails = it }
                 Text("Los avisos muestran llegó o salió y el lugar. Samsung también debe permitir mostrar el contenido de las notificaciones.", color = C.sub, fontSize = 13.sp)
+                ActionButton("Ocultar aviso fijo", C.sub) {
+                    ctx.startActivity(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName)
+                        .putExtra(Settings.EXTRA_CHANNEL_ID, com.tony.nosotros.App.CH_TRACKING))
+                }
+                Text("Oculta solo la categoría de segundo plano para conservar llegadas y salidas. Android puede mantener el indicador en Aplicaciones activas.", color = C.sub, fontSize = 12.sp)
                 ActionButton("Abrir ajustes de notificaciones", C.sub) {
                     ctx.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName))
                 }
@@ -259,6 +287,10 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
         // ---------- Widgets ----------
         if (category == "Widgets") {
             Section(Ic.Widget, "Widgets") {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    WidgetPreview("Días juntos", Together.span(since)?.totalDays?.toString() ?: "—", C.partner, Modifier.weight(1f))
+                    WidgetPreview("Distancia", "Tú + yo", C.me, Modifier.weight(1f))
+                }
                 Text("Elige el tamaño normal o compacto para mostrar la distancia y sus días juntos.",
                     color = C.sub, fontSize = 14.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -269,7 +301,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                     if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.COMPACT_WIDGETS)) ActionButton("Distancia compacta", C.me, Modifier.weight(1f)) { pinWidget(ctx, CompactDistanceWidget::class.java) }
                     if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.COMPACT_WIDGETS)) ActionButton("Días compactos", C.partner, Modifier.weight(1f)) { pinWidget(ctx, DaysWidget::class.java) }
                 }
-                Text("Estos botones añaden widgets al inicio. Para el bloqueo en Samsung: mantén pulsada la pantalla bloqueada → Widgets. Si Nosotros no aparece, usa Good Lock → LockStar → widgets, si tu modelo lo permite. Los miniwidgets del editor de Samsung dependen de One UI y de las apps que Samsung admita.", color = C.sub, fontSize = 13.sp)
+                HelpDisclosure("Widgets en la pantalla de bloqueo", "Estos botones añaden widgets al inicio. Para el bloqueo en Samsung: mantén pulsada la pantalla bloqueada → Widgets. Si Nosotros no aparece, usa Good Lock → LockStar → widgets, si tu modelo lo permite. Los miniwidgets del editor de Samsung dependen de One UI y de las apps que Samsung admita.")
                 ActionButton("Abrir Good Lock", C.sub) {
                     val launch = ctx.packageManager.getLaunchIntentForPackage("com.samsung.android.goodlock")
                     runCatching { ctx.startActivity(launch ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://galaxystore.samsung.com/detail/com.samsung.android.goodlock"))) }
@@ -279,6 +311,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
         }
 
         if (category == "General") {
+            SettingsLink(Ic.Layers, "Abrir panel web", "Mapa, teléfonos y tus herramientas") { WebPanel.open(ctx) }
             Section(Ic.Sparkle, "Actualizaciones") {
                 if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MANUAL_UPDATES)) UpdateControls(vm.pairId.value)
                 if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.AUTO_UPDATES)) Toggle("Instalar versiones nuevas sola (con Wi-Fi)", autoUpdate) { autoUpdate = it; p.autoUpdate = it }
@@ -395,9 +428,8 @@ private fun pinWidget(ctx: Context, cls: Class<*>) {
 @Composable
 fun Section(icon: ImageVector, title: String, content: @Composable () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.surface)
-            .border(1.dp, C.line, RoundedCornerShape(20.dp)).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(C.surface).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(15.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(C.me.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {

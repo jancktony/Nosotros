@@ -15,6 +15,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import com.tony.nosotros.util.RouteProgress
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,8 +57,9 @@ import com.tony.nosotros.util.TimeFmt
 import kotlinx.coroutines.launch
 
 /** Buscar una dirección y ver la ruta paso a paso, a pie o en vehículo. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
+fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClose: () -> Unit) {
     val me by vm.me.collectAsState()
     val partner by vm.partner.collectAsState()
     val satellite by vm.satellite.collectAsState()
@@ -63,14 +70,22 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
 
     var query by remember { mutableStateOf("") }
     var hits by remember { mutableStateOf<List<Routing.Hit>?>(null) }
-    var dest by remember { mutableStateOf<Routing.Hit?>(null) }
+    var dest by remember(initialDestination) { mutableStateOf(initialDestination) }
     var foot by remember { mutableStateOf(true) }
     var route by remember { mutableStateOf<Routing.Route?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var navigating by remember { mutableStateOf(false) }
+    var follow by remember { mutableStateOf(true) }
+    var along by remember { mutableStateOf(0.0) }
+    var offRoute by remember { mutableStateOf(false) }
+    var arrived by remember { mutableStateOf(false) }
     var fitKey by remember { mutableIntStateOf(0) }
 
-    val myPt = me?.takeIf { it.hasLocation }?.let { Pt(it.lat, it.lng) }
+    val localFix = navigationLocation(navigating)
+    val sharedPt = me?.takeIf { it.hasLocation }?.let { Pt(it.lat, it.lng) }
+
+    val myPt = localFix?.let { Pt(it.latitude,it.longitude) } ?: sharedPt
 
     fun search() {
         keyboard.clearFocus()
@@ -82,11 +97,11 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
         }
     }
 
-    LaunchedEffect(dest, foot) {
+    LaunchedEffect(dest, foot, myPt != null) {
         val d = dest ?: return@LaunchedEffect
         val from = myPt
         if (from == null) { error = "Aún no tengo tu ubicación."; return@LaunchedEffect }
-        busy = true; error = null; route = null
+        navigating = false; along = 0.0; arrived = false; busy = true; error = null; route = null
         route = Routing.route(from, Pt(d.lat, d.lng), foot)
         if (route == null) error = "No pude calcular la ruta. Revisa tu internet."
         busy = false; fitKey++
@@ -94,7 +109,7 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
 
     val people = buildList {
         me?.takeIf { it.hasLocation }?.let {
-            add(MapPerson(it.uid, initialOf(it.name, "Yo"), C.me.toArgb(), C.meInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt(), it.avatar))
+            add(MapPerson(it.uid, initialOf(it.name, "Yo"), C.me.toArgb(), C.meInk.toArgb(), (localFix?.latitude ?: it.lat), (localFix?.longitude ?: it.lng), it.mode, it.paused, it.speedKmh.toInt(), it.avatar))
         }
         partner?.takeIf { it.hasLocation }?.let {
             add(MapPerson(it.uid, initialOf(it.name, "P"), C.partner.toArgb(), C.partnerInk.toArgb(), it.lat, it.lng, it.mode, it.paused, it.speedKmh.toInt(), it.avatar))
@@ -102,21 +117,39 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
     }
     val r = route
 
-    Box(Modifier.fillMaxSize().background(C.bg)) {
+    val now by vm.tick.collectAsState()
+    val fresh = localFix?.let { now-it.time in 0..15_000 && it.accuracy<=80 } ?: me?.let { !it.paused && it.updatedAt > 0 && now-it.updatedAt in 0..60_000 && it.acc <= 80 } == true
+    LaunchedEffect(me?.updatedAt, localFix?.time, navigating, route) {
+        val current = route ?: return@LaunchedEffect
+        val point = myPt ?: return@LaunchedEffect
+        if(!navigating || !fresh)return@LaunchedEffect
+        val fix = RouteProgress.locate(current.points,point) ?: return@LaunchedEffect
+        offRoute = fix.awayM > 80
+        if(!offRoute){
+            along = maxOf(along,fix.alongM)
+            val end=current.points.lastOrNull()
+            arrived = end!=null && com.tony.nosotros.util.Geo.dist(point.lat,point.lng,end.lat,end.lng)<25 && along>=current.distanceM-60
+            if(follow)fitKey++
+        }
+    }
+    val nextIndex = r?.let { RouteProgress.nextStep(it.steps.map { step -> step.distanceM },along) } ?: 0
+    BoxWithConstraints(Modifier.fillMaxSize().background(C.bg)) {
+        val short = maxHeight < 500.dp
         LiveMap(
             modifier = Modifier.fillMaxSize(),
             people = people,
             routes = r?.let { listOf(MapRoute("nav", it.points, C.me.toArgb())) } ?: emptyList(),
             fitKey = fitKey,
-            focus = r?.points ?: myPt?.let { listOf(it) },
+            focus = if(navigating && follow) myPt?.let { listOf(it) } else r?.points ?: myPt?.let { listOf(it) },
             satellite = satellite, threeD = threeD,
-            topInsetPx = with(density) { 150.dp.roundToPx() },
-            bottomInsetPx = with(density) { (if (r != null) 300 else 0).dp.roundToPx() },
+            topInsetPx = with(density) { (if(navigating) 110 else 150).dp.roundToPx() },
+            bottomInsetPx = with(density) { (if (r != null) if(short) 140 else 230 else 0).dp.roundToPx() },
+            onGesture = { if(navigating)follow=false },
             onLongPress = { lat, lng -> dest = Routing.Hit("Punto elegido en el mapa", lat, lng); hits = null },
         )
 
         Column(Modifier.statusBarsPadding().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
+            if(!navigating) Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.surface).padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -129,13 +162,25 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
                 )
                 IconButton(onClick = { search() }, enabled = query.isNotBlank()) { Icon(Ic.Nav, "Buscar", tint = C.me) }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if(!navigating) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Chip("A pie", foot, icon = Ic.Walk) { foot = true }
                 Chip("Carro / moto", !foot, icon = Ic.Car) { foot = false }
                 partner?.takeIf { it.hasLocation && !it.paused }?.let { p ->
                     Chip("Ir donde ${p.name.ifBlank { "mi pareja" }}", false, C.partner, Ic.Heart) {
                         dest = Routing.Hit(p.name.ifBlank { "Tu pareja" }, p.lat, p.lng); hits = null
                     }
+                }
+            }
+            if(navigating) {
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.surface).padding(14.dp), verticalAlignment=Alignment.CenterVertically) {
+                    Icon(Ic.Nav,null,tint=C.me,modifier=Modifier.size(32.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        val toTurn = r?.steps?.take(nextIndex)?.sumOf { it.distanceM }?.minus(along)?.coerceAtLeast(0.0) ?: 0.0
+                        Text(when { !fresh -> "Esperando ubicación reciente"; offRoute -> "Fuera de la ruta"; arrived -> "Llegaste a tu destino"; else -> "En ${TimeFmt.km(toTurn)}" },color=C.me)
+                        Text(if(arrived)dest?.name.orEmpty() else r?.steps?.getOrNull(nextIndex)?.text.orEmpty(), color=C.text,style=androidx.compose.material3.MaterialTheme.typography.titleMedium)
+                    }
+                    if(!follow) TextButton(onClick={follow=true;fitKey++}){Text("Centrar")}
                 }
             }
             if (busy) Note("Buscando…")
@@ -157,7 +202,7 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
                     }
                 }
             }
-            if (dest == null && hits == null && !busy)
+            if (!navigating && dest == null && hits == null && !busy)
                 Note("Escribe una dirección, o mantén presionado el mapa para elegir un punto.")
         }
 
@@ -170,14 +215,20 @@ fun NavScreen(vm: MainViewModel, onClose: () -> Unit) {
                 Icon(if (foot) Ic.Walk else Mode.CAR.icon(), null, tint = C.me, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("${minutes(r.seconds)} · ${TimeFmt.km(r.distanceM)}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = C.text)
+                    Text("${minutes(if(navigating)r.seconds*(1-along/r.distanceM.coerceAtLeast(1.0)).coerceIn(0.0,1.0) else r.seconds)} · ${TimeFmt.km((r.distanceM-along).coerceAtLeast(0.0))}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = C.text)
                     Text(dest?.name ?: "", color = C.sub, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                IconButton(onClick = { dest = null; route = null }) { Icon(Ic.Close, "Quitar ruta", tint = C.sub) }
+                IconButton(onClick = { navigating=false; arrived=false; along=0.0; dest = null; route = null }) { Icon(Ic.Close, "Quitar ruta", tint = C.sub) }
             }
-            if (foot) Text("Ruta por calles principales cuando es posible. Mantente en zonas iluminadas y con gente.",
+            if(!navigating) Button(onClick={navigating=true;follow=true;fitKey++},enabled=fresh,modifier=Modifier.fillMaxWidth()){Text(if(fresh)"Iniciar navegación" else "Necesito una ubicación reciente")}
+            if(navigating && offRoute) TextButton(onClick={dest=dest?.copy(); navigating=false; scope.launch {
+                val origin=myPt ?: return@launch;val goal=dest ?: return@launch;busy=true
+                route=Routing.route(origin,Pt(goal.lat,goal.lng),foot);along=0.0;offRoute=false;busy=false;fitKey++
+                if(route==null)error="No se pudo recalcular. Revisa tu conexión."
+            }}){Text("Recalcular ruta desde aquí")}
+            if (!navigating && foot && !short) Text("Ruta por calles principales cuando es posible. Mantente en zonas iluminadas y con gente.",
                 color = C.warn, fontSize = 12.sp)
-            LazyColumn(Modifier.heightIn(max = 190.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if(!navigating && !short) LazyColumn(Modifier.heightIn(max = 130.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 itemsIndexed(r.steps) { i, s ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${i + 1}", color = C.me, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.width(26.dp))

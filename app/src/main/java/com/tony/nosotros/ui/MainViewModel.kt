@@ -133,12 +133,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { adminMessage.value = "No se pudo guardar la marca." }
     }
     val newCode = MutableStateFlow<String?>(null)
-    fun release(r: com.tony.nosotros.update.Updater.Release) = viewModelScope.launch {
+    fun release(r: com.tony.nosotros.update.Updater.Release, force: Boolean = false, metered: Boolean = false) = viewModelScope.launch {
         val id = pairId.value ?: return@launch
         if (!isAdmin.value) return@launch
         if (releaseReviews.value[r.version]?.state != "approved") { adminMessage.value = "Aprueba tu prueba primero."; return@launch }
-        runCatching { Repo.setRelease(id, r.version, r.apkUrl, r.notes) }
-            .onSuccess { adminMessage.value = "Versión ${r.version} habilitada para tu pareja." }
+        runCatching { Repo.setRelease(id, r.version, r.apkUrl, r.notes, force, metered) }
+            .onSuccess { adminMessage.value = if (force) "Instalación solicitada a tu pareja. Android puede pedir confirmación." else "Versión ${r.version} liberada para tu pareja." }
             .onFailure { adminMessage.value = "No se pudo liberar la versión. Revisa la conexión." }
     }
     fun giveAdmin() { val p = pairId.value ?: return; partnerUid.value?.let { Repo.setAdmin(p, it) } }
@@ -149,9 +149,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { error.value = "No se pudo regenerar el código." }
     }
 
+    private val olderPhotos = MutableStateFlow<List<com.tony.nosotros.data.Photo>>(emptyList())
+    private val recentPhotos = pairId.flatMapLatest { it?.let { Repo.photosFlow(it) } ?: flowOf(emptyList()) }
     val photos: StateFlow<List<com.tony.nosotros.data.Photo>> = StateFlowOf(
-        pairId.flatMapLatest { it?.let { Repo.photosFlow(it) } ?: flowOf(emptyList()) }, emptyList()
-    )
+        combine(recentPhotos, olderPhotos) { latest, older -> (latest + older).distinctBy { it.id }.sortedWith(compareByDescending<com.tony.nosotros.data.Photo> { it.at }.thenByDescending { it.id }) }, emptyList())
+    val morePhotosBusy = MutableStateFlow(false)
+    val morePhotosAvailable = MutableStateFlow(true)
+    init { viewModelScope.launch { pairId.collect { olderPhotos.value = emptyList(); morePhotosAvailable.value = true } } }
+    fun loadOlderPhotos() = viewModelScope.launch {
+        val p = pairId.value ?: return@launch
+        val last = photos.value.lastOrNull() ?: return@launch
+        if (morePhotosBusy.value) return@launch
+        morePhotosBusy.value = true
+        runCatching { Repo.olderPhotos(p, last) }.onSuccess {
+            if (pairId.value == p) { olderPhotos.value = (olderPhotos.value + it).distinctBy { photo -> photo.id }; morePhotosAvailable.value = it.size == 40 }
+        }.onFailure { error.value = "No se pudieron cargar recuerdos anteriores. Revisa la conexión." }
+        morePhotosBusy.value = false
+    }
     val sending = MutableStateFlow(false)
     fun sendPhoto(thumb: ByteArray, full: ByteArray, caption: String) = viewModelScope.launch {
         val p = pairId.value ?: return@launch
@@ -161,7 +175,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { error.value = "No se pudo enviar la foto" }
         sending.value = false
     }
-    fun deletePhoto(id: String) { pairId.value?.let { Repo.deletePhoto(it, id) } }
+    fun deletePhoto(id: String) { olderPhotos.value = olderPhotos.value.filterNot { it.id == id }; pairId.value?.let { Repo.deletePhoto(it, id) } }
     suspend fun fullPhoto(id: String): ByteArray? = pairId.value?.let { Repo.fullPhoto(it, id) }
 
     val since: StateFlow<Long> = StateFlowOf(
@@ -326,12 +340,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val adminMessage = MutableStateFlow<String?>(null)
     // ---------- Perfil ----------
-    fun setName(name: String) { prefs.myName = name.trim(); pushProfile() }
+    fun setName(name: String) {
+        prefs.myName = name.trim()
+        pairId.value?.let { Repo.updateMe(it, mapOf("name" to prefs.myName)) }
+    }
     fun setVehicle(m: Mode) { prefs.vehicle = m }
 
     private fun pushProfile() {
         val p = pairId.value ?: return
-        Repo.updateMe(p, mapOf("name" to prefs.myName, "appVersion" to com.tony.nosotros.BuildConfig.VERSION_NAME))
+        viewModelScope.launch {
+            val user = uid.value ?: return@launch
+            val remote = runCatching { Repo.db.collection("pairs").document(p).collection("members").document(user)
+                .get(com.google.firebase.firestore.Source.SERVER).await().getString("name") }
+            val existing = remote.getOrNull()
+            if (!existing.isNullOrBlank()) prefs.myName = existing
+            val fields = mutableMapOf<String, Any?>("appVersion" to com.tony.nosotros.BuildConfig.VERSION_NAME)
+            if (remote.isSuccess && existing.isNullOrBlank()) fields["name"] = prefs.myName
+            Repo.updateMe(p, fields)
+        }
     }
 
     // ---------- Acciones ----------

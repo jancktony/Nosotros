@@ -19,7 +19,7 @@ data class Presence(val sharing: Boolean = false, val label: String = "", val st
     fun fresh(now: Long, sleep: Boolean) = sharing && updatedAt > 0 && now - updatedAt in 0..(if (sleep) 12 * 60_000L else 3 * 60_000L)
     fun text(now: Long, sleep: Boolean): String? {
         if (!fresh(now, sleep)) return null
-        if (!sleep) return label.takeIf { it.isNotBlank() }?.let { "Última app detectada: $it" }
+        if (!sleep) return label.takeIf { it.isNotBlank() }?.let { if (now - updatedAt <= 45_000) "Usando $it · detección reciente" else "Última app detectada: $it · hace ${(now-updatedAt)/60_000} min" }
         val minutes = ((now - since).coerceAtLeast(0) / 60_000).toInt()
         val duration = if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
         return when (state) {

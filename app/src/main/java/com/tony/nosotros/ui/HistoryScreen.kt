@@ -45,6 +45,7 @@ import com.tony.nosotros.util.TimeFmt
 @Composable
 fun HistoryScreen(vm: MainViewModel) {
     val day by vm.historyDay.collectAsState()
+    val places by vm.places.collectAsState()
     val trips by vm.dayTrips.collectAsState()
     val visits by vm.dayVisits.collectAsState()
     val uid by vm.uid.collectAsState()
@@ -60,9 +61,9 @@ fun HistoryScreen(vm: MainViewModel) {
     val whoTrips = trips.filter { it.uid == who }
     val totalKm = whoTrips.sumOf { it.distanceM }
 
-    Column(Modifier.fillMaxSize().background(C.bg).statusBarsPadding()) {
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text("Historial", style = MaterialTheme.typography.headlineMedium)
+    LazyColumn(Modifier.fillMaxSize().background(C.bg).statusBarsPadding(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
+        item { Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SettingsHero("Su recorrido", "Un día a la vez, sus lugares y sus momentos.", "LO QUE VIVIERON")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { vm.historyDay.value = day - 1 }) { Icon(Ic.Left, "Día anterior", tint = C.text) }
                 Text(TimeFmt.niceDayOffset(day), Modifier.weight(1f), fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
@@ -71,25 +72,27 @@ fun HistoryScreen(vm: MainViewModel) {
                     Icon(Ic.Right, "Día siguiente", tint = if (day < 0) C.text else C.sub.copy(alpha = 0.3f))
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Chip(partner?.name?.ifBlank { null } ?: "Pareja", !showMe, C.partner) { showMe = false }
-                Chip(me?.name?.ifBlank { null } ?: "Yo", showMe, C.me) { showMe = true }
-            }
+            val personName = partner?.name?.ifBlank { null } ?: "Pareja"
+            PanelTabs(listOf(personName, "Yo"), if (showMe) "Yo" else personName) { showMe = it == "Yo" }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Stat("Trayectos", "${whoTrips.size}", Modifier.weight(1f))
                 Stat("Distancia", TimeFmt.km(totalKm), Modifier.weight(1f))
                 Stat("Lugares", "${visits.count { it.uid == who }}", Modifier.weight(1f))
             }
         }
-        LazyColumn(
-            Modifier.fillMaxSize(), state = rememberLazyListState(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-        ) {
-            if (items.isEmpty()) item { Text("Sin movimientos este día.", color = C.sub, modifier = Modifier.padding(top = 24.dp)) }
-            items(items, key = { if (it is TimelineItem.T) "t" + it.t.id else "v" + (it as TimelineItem.V).v.id }) { item ->
-                TimelineRow(item, accent, onClick = if (item is TimelineItem.T) ({ openTrip = item.t }) else null)
-            }
         }
+            if (items.isEmpty()) item { SettingsHero("Un día tranquilo", "Aquí aparecerán sus recorridos y visitas cuando haya movimientos.", "SU HISTORIA") }
+            items(items, key = { if (it is TimelineItem.T) "t" + it.t.id else "v" + (it as TimelineItem.V).v.id }) { item ->
+                Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    TimelineRow(item, accent, onClick = if (item is TimelineItem.T) ({ openTrip = item.t }) else null)
+                    if (item is TimelineItem.V) {
+                        val visit = item.v
+                        val place = places.firstOrNull { it.id == visit.placeId }
+                        StopAddress(if (visit.lat != null && visit.lng != null) com.tony.nosotros.util.Pt(visit.lat,visit.lng)
+                            else place?.let { com.tony.nosotros.util.Pt(it.lat,it.lng) })
+                    }
+                }
+            }
     }
 
     openTrip?.let { t ->

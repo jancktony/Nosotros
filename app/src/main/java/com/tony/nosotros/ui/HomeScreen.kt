@@ -16,11 +16,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberStandardBottomSheetState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.derivedStateOf
+import kotlinx.coroutines.launch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -61,7 +67,7 @@ private enum class Focus { BOTH, ME, PARTNER }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit, onAddPlace: (Double, Double) -> Unit, onEditPlace: (Place) -> Unit) {
+fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.dp, onSettings: () -> Unit, onNavigate: () -> Unit, onAddPlace: (Double, Double) -> Unit, onEditPlace: (Place) -> Unit) {
     val me by vm.me.collectAsState()
     val partner by vm.partner.collectAsState()
     val places by vm.places.collectAsState()
@@ -84,7 +90,9 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
     var liveRequested by remember { mutableStateOf(0L) }
     var selectedPerson by remember { mutableStateOf<String?>(null) }
     var selectedPlace by remember { mutableStateOf<String?>(null) }
-    val sheet = rememberBottomSheetScaffoldState()
+    val sheet = rememberBottomSheetScaffoldState(bottomSheetState = rememberStandardBottomSheetState(skipHiddenState = false))
+    val scope = rememberCoroutineScope()
+    val sheetHidden by remember { derivedStateOf { sheet.bottomSheetState.currentValue == SheetValue.Hidden || sheet.bottomSheetState.targetValue == SheetValue.Hidden } }
     // Hora estimada de llegada de la pareja mientras se mueve
     var eta by remember { mutableStateOf<Eta.Result?>(null) }
     val partnerMoving = partner?.let { !it.paused && it.mode.moving && it.speedKmh >= 3 } == true
@@ -122,7 +130,7 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
 
     BottomSheetScaffold(
         scaffoldState = sheet,
-        sheetPeekHeight = 250.dp,
+        sheetPeekHeight = 88.dp + bottomInset,
         sheetContainerColor = C.surface,
         sheetContentColor = C.text,
         sheetShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
@@ -131,12 +139,13 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
         },
         containerColor = C.bg,
         sheetContent = {
-            PartnerSheet(
+            Box(Modifier.padding(bottom = bottomInset)) { PartnerSheet(
                 partner = partner, partnerUid = partnerUid, distance = distance, since = since,
                 timeline = buildTimeline(visits, trips, partnerUid),
                 liveRequested = liveRequested, eta = eta, leftName = lastLeft?.placeName, leftAt = lastLeft?.end ?: 0L,
+                activity = listOfNotNull(otherApp.text(presenceNow, false)?.let { "${partner?.name?.ifBlank { null } ?: "Pareja"}: $it" }, otherSleep.text(presenceNow,true), myApp.text(presenceNow,false)?.let { "Yo: $it" }, mySleep.text(presenceNow,true)?.let { "Yo: $it" }),
                 onLive = { vm.requestLive(); liveRequested = System.currentTimeMillis(); focus = Focus.PARTNER; fitKey++ },
-            )
+            ) }
         },
     ) { _ ->
         Box(Modifier.fillMaxSize()) {
@@ -144,35 +153,26 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
                 modifier = Modifier.fillMaxSize(),
                 people = people, places = places, routes = routes, fitKey = fitKey, focus = focusPts,
                 satellite = satellite, threeD = threeD,
-                topInsetPx = with(density) { 150.dp.roundToPx() },
-                bottomInsetPx = with(density) { 250.dp.roundToPx() },
+                topInsetPx = with(density) { 80.dp.roundToPx() },
+                bottomInsetPx = with(density) { (bottomInset + if (sheetHidden) 0.dp else 88.dp).roundToPx() },
                 onLongPress = onAddPlace,
                 onPersonTap = { selectedPerson = it; selectedPlace = null },
                 onPlaceTap = { selectedPlace = it; selectedPerson = null },
                 onMapTap = { selectedPerson = null; selectedPlace = null },
+                onGesture = {
+                    selectedPerson = null; selectedPlace = null
+                    if (sheet.bottomSheetState.targetValue != SheetValue.Hidden) scope.launch { sheet.bottomSheetState.hide() }
+                },
             )
             Column(Modifier.statusBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                TopBar(me, partner, distance, onSettings)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    MapChip("Ambos", focus == Focus.BOTH) { focus = Focus.BOTH; fitKey++ }
-                    MapChip("Yo", focus == Focus.ME, C.me) { focus = Focus.ME; fitKey++ }
-                    MapChip(partner?.name?.ifBlank { null } ?: "Pareja", focus == Focus.PARTNER, C.partner) { focus = Focus.PARTNER; fitKey++ }
-                }
-            }
-            val activityLines = listOfNotNull(
-                otherApp.text(presenceNow, false)?.let { "${partner?.name?.ifBlank { null } ?: "Pareja"}: $it" },
-                otherSleep.text(presenceNow, true),
-                myApp.text(presenceNow, false)?.let { "Yo: $it" },
-                mySleep.text(presenceNow, true)?.let { "Yo: $it" },
-            )
-            if (activityLines.isNotEmpty()) Column(Modifier.align(Alignment.TopStart).statusBarsPadding()
-                .padding(top = 112.dp, start = 14.dp, end = 72.dp).clip(RoundedCornerShape(14.dp))
-                .background(C.surface).padding(10.dp)) {
-                activityLines.forEach { Text(it, color = C.text, fontSize = 12.sp) }
+                TopBar(me, partner, distance, onSettings,
+                    onMe = { focus = Focus.ME; fitKey++; selectedPerson = me?.uid },
+                    onPartner = { focus = Focus.PARTNER; fitKey++; scope.launch { sheet.bottomSheetState.expand() } },
+                    onBoth = { focus = Focus.BOTH; fitKey++ })
             }
             // Botones flotantes a la derecha
             Column(
-                Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 266.dp),
+                Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = bottomInset + if (sheetHidden) 16.dp else 104.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 RoundButton(Ic.Nav, "Buscar dirección y ruta", onNavigate)
@@ -182,6 +182,10 @@ fun HomeScreen(vm: MainViewModel, onSettings: () -> Unit, onNavigate: () -> Unit
                     .clip(RoundedCornerShape(18.dp)).background(C.surface)) {
                     Text(if (threeD) "2D" else "3D", color = C.me, fontWeight = FontWeight.Bold)
                 }
+            }
+            if (sheetHidden) TextButton(onClick = { scope.launch { sheet.bottomSheetState.expand() } },
+                modifier = Modifier.align(Alignment.BottomStart).padding(start=16.dp,end=16.dp,top=16.dp,bottom=16.dp+bottomInset).clip(RoundedCornerShape(24.dp)).background(C.glass)) {
+                Text("Ver a ${partner?.name?.ifBlank { null } ?: "tu pareja"}  ↑", color = C.text, fontWeight = FontWeight.SemiBold)
             }
             if (people.isEmpty()) {
                 Text(
@@ -225,29 +229,25 @@ private fun MapChip(text: String, selected: Boolean, color: Color = C.text, onCl
 }
 
 @Composable
-private fun TopBar(me: Member?, partner: Member?, distance: Double?, onSettings: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Row(
-            Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(28.dp)).background(C.glass)
-                .border(1.dp, C.line, RoundedCornerShape(28.dp)).padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Avatar(initialOf(me?.name ?: "", "Yo"), C.me, C.meInk, 38.dp, photo = me?.avatar.orEmpty())
-            Box(Modifier.offset(x = (-10).dp)) {
-                Avatar(initialOf(partner?.name ?: "", "P"), C.partner, C.partnerInk, 38.dp, dim = partner?.paused == true, photo = partner?.avatar.orEmpty())
-            }
-            Column(Modifier.weight(1f)) {
-                Text("Nosotros", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = C.text)
-                val status = when {
-                    partner == null -> "Esperando a tu pareja"
-                    partner.paused -> "${partner.name.ifBlank { "Tu pareja" }} en pausa"
-                    distance != null -> "Están a ${TimeFmt.km(distance)}"
-                    else -> "Compartiendo en vivo"
-                }
-                Text(status, color = C.sub, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+private fun TopBar(me: Member?, partner: Member?, distance: Double?, onSettings: () -> Unit,
+                   onMe: () -> Unit, onPartner: () -> Unit, onBoth: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+        @Composable fun Profile(member: Member?, mine: Boolean, onClick: () -> Unit) {
+            val accent = if (mine) C.me else C.partner
+            Row(Modifier.clip(RoundedCornerShape(24.dp)).background(C.glass).clickable(onClick = onClick)
+                .padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Avatar(initialOf(member?.name.orEmpty(), if (mine) "Yo" else "P"), accent,
+                    if (mine) C.meInk else C.partnerInk, 30.dp, photo = member?.avatar.orEmpty())
+                Text(if (mine) "Yo" else member?.name?.ifBlank { null } ?: "Pareja", color = C.text, fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 72.dp).padding(horizontal = 7.dp))
             }
         }
-        Spacer(Modifier.width(10.dp))
+        Profile(me, true, onMe); Profile(partner, false, onPartner)
+        TextButton(onClick = onBoth, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
+            Text(distance?.let { TimeFmt.km(it) } ?: "Ambos", color = C.text, fontSize = 11.sp)
+        }
+        Spacer(Modifier.weight(1f))
         RoundButton(Ic.Gear, "Ajustes", onSettings)
     }
 }
@@ -310,7 +310,7 @@ private fun statusLine(m: Member): String = when {
 @Composable
 private fun PartnerSheet(
     partner: Member?, partnerUid: String?, distance: Double?, since: Long, timeline: List<TimelineItem>,
-    liveRequested: Long, eta: Eta.Result?, leftName: String?, leftAt: Long, onLive: () -> Unit,
+    liveRequested: Long, eta: Eta.Result?, leftName: String?, leftAt: Long, activity: List<String>, onLive: () -> Unit,
 ) {
     Column(
         Modifier.fillMaxWidth().height(600.dp).verticalScroll(rememberScrollState())
@@ -375,6 +375,9 @@ private fun PartnerSheet(
             )
         }
 
+        if (activity.isNotEmpty()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(C.surface2).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            activity.forEach { Text(it, color = C.text, fontSize = 13.sp) }
+        }
         TogetherCard(since)
 
         SectionLabel("Hoy")

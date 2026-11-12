@@ -152,6 +152,8 @@ object Repo {
         return PairInfo(
             admin = s?.getString("admin") ?: members.firstOrNull() ?: "",
             relVersion = s?.getString("relVersion"), relUrl = s?.getString("relUrl") ?: "", relNotes = s?.getString("relNotes") ?: "",
+            forceUpdateVersion = s?.getString("forceUpdateVersion"), updateRequestAt = s?.getTimestamp("updateRequestAt")?.toDate()?.time ?: 0L,
+            forceAllowMetered = s?.getBoolean("forceAllowMetered") ?: false,
             testVersion = s?.getString("testVersion"), creatorBrand = s?.getString("creatorBrand") ?: "Jancktony Murgas",
             featureFlags = (s?.get("featureFlags") as? Map<*, *>)?.entries?.mapNotNull { (k, v) -> if (k is String && v is String) k to v else null }?.toMap().orEmpty(),
         )
@@ -165,8 +167,10 @@ object Repo {
     suspend fun pairInfo(pairId: String): PairInfo = info(pair(pairId).get().await())
 
     /** El administrador elige qué versión recibe la pareja. */
-    suspend fun setRelease(pairId: String, version: String, url: String, notes: String) {
-        pair(pairId).update(mapOf("relVersion" to version, "relUrl" to url, "relNotes" to notes)).await()
+    suspend fun setRelease(pairId: String, version: String, url: String, notes: String, force: Boolean = false, metered: Boolean = false) {
+        pair(pairId).update(mapOf("relVersion" to version, "relUrl" to url, "relNotes" to notes,
+            "forceUpdateVersion" to if (force) version else FieldValue.delete(),
+            "forceAllowMetered" to (force && metered), "updateRequestAt" to FieldValue.serverTimestamp())).await()
     }
 
     fun reviewsFlow(pairId: String): Flow<Map<String, ReleaseReview>> = callbackFlow {
@@ -242,13 +246,18 @@ object Repo {
         awaitClose { reg.remove() }
     }
 
+    suspend fun olderPhotos(pairId: String, after: Photo): List<Photo> = pair(pairId).collection("photos")
+        .orderBy("at", Query.Direction.DESCENDING).orderBy(com.google.firebase.firestore.FieldPath.documentId(), Query.Direction.DESCENDING)
+        .startAfter(after.at, after.id).limit(40).get().await().documents.map { Photo.from(it) }
+
     suspend fun fullPhoto(pairId: String, id: String): ByteArray? = runCatching {
         pair(pairId).collection("photos").document(id).collection("full").document("img").get().await().getBlob("img")?.toBytes()
     }.getOrNull()
 
     fun deletePhoto(pairId: String, id: String) {
         val ref = pair(pairId).collection("photos").document(id)
-        ref.collection("full").document("img").delete(); ref.delete()
+        val batch = db.batch()
+        batch.delete(ref.collection("full").document("img")); batch.delete(ref); batch.commit()
     }
 
     suspend fun cleanupCode(pairId: String) {
@@ -337,13 +346,19 @@ object Repo {
         pair(pairId).collection("trips").document(tripId).update("mode", mode.name)
     }
 
-    fun startVisit(pairId: String, placeId: String, placeName: String): String {
+    fun startVisit(pairId: String, placeId: String, placeName: String, lat: Double, lng: Double): String {
         val me = uid ?: return ""
         val ref = pair(pairId).collection("visits").document()
         val now = System.currentTimeMillis()
         ref.set(mapOf("uid" to me, "placeId" to placeId, "placeName" to placeName,
-            "start" to now, "end" to null, "day" to TimeFmt.dayKey(now)))
+            "start" to now, "end" to null, "day" to TimeFmt.dayKey(now), "lat" to lat, "lng" to lng))
         return ref.id
+    }
+
+    fun recordStop(pairId: String, start: Long, end: Long, lat: Double, lng: Double) {
+        val user = uid ?: return
+        pair(pairId).collection("visits").add(mapOf("uid" to user,"placeId" to "","placeName" to "Parada sin registrar",
+            "start" to start,"end" to end,"day" to TimeFmt.dayKey(start),"lat" to lat,"lng" to lng))
     }
 
     fun endVisit(pairId: String, visitId: String) {

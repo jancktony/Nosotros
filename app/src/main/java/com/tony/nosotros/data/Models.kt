@@ -34,6 +34,9 @@ data class Member(
     val saving: Boolean = false,
     val appVersion: String = "",
     val avatar: String = "",
+    val findPhoneEnabled: Boolean = false,
+    val updateStatus: String = "",
+    val updateTarget: String = "",
 ) {
     val hasLocation get() = updatedAt > 0 && (lat != 0.0 || lng != 0.0)
     val paused get() = pausedUntil > System.currentTimeMillis()
@@ -57,6 +60,8 @@ data class Member(
             saving = d.getBoolean("saving") ?: false,
             appVersion = d.getString("appVersion") ?: "",
             avatar = d.getString("avatar") ?: "",
+            findPhoneEnabled = d.getBoolean("findPhoneEnabled") ?: false,
+            updateStatus = d.getString("updateStatus").orEmpty(), updateTarget = d.getString("updateTarget").orEmpty(),
         )
     }
 }
@@ -112,12 +117,12 @@ data class Trip(
 
 data class Visit(
     val id: String, val uid: String, val placeId: String, val placeName: String,
-    val start: Long, val end: Long?,
+    val start: Long, val end: Long?, val lat: Double? = null, val lng: Double? = null,
 ) {
     companion object {
         fun from(d: DocumentSnapshot) = Visit(
             d.id, d.getString("uid") ?: "", d.getString("placeId") ?: "",
-            d.getString("placeName") ?: "", d.getLong("start") ?: 0L, d.getLong("end"),
+            d.getString("placeName") ?: "", d.getLong("start") ?: 0L, d.getLong("end"), d.getDouble("lat"), d.getDouble("lng"),
         )
     }
 }
@@ -126,6 +131,7 @@ data class Visit(
 data class PairInfo(
     val admin: String = "", val relVersion: String? = null, val relUrl: String = "", val relNotes: String = "",
     val featureFlags: Map<String, String> = emptyMap(),
+    val forceUpdateVersion: String? = null, val updateRequestAt: Long = 0L, val forceAllowMetered: Boolean = false,
     val testVersion: String? = null, val creatorBrand: String = "Jancktony Murgas",
 )
 

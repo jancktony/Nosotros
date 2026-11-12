@@ -253,3 +253,42 @@ test('relay de voz exige consentimiento propio y de la pareja, limita tamaño y 
   await assertSucceeds(updateDoc(p(alice()), {featureFlags:{walkie:'off',walkieRelay:'off'}}));
   await assertSucceeds(deleteDoc(p(bob(),'pairs/p/walkiePackets/a')));
 });
+test('solo el dueño puede forzar la versión aprobada y probada; nonce es de servidor', async () => {
+  await assertFails(updateDoc(p(bob()),{forceUpdateVersion:'1.7',updateRequestAt:serverTimestamp()}));
+  await assertFails(updateDoc(p(alice()),{forceUpdateVersion:'1.7',updateRequestAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(p(alice()),{relVersion:'1.7',relUrl:'gs://bucket/releases/1.7/app.apk',relNotes:'aprobada'}));
+  await assertSucceeds(updateDoc(p(alice()),{forceUpdateVersion:'1.7',forceAllowMetered:false,updateRequestAt:serverTimestamp()}));
+  await assertFails(updateDoc(p(alice()),{forceUpdateVersion:'9.9',updateRequestAt:serverTimestamp()}));
+  await assertFails(updateDoc(p(alice()),{updateRequestAt:new Date(0)}));
+});
+test('sonar requiere permiso previo; la otra cuenta no puede activarlo ni confirmar por el receptor', async () => {
+  await assertSucceeds(updateDoc(p(alice()),{featureFlags:{findPhone:'all'}}));
+  const path='pairs/p/deviceCommands/bob';
+  const command={requestId:'11111111-1111-4111-8111-111111111111',requester:'alice',type:'ring',status:'queued',createdAt:serverTimestamp(),expiresAt:Date.now()+59000};
+  await assertFails(setDoc(p(alice(),path),command));
+  await assertFails(updateDoc(p(alice(),'pairs/p/members/bob'),{findPhoneEnabled:true}));
+  await assertSucceeds(updateDoc(p(bob(),'pairs/p/members/bob'),{findPhoneEnabled:true}));
+  await assertSucceeds(setDoc(p(alice(),path),command));
+  await assertFails(setDoc(p(alice(),path),{...command,requestId:'22222222-2222-4222-8222-222222222222'}));
+  await assertFails(getDoc(p(stranger(),path)));
+  await assertFails(updateDoc(p(alice(),path),{status:'ringing',handledAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(p(bob(),path),{status:'ringing',handledAt:serverTimestamp()}));
+  await assertFails(setDoc(p(alice(),'pairs/p/deviceCommands/alice'),{...command,expiresAt:Date.now()+120000}));
+});
+test('borrar un recuerdo propio elimina contenido y ficha en un solo lote', async () => {
+  const context=bob();const batch=writeBatch(context.firestore());
+  batch.delete(p(context,'pairs/p/photos/f/full/img'));batch.delete(p(context,'pairs/p/photos/f'));
+  await assertSucceeds(batch.commit());
+  assert.equal((await getDoc(p(bob(),'pairs/p/photos/f'))).exists(),false);
+});
+test('improvement requests are private owner-only append-only submissions', async()=>{
+ const data={uid:'alice',text:'Corregir el canal de voz',state:'received',version:'1.12.0',createdAt:serverTimestamp()};
+ await assertSucceeds(setDoc(p(alice(),'pairs/p/improvementRequests/r'),data));
+ await assertSucceeds(getDoc(p(alice(),'pairs/p/improvementRequests/r')));
+ await assertFails(getDoc(p(bob(),'pairs/p/improvementRequests/r')));
+ await assertFails(getDoc(p(stranger(),'pairs/p/improvementRequests/r')));
+ await assertFails(setDoc(p(bob(),'pairs/p/improvementRequests/b'),{...data,uid:'bob'}));
+ await assertFails(setDoc(p(alice(),'pairs/p/improvementRequests/empty'),{...data,text:''}));
+ await assertFails(setDoc(p(alice(),'pairs/p/improvementRequests/long'),{...data,text:'x'.repeat(2001)}));
+ await assertFails(updateDoc(p(alice(),'pairs/p/improvementRequests/r'),{state:'released'}));
+});

@@ -17,7 +17,7 @@ object Routing {
     private fun get(url: String): String = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).run {
         setRequestProperty("User-Agent", "NosotrosApp/1.0")
         connectTimeout = 12000; readTimeout = 15000
-        inputStream.bufferedReader().use { it.readText() }
+        try { inputStream.bufferedReader().use { it.readText() } } finally { disconnect() }
     }
 
     /** Busca una dirección o lugar. [near] mejora el orden por cercanía. */
@@ -42,7 +42,6 @@ object Routing {
         val path = "${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=polyline&steps=true&alternatives=3"
         val urls = if (foot) listOf(
             "https://routing.openstreetmap.de/routed-foot/route/v1/foot/$path",
-            "https://router.project-osrm.org/route/v1/foot/$path",
         ) else listOf(
             "https://router.project-osrm.org/route/v1/driving/$path",
             "https://routing.openstreetmap.de/routed-car/route/v1/driving/$path",

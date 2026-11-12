@@ -29,6 +29,7 @@ fun PresenceSettings(vm: MainViewModel) {
     var confirm by remember { mutableStateOf<Feature?>(null) }
     var start by remember { mutableStateOf(vm.prefs.sleepStartHour) }
     var wake by remember { mutableStateOf(vm.prefs.wakeHour) }
+    var schedule by remember { mutableStateOf(false) }
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) {
             granted = UsagePermission.granted(ctx)
@@ -37,9 +38,9 @@ fun PresenceSettings(vm: MainViewModel) {
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
-    Text("Actividad compartida · voluntaria", color = C.text, style = MaterialTheme.typography.titleLarge)
+    Text("Tú eliges qué compartir", color = C.text, style = MaterialTheme.typography.titleMedium)
     Text("Cada uno decide en su teléfono. Tu administrador solo habilita la disponibilidad; no puede activar tus permisos ni tu consentimiento.", color = C.sub)
-    Text("Aplicación en uso", color = C.text, style = MaterialTheme.typography.titleMedium)
+    Section(Ic.Layers, "Última aplicación") {
     Text("Comparte únicamente el nombre de la última app detectada, con retraso aproximado de 30 segundos. No lee mensajes, pantalla, contraseñas ni historial. En pantalla dividida puede mostrar solo la última app activa.", color = C.sub, fontSize = 13.sp)
     if (!access.enabled(Feature.APP_PRESENCE)) Text("Tu administrador aún no habilitó esta función para ti.", color = C.warn)
     if (!granted) TextButton(onClick = {
@@ -52,8 +53,8 @@ fun PresenceSettings(vm: MainViewModel) {
             else { appSharing = false; vm.setPresence(false, false) } },
             enabled = appSharing || (granted && access.enabled(Feature.APP_PRESENCE)))
     }
-    HorizontalDivider()
-    Text("Descanso estimado", color = C.text, style = MaterialTheme.typography.titleMedium)
+    }
+    Section(Ic.Clock, "Descanso estimado") {
     Text("Se estima a partir de inactividad nocturna y pantalla bloqueada. No confirma que estés dormido, no usa datos de salud ni tus alarmas. Sin señal reciente aparece sin datos. No envía alertas ni te despierta.", color = C.sub, fontSize = 13.sp)
     if (!access.enabled(Feature.SLEEP_STATUS)) Text("Tu administrador aún no habilitó esta función para ti.", color = C.warn)
     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -62,6 +63,12 @@ fun PresenceSettings(vm: MainViewModel) {
             else { sleepSharing = false; vm.setPresence(true, false) } },
             enabled = sleepSharing || access.enabled(Feature.SLEEP_STATUS))
     }
+    Text("Mi noche · ${start - 12}:00 p. m. — $wake:00 ${if (wake == 12) "p. m." else "a. m."}", color = C.me, fontSize = 13.sp)
+    TextButton(onClick = { schedule = true }) { Text("Cambiar mi horario", color = C.me) }
+    HelpDisclosure("Cómo se estima el descanso", "Tras 30 minutos de inactividad nocturna: Posiblemente durmiendo. Una hora después de tu horario: Pasó su hora habitual de despertar. Sin señal reciente, la estimación caduca. Apagar el teléfono no confirma sueño.")
+    }
+    if (schedule) AlertDialog(onDismissRequest = { schedule = false }, title = { Text("Tu horario habitual") },
+        text = { Column(Modifier.fillMaxWidth()) {
     Text("Mi noche empieza a las ${start - 12}:00 p. m.", color = C.sub)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         (18..23).forEach { h -> FilterChip(start == h, { start = h; vm.prefs.sleepStartHour = h; vm.refreshTracking() }, { Text("${h - 12}:00 p. m.") }) }
@@ -70,7 +77,8 @@ fun PresenceSettings(vm: MainViewModel) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         (4..12).forEach { h -> FilterChip(wake == h, { wake = h; vm.prefs.wakeHour = h; vm.refreshTracking() }, { Text("$h:00") }) }
     }
-    Text("Después de 30 minutos de inactividad nocturna: “Posiblemente durmiendo”. Una hora después de tu hora habitual: “Pasó su hora habitual de despertar”. El teléfono debe mantener Nosotros funcionando; apagarlo no cuenta como dormir.", color = C.sub, fontSize = 13.sp)
+
+        } }, confirmButton = { TextButton(onClick = { schedule = false }) { Text("Listo") } })
     if (appSharing || sleepSharing) Text("Estás compartiendo actividad. Puedes apagar ambos interruptores cuando quieras.", color = C.me)
     message?.let { Text(it, color = C.sub) }
     confirm?.let { feature ->

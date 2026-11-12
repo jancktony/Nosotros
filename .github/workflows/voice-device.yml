@@ -1,7 +1,7 @@
 name: Verificar audio comprimido en Android
 on:
   push:
-    branches: [feature/actividad-sueno-globo]
+    branches: [feature/actividad-sueno-globo, feature/ajustes-buscar-ios]
     paths: ['app/src/main/java/com/tony/nosotros/voice/**', 'app/src/androidTest/**', '.github/workflows/voice-device.yml']
   workflow_dispatch:
 permissions:

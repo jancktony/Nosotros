@@ -1,0 +1,8 @@
+Candidata privada para pruebas del dueño. No libera automáticamente a la pareja.
+Barra flotante con Mapa, Encontrar, Voz y Más. Historial, Lugares y Galería dentro de Más; Ajustes continúa arriba con engranaje.
+Encontrar: seleccionar teléfono, solicitar ubicación, pedir sonido con consentimiento y abrir indicaciones.
+Voz en directo sin corte de 30 s y con interruptor de micrófono abierto mientras la pantalla está visible. Las notas grabadas conservan su límite.
+Actividad reciente dentro del panel deslizable del mapa, sin tarjeta superior. Direcciones aproximadas en las visitas con coordenadas disponibles.
+Navegación con seguimiento de posición reciente, indicaciones y detección de salida de ruta. Depende de GPS, cobertura y servicios públicos de rutas; no es navegación offline.
+Solicitudes privadas del administrador en Herramientas. Chat IA y ejecución automática todavía pendientes de proveedor/servidor, sin facturación activada.
+iOS: compañero del panel web, sin firma y sin ubicación/walkie en segundo plano. No es una conversión de Android ni un IPA directamente instalable.
