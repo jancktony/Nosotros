@@ -295,8 +295,11 @@ internal fun Modifier.holdToTalk(enabled: Boolean, start: () -> Boolean, release
                 do {
                     val event = awaitPointerEvent(PointerEventPass.Initial)
                     val finger = event.changes.firstOrNull { it.id == down.id }
+                    // Compose synthesizes cancellation as an already-consumed up. Inspect it before consuming our event.
+                    val ended = finger == null || !finger.pressed
+                    val normalRelease = finger != null && !finger.pressed && !finger.isConsumed
                     event.changes.forEach { it.consume() }
-                    if (finger == null || !finger.pressed) { released = true; break }
+                    if (ended) { released = normalRelease; break }
                 } while (true)
             } finally { if (started) { if (released) release() else cancel() } }
         }

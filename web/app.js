@@ -93,7 +93,7 @@ function commandStatus(member){
 function settingsPanel(me){
  const date=S.pair.since?new Date(S.pair.since):null;
  const localDate=date&&!Number.isNaN(date.valueOf())?`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`:'';
- return `<section class="card"><span class="eyebrow">MI PERFIL</span><h2>Así te verá tu pareja</h2><label for="profile-name">Tu nombre</label><input id="profile-name" maxlength="40" autocomplete="nickname" value="${esc(drafts['profile-name']??me?.name??'')}"><button class="primary" data-act="save-profile">Guardar mi nombre</button><p class="sub">Solo editas tu propio perfil. Los permisos y el consentimiento de actividad se aceptan desde cada teléfono.</p></section>
+ return `<section class="card"><span class="eyebrow">MI PERFIL</span><h2>Así te verá tu pareja</h2><label for="profile-name">Tu nombre</label><input id="profile-name" maxlength="40" autocomplete="nickname" value="${esc(drafts['profile-name']??me?.name??'')}"><button class="primary" data-act="save-profile">Guardar mi nombre</button><p class="sub">Para conservar el nombre sincronizado, tu teléfono debe usar Nosotros 1.11 o posterior. Solo editas tu propio perfil. Los permisos y el consentimiento de actividad se aceptan desde cada teléfono.</p></section>
  <section class="card"><span class="eyebrow">SU FECHA ESPECIAL</span><h2>Nuestro aniversario</h2><label for="anniversary-date">Fecha compartida</label><input id="anniversary-date" type="date" value="${esc(drafts['anniversary-date']??localDate)}"><button data-act="save-anniversary">Guardar fecha</button></section>
  <section class="card"><h2>Apariencia de esta web</h2><div class="toolbar">${[['night','Noche'],['light','Claro'],['pink','Rosa']].map(([value,title])=>`<button data-act="theme" data-mode="${value}">${title}</button>`).join('')}</div><p class="sub">Se guarda en este navegador. La apariencia de cada teléfono se elige en su app.</p></section>`;
 }
@@ -178,7 +178,7 @@ app.addEventListener('click',async event=>{
   }
   if(action==='save-profile'){
    const name=app.querySelector('#profile-name').value.trim();if(!name||name.length>40)throw Error('Escribe un nombre de hasta 40 caracteres.');
-   await updateDoc(doc(p,'members',uid),{name});delete drafts['profile-name'];notice='Tu nombre fue actualizado. Se sincronizará al conectar tu teléfono.';render();return;
+   await updateDoc(doc(p,'members',uid),{name});delete drafts['profile-name'];notice='Nombre guardado. Se sincroniza con tu teléfono desde Nosotros 1.11.';render();return;
   }
   if(action==='save-anniversary'){
    const value=app.querySelector('#anniversary-date').value;if(!/^\d{4}-\d{2}-\d{2}$/.test(value))throw Error('Elige una fecha válida.');

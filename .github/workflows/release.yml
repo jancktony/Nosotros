@@ -3,11 +3,18 @@ on:
   push:
     branches: [main, feature/pruebas-web-walkie]
   workflow_dispatch:
+    inputs:
+      ui_run_id:
+        description: Prueba instrumental de esta revisión que debe aprobarse antes de publicar (opcional)
+        required: false
+        type: string
+        default: ''
 concurrency:
   group: android-candidates
   cancel-in-progress: false
 permissions:
   contents: write
+  actions: read
 jobs:
   android:
     runs-on: ubuntu-latest
@@ -38,6 +45,15 @@ jobs:
         run: chmod +x gradlew && ./gradlew testDebugUnitTest assembleRelease -PghRepo=${{ github.repository }}
         env:
           KS_PASS: ${{ secrets.KS_PASS }}
+      - if: steps.v.outputs.skip != '1' && github.event_name == 'workflow_dispatch' && inputs.ui_run_id != ''
+        name: Exigir prueba instrumental aprobada de la misma revisión
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UI_RUN: ${{ inputs.ui_run_id }}
+        run: |
+          TEST_SHA=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UI_RUN" --jq '.head_sha')
+          test "$TEST_SHA" = "$GITHUB_SHA"
+          gh run watch "$UI_RUN" --repo "$GITHUB_REPOSITORY" --interval 15 --exit-status
       - if: steps.v.outputs.skip != '1'
         run: cp app/build/outputs/apk/release/app-release.apk Nosotros-${{ steps.v.outputs.tag }}.apk
       - if: steps.v.outputs.skip != '1'

@@ -49,7 +49,9 @@ class HoldGestureTest {
     @Test fun cancellationStopsInsteadOfLeavingTheMicHeld() {
         var held=false;var canceled=0
         ui.setContent { Box(Modifier.size(130.dp).testTag("hold").holdToTalk(true,{held=true;true},{held=false},{held=false;canceled++})) }
-        ui.onNodeWithTag("hold").performTouchInput { down(center);cancel() }
+        ui.onNodeWithTag("hold").performTouchInput { down(center) }
+        ui.runOnIdle { assertTrue(held) }
+        ui.onNodeWithTag("hold").performTouchInput { cancel() }
         ui.runOnIdle { assertFalse(held);assertEquals(1,canceled) }
     }
 }
