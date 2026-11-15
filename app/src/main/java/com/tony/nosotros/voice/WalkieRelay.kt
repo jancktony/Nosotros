@@ -59,6 +59,7 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
             }
         }
         scope.launch {
+            var waitingAttempts = 0
             while (isActive) {
                 runCatching {
                     presence.document(uid).set(mapOf("relay" to true, "protocol" to VoiceWire.CHANNEL,
@@ -66,13 +67,24 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
                     val acknowledged = presence.document(uid).get(Source.CACHE).await().getTimestamp("updatedAt")?.toDate()?.time
                     require(acknowledged != null)
                     clock.synchronize(acknowledged)
-                    ownReady = true; report()
-                    // Restart cleanup of fragments left by an interrupted sender.
-                    packets.whereEqualTo("uid", uid).limit(100).get().await().documents.forEach {
-                        if (clock.now() - (it.getTimestamp("createdAt")?.toDate()?.time ?: 0) > 15_000) it.reference.delete()
+                    ownReady = true
+                    // Reconcile a missing initial listener snapshot without waiting four minutes.
+                    if (!ready) runCatching {
+                        val d = presence.document(partner).get(Source.SERVER).await()
+                        peerEnabled = d.getBoolean("relay") == true && d.getString("protocol") == VoiceWire.CHANNEL
+                        peerAt = d.getTimestamp("updatedAt")?.toDate()?.time ?: 0
+                    }
+                    report()
+                    // Cleanup errors must not invalidate an acknowledged presence.
+                    runCatching {
+                        packets.whereEqualTo("uid", uid).limit(100).get().await().documents.forEach {
+                            if (clock.now() - (it.getTimestamp("createdAt")?.toDate()?.time ?: 0) > 15_000) it.reference.delete()
+                        }
                     }
                 }.onFailure { ownReady = false; report() }
-                delay(if(ownReady) 240_000 else 5_000)
+                waitingAttempts = if (ready) 0 else waitingAttempts + 1
+                // Fast initial recovery; bounded idle traffic when the other phone is unavailable.
+                delay(if (ready) 240_000 else if (waitingAttempts <= 3) 5_000 else 60_000)
             }
         }
     }

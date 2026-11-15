@@ -12,8 +12,7 @@ async function main(){
  const account=JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT||'{}');
  if(account.project_id!=='nosotros-1e43a'||!account.private_key)throw Error('project');
  phase='private-release-catalog';
- const releases=await github('/releases?per_page=100');
- const release=releases.find(r=>r.tag_name==='v1.13.1');
+ const release=await github('/releases/445806156');
  if(!release)throw Error('private candidate missing');
  if(release.draft!==true)throw Error('Diagnostic destination must remain private');
  phase='firebase-authentication';
@@ -48,7 +47,7 @@ async function main(){
  const body=(release.body||'').split(marker)[0]+marker+'\nDiagnóstico privado de transporte (sin contenido):\n\n'+JSON.stringify(diagnostic,null,2);
  phase='private-result-write';
  const latest=await github('/releases/'+release.id);if(latest.draft!==true)throw Error('private destination changed');
- const updated=await github('/releases/'+release.id,'PATCH',{body,draft:true});
+ const updated=await github('/releases/'+release.id,'PATCH',{body,draft:true,tag_name:latest.tag_name});
  if(updated.draft!==true)throw Error('private destination changed');
  console.log('Diagnóstico guardado solo en el borrador privado existente. No se cambiaron permisos, versiones liberadas ni funciones.');
 }
