@@ -7,7 +7,9 @@ import org.junit.Test
 
 @org.junit.runner.RunWith(androidx.test.ext.junit.runners.AndroidJUnit4::class)
 class TogetherAnimationDeviceTest {
-    @Test @androidx.test.annotation.UiThreadTest fun particlesAndPortraitsUseViewportAlignmentAtAnyCameraBearing() {
+    @get:org.junit.Rule val ui = androidx.compose.ui.test.junit4.createComposeRule()
+    @Test fun particlesAndPortraitsUseViewportAlignmentAtAnyCameraBearing() {
+        ui.runOnUiThread {
         MapLibre.getInstance(InstrumentationRegistry.getInstrumentation().targetContext)
         val portraits=togetherPortraitLayer()
         assertEquals("viewport",portraits.iconRotationAlignment.value)
@@ -22,5 +24,6 @@ class TogetherAnimationDeviceTest {
         val halo=togetherHaloLayer()
         assertEquals("viewport",halo.circlePitchAlignment.value)
         assertEquals("viewport",halo.circlePitchScale.value)
+        }
     }
 }
