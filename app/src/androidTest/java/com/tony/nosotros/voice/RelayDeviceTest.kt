@@ -19,7 +19,6 @@ import java.util.concurrent.TimeUnit
 /** Both authenticated identities, real rules, server timestamps and delivery. Local emulators only. */
 class RelayDeviceTest {
  @Test fun twoConsentingAccountsExchangePacketsThroughFirestore()=runBlocking {
-  com.google.firebase.firestore.FirebaseFirestore.setLoggingEnabled(true)
   repeat(3) { round ->
   val context=InstrumentationRegistry.getInstrumentation().targetContext
   fun backend(name:String,email:String):Pair<FirebaseApp,FirebaseFirestore>{
@@ -27,7 +26,10 @@ class RelayDeviceTest {
     .setApplicationId("1:123456789:android:"+name).setApiKey("emulator-only-key").build(),name)
    val auth=FirebaseAuth.getInstance(app);auth.useEmulator("10.0.2.2",9099)
    Tasks.await(auth.signInWithEmailAndPassword(email,"demo-emulator-only-123"),15,TimeUnit.SECONDS)
-   val db=FirebaseFirestore.getInstance(app);db.useEmulator("10.0.2.2",8080)
+   val db=FirebaseFirestore.getInstance(app)
+   db.firestoreSettings=com.google.firebase.firestore.FirebaseFirestoreSettings.Builder()
+    .setLocalCacheSettings(com.google.firebase.firestore.MemoryCacheSettings.newBuilder().build()).build()
+   db.useEmulator("10.0.2.2",8080)
    return app to db
   }
   val (appA,dbA)=backend("relay-alice-$round","jancktoni@gmail.com")
@@ -64,6 +66,8 @@ class RelayDeviceTest {
    assertTrue(actual.any{it.contentEquals(packetA)});assertTrue(actual.any{it.contentEquals(packetB)})
   } finally {
    withContext(Dispatchers.Main){a?.close();b?.close()}
+   Tasks.await(dbA.waitForPendingWrites(),10,TimeUnit.SECONDS)
+   Tasks.await(dbB.waitForPendingWrites(),10,TimeUnit.SECONDS)
    Tasks.await(dbA.terminate(),10,TimeUnit.SECONDS);Tasks.await(dbB.terminate(),10,TimeUnit.SECONDS)
    appA.delete();appB.delete()
   }
