@@ -24,6 +24,11 @@ async function main(){
  const pairs=result.docs.filter(d=>d.get('members')?.length===2&&d.get('members').every(x=>uids.includes(x)));
  if(pairs.length!==1)throw Error('pair');const pair=pairs[0],admin=pair.get('admin');
  const diagnostic={checkedAt:new Date().toISOString(),releasedVersion:pair.get('relVersion')||null,modes:{walkie:pair.get('featureFlags')?.walkie||'off',relay:pair.get('featureFlags')?.walkieRelay||'off'},phones:[],offers:[],packets:[]};
+ const probe=pair.ref.collection('voiceProbe').doc('server');
+ try {
+  await probe.set({checkedAt:require('firebase-admin/firestore').FieldValue.serverTimestamp()});
+  await probe.delete();diagnostic.serverWriteProbe='ok';
+ } catch(e) { diagnostic.serverWriteProbe=({8:'quota',7:'permission',16:'auth',14:'unavailable'})[e.code]||'failed'; }
  for(const uid of uids){
   const [member,presence]=await Promise.all([pair.ref.collection('members').doc(uid).get(),pair.ref.collection('walkiePresence').doc(uid).get()]);
   const time=presence.get('updatedAt')?.toDate()?.getTime();
