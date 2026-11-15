@@ -292,3 +292,10 @@ test('improvement requests are private owner-only append-only submissions', asyn
  await assertFails(setDoc(p(alice(),'pairs/p/improvementRequests/long'),{...data,text:'x'.repeat(2001)}));
  await assertFails(updateDoc(p(alice(),'pairs/p/improvementRequests/r'),{state:'released'}));
 });
+
+test('Juntos solo puede ser activado, probado o retirado por el administrador', async () => {
+  for(const mode of ['admin','all','off'])
+    await assertSucceeds(updateDoc(p(alice()),{featureFlags:{mapTogether:mode}}));
+  await assertFails(updateDoc(p(bob()),{featureFlags:{mapTogether:'all'}}));
+  await assertFails(updateDoc(p(alice()),{featureFlags:{mapTogether:'yes'}}));
+});

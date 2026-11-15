@@ -64,7 +64,7 @@ private const val SATELLITE_STYLE = """{"version":8,"sources":{
 "layers":[{"id":"sat","type":"raster","source":"sat"},{"id":"roads","type":"raster","source":"roads","paint":{"raster-opacity":0.7}},
 {"id":"names","type":"raster","source":"names"}]}"""
 
-private val OUR_LAYERS = setOf("route-glow", "route-line", "place-area", "place-label", "people-halo", "people-icon", "nosotros-poi", "nosotros-campus")
+private val OUR_LAYERS = setOf("route-glow", "route-line", "place-area", "place-label", "people-halo", "people-icon", "nosotros-poi", "nosotros-campus", "together-halo", "together-icon", "together-hearts")
 
 data class MapPerson(
     val uid: String, val initial: String, val color: Int, val ink: Int,
@@ -79,6 +79,8 @@ data class MapRoute(val id: String, val points: List<Pt>, val color: Int)
 fun LiveMap(
     modifier: Modifier = Modifier,
     people: List<MapPerson>,
+    together: Boolean = false,
+    onTogetherTap: (() -> Unit)? = null,
     places: List<Place> = emptyList(),
     routes: List<MapRoute> = emptyList(),
     /** Cambia este valor para volver a encuadrar la cámara. */
@@ -100,6 +102,7 @@ fun LiveMap(
 ) {
     val ctx = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var resumed by remember { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
     val palette = C.p
     val globe = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MAP_GLOBE)
     val publicPlaces = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MAP_PLACES)
@@ -112,6 +115,7 @@ fun LiveMap(
     val currentPublicPlaces by rememberUpdatedState(publicPlaces)
     val longPress by rememberUpdatedState(onLongPress)
     val personTap by rememberUpdatedState(onPersonTap)
+    val togetherTap by rememberUpdatedState(onTogetherTap)
     val placeTap by rememberUpdatedState(onPlaceTap)
     val mapTap by rememberUpdatedState(onMapTap)
     val gesture by rememberUpdatedState(onGesture)
@@ -121,8 +125,8 @@ fun LiveMap(
         val obs = LifecycleEventObserver { _, e ->
             when (e) {
                 Lifecycle.Event.ON_START -> mapView.onStart()
-                Lifecycle.Event.ON_RESUME -> mapView.onResume()
-                Lifecycle.Event.ON_PAUSE -> mapView.onPause()
+                Lifecycle.Event.ON_RESUME -> { mapView.onResume(); resumed = true }
+                Lifecycle.Event.ON_PAUSE -> { resumed = false; mapView.onPause() }
                 Lifecycle.Event.ON_STOP -> mapView.onStop()
                 else -> {}
             }
@@ -162,6 +166,9 @@ fun LiveMap(
                 val pt = m.projection.toScreenLocation(ll)
                 val r = 22 * d
                 val box = RectF(pt.x - r, pt.y - r, pt.x + r, pt.y + r)
+                if (m.queryRenderedFeatures(box, "together-icon").isNotEmpty()) {
+                    togetherTap?.invoke(); return@addOnMapClickListener true
+                }
                 val person = m.queryRenderedFeatures(box, "people-icon").firstOrNull()?.getStringProperty("uid")
                 if (person != null) { personTap?.invoke(person); return@addOnMapClickListener true }
                 val place = m.queryRenderedFeatures(box, "place-label").firstOrNull()?.getStringProperty("pid")
@@ -229,13 +236,13 @@ fun LiveMap(
         }
     }
 
-    LaunchedEffect(style, people, places, routes, showPhotos) {
+    LaunchedEffect(style, people, places, routes, showPhotos, together) {
         val s = style ?: return@LaunchedEffect
-        updateData(ctx, s, palette, if (showPhotos) people else people.map { it.copy(avatar = "") }, places, routes)
+        updateData(ctx, s, palette, if (showPhotos) people else people.map { it.copy(avatar = "") }, places, routes, together)
     }
 
     // Pulso animado alrededor de quien se está moviendo
-    val anyMoving = people.any { it.inMotion }
+    val anyMoving = !together && people.any { it.inMotion }
     LaunchedEffect(style, anyMoving) {
         val halo = style?.getLayer("people-halo") ?: return@LaunchedEffect
         val isMoving = Expression.eq(Expression.get("moving"), Expression.literal(true))
@@ -251,6 +258,32 @@ fun LiveMap(
                 PropertyFactory.circleOpacity(Expression.switchCase(isMoving, Expression.literal(0.45f * (1f - ph)), Expression.literal(0.22f))),
             )
             t++
+            kotlinx.coroutines.delay(70)
+        }
+    }
+
+
+    // Render-only animation: no GPS requests, network traffic or bitmap allocations per frame.
+    LaunchedEffect(style, together, resumed) {
+        val halo = style?.getLayer("together-halo") ?: return@LaunchedEffect
+        val hearts = style?.getLayer("together-hearts") ?: return@LaunchedEffect
+        halo.setProperties(PropertyFactory.circleRadius(76f), PropertyFactory.circleOpacity(0.16f))
+        hearts.setProperties(PropertyFactory.iconTranslate(arrayOf(0f, -53f)), PropertyFactory.iconOpacity(1f))
+        val saving = ctx.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
+        if (!together || !resumed || saving || !android.animation.ValueAnimator.areAnimatorsEnabled()) return@LaunchedEffect
+        var lastPowerCheck = 0L
+        while (true) {
+            val elapsed = android.os.SystemClock.elapsedRealtime()
+            if (elapsed - lastPowerCheck >= 1000) {
+                lastPowerCheck = elapsed
+                if (!android.animation.ValueAnimator.areAnimatorsEnabled() || ctx.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true) break
+            }
+            val phase = (android.os.SystemClock.elapsedRealtime() % 2800L) / 2800f
+            val wave = (1f - kotlin.math.cos(phase * 2f * Math.PI).toFloat()) / 2f
+            halo.setProperties(PropertyFactory.circleRadius(65f + 15f * wave),
+                PropertyFactory.circleOpacity(0.12f + 0.10f * wave))
+            hearts.setProperties(PropertyFactory.iconTranslate(arrayOf(0f, -49f - 16f * phase)),
+                PropertyFactory.iconOpacity(0.55f + 0.45f * kotlin.math.sin(phase * Math.PI).toFloat()))
             kotlinx.coroutines.delay(70)
         }
     }
@@ -334,6 +367,7 @@ private fun setupLayers(s: Style) {
     s.addSource(GeoJsonSource("routes"))
     s.addSource(GeoJsonSource("places"))
     s.addSource(GeoJsonSource("people"))
+    s.addSource(GeoJsonSource("together"))
     val color = Expression.toColor(Expression.get("color"))
     s.addLayer(
         LineLayer("route-glow", "routes").withProperties(
@@ -381,9 +415,19 @@ private fun setupLayers(s: Style) {
             PropertyFactory.iconIgnorePlacement(true),
         )
     )
+    s.addLayer(CircleLayer("together-halo", "together").withProperties(
+        PropertyFactory.circleColor("#BE91F0"), PropertyFactory.circleRadius(76f),
+        PropertyFactory.circleOpacity(0.16f), PropertyFactory.circleBlur(0.5f)))
+    s.addLayer(SymbolLayer("together-icon", "together").withProperties(
+        PropertyFactory.iconImage(Expression.get("icon")), PropertyFactory.iconAllowOverlap(true),
+        PropertyFactory.iconIgnorePlacement(true)))
+    s.addLayer(SymbolLayer("together-hearts", "together").withProperties(
+        PropertyFactory.iconImage("together-hearts"), PropertyFactory.iconAllowOverlap(true),
+        PropertyFactory.iconIgnorePlacement(true), PropertyFactory.iconTranslate(arrayOf(0f, -53f))))
 }
 
-private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPerson>, places: List<Place>, routes: List<MapRoute>) {
+private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPerson>, places: List<Place>, routes: List<MapRoute>, together: Boolean = false) {
+    val joined = together && people.size == 2
     (s.getSource("routes") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(
         routes.filter { it.points.size >= 2 }.map { r ->
             Feature.fromGeometry(LineString.fromLngLats(r.points.map { Point.fromLngLat(it.lng, it.lat) })).apply {
@@ -406,7 +450,7 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
     ))
 
     (s.getSource("people") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(
-        people.map { p ->
+        (if (joined) emptyList() else people).map { p ->
             val id = "av_${pal.id}_${p.uid}_${p.mode}_${p.paused}_${p.initial}_${p.color}_${p.avatar.hashCode()}_${if (p.inMotion) p.speed else 0}"
             if (s.getImage(id) == null) s.addImage(id, avatarBitmap(ctx, pal, p))
             Feature.fromGeometry(Point.fromLngLat(p.lng, p.lat)).apply {
@@ -417,6 +461,14 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
             }
         }
     ))
+    val pairFeatures = if (joined) {
+        val key = "tg_" + people.map { listOf(it.uid, it.initial, it.avatar, it.color, it.ink) }.hashCode()
+        if (s.getImage(key) == null) s.addImage(key, togetherBitmap(ctx, people))
+        if (s.getImage("together-hearts") == null) s.addImage("together-hearts", togetherHeartsBitmap(ctx))
+        val center = com.tony.nosotros.util.PairProximity.center(people[0].lat, people[0].lng, people[1].lat, people[1].lng)
+        listOf(Feature.fromGeometry(Point.fromLngLat(center.lng, center.lat)).apply { addStringProperty("icon", key) })
+    } else emptyList()
+    (s.getSource("together") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(pairFeatures))
 }
 
 /** Avatar: quieto = inicial + insignia; en movimiento = vehículo grande + velocidad debajo. */

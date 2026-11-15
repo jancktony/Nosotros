@@ -4,6 +4,11 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class FeaturesTest {
+    @Test fun togetherStartsAsAdministratorPreview() {
+        assertTrue(FeatureAccess(admin=true).enabled(Feature.MAP_TOGETHER))
+        assertFalse(FeatureAccess(admin=false).enabled(Feature.MAP_TOGETHER))
+    }
+
     @Test fun newVoiceModesStartDisabledForEveryone() {
         for (admin in listOf(false, true)) for (feature in listOf(Feature.WALKIE, Feature.VOICE_NOTES))
             assertFalse(FeatureAccess(admin = admin).enabled(feature))

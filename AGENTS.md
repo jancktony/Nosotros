@@ -7,6 +7,8 @@
 - No activar facturación, Blaze ni servicios de pago sin autorización explícita. No enviar mensajes ni correos en nombre del usuario sin instrucciones.
 - Comunicar en español, con explicaciones breves y veraces. Distinguir una función probada automáticamente de una prueba física en teléfonos, y un IPA sin firma de uno instalable.
 
+- «Juntos» animado, inspirado en la referencia de Love8 y mostrado en https://nosotros-1e43a--juntos-9azq8mkc.web.app, fue aprobado expresamente con «Apruebo». Esta aprobación autoriza integrar los perfiles unidos, el halo, los corazones animados y el contador real de días; la liberación a la pareja sigue siendo manual del dueño.
+
 ## Guías de trabajo con código
 
 Reglas solicitadas por Jancktony a partir de `karpathy-guidelines` (MIT), aplicables al escribir, revisar o refactorizar código:

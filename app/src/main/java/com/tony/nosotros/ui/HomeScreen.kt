@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberStandardBottomSheetState
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.derivedStateOf
 import kotlinx.coroutines.launch
@@ -107,6 +108,23 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
             kotlinx.coroutines.delay(120_000)
         }
     }
+
+    val togetherEnabled = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MAP_TOGETHER)
+    val proximity = remember { com.tony.nosotros.util.PairProximity() }
+    var together by remember { mutableStateOf(false) }
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.LaunchedEffect(me, partner, togetherEnabled, lifecycle) {
+        if (!togetherEnabled) { proximity.reset(); together = false; return@LaunchedEffect }
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                val fixes = listOfNotNull(me, partner).map {
+                    com.tony.nosotros.util.PairFix(it.uid, it.lat, it.lng, it.acc, it.locationAt, it.paused)
+                }
+                together = proximity.update(fixes, System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime())
+                kotlinx.coroutines.delay(2000)
+            }
+        }
+    }
     val density = LocalDensity.current
     val distance = distanceBetween(me, partner)
 
@@ -152,8 +170,10 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
             LiveMap(
                 modifier = Modifier.fillMaxSize(),
                 people = people, places = places, routes = routes, fitKey = fitKey, focus = focusPts,
+                together = together && togetherEnabled,
+                onTogetherTap = { focus = Focus.BOTH; fitKey++; scope.launch { sheet.bottomSheetState.expand() } },
                 satellite = satellite, threeD = threeD,
-                topInsetPx = with(density) { 80.dp.roundToPx() },
+                topInsetPx = with(density) { (if (togetherEnabled && Together.span(since, presenceNow) != null) 150.dp else 80.dp).roundToPx() },
                 bottomInsetPx = with(density) { (bottomInset + if (sheetHidden) 0.dp else 88.dp).roundToPx() },
                 onLongPress = onAddPlace,
                 onPersonTap = { selectedPerson = it; selectedPlace = null },
@@ -169,6 +189,16 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
                     onMe = { focus = Focus.ME; fitKey++; selectedPerson = me?.uid },
                     onPartner = { focus = Focus.PARTNER; fitKey++; scope.launch { sheet.bottomSheetState.expand() } },
                     onBoth = { focus = Focus.BOTH; fitKey++ })
+                if (togetherEnabled) Together.span(since, presenceNow)?.let { span ->
+                    Column(Modifier.align(Alignment.CenterHorizontally)
+                        .clip(RoundedCornerShape(20.dp)).background(C.glass)
+                        .border(2.dp, Color(0xFFE8B5DE), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 22.dp, vertical = 7.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Juntos desde", color = C.text, fontSize = 12.sp)
+                        Text("${span.totalDays} días", color = C.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
             // Botones flotantes a la derecha
             Column(
