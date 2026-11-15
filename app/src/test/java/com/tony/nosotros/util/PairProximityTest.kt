@@ -21,7 +21,7 @@ class PairProximityTest {
     }
     @Test fun pausedStaleInaccurateAndMissingFixesImmediatelyUngroup() {
         val invalid = listOf(pair().drop(1), pair().map { it.copy(paused=true) },
-            pair().map { it.copy(updatedAt=now-120_001) }, pair().map { it.copy(updatedAt=now+30_001) },
+            pair().map { it.copy(updatedAt=now-360_001) }, pair().map { it.copy(updatedAt=now+30_001) },
             pair().map { it.copy(accuracy=0f) }, pair().map { it.copy(accuracy=36f) },
             pair().map { it.copy(accuracy=Float.NaN) }, pair().map { it.copy(lat=Double.NaN) },
             pair().map { it.copy(lat=91.0) }, pair().map { it.copy(updatedAt=0) },

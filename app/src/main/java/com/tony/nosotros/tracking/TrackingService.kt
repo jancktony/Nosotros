@@ -346,6 +346,9 @@ class TrackingService : Service() {
             "saving" to lowBattery, "findPhoneEnabled" to prefs.allowFindPhone,
         )
         lastFix?.let {
+            // Measurement age, not the time of a battery/status heartbeat.
+            val fixAge = ((SystemClock.elapsedRealtimeNanos() - it.elapsedRealtimeNanos) / 1_000_000L).coerceAtLeast(0)
+            fields["locationAt"] = now - fixAge
             fields["lat"] = it.latitude; fields["lng"] = it.longitude
             fields["acc"] = it.accuracy.toDouble()
             fields["speedKmh"] = if (it.hasSpeed() && mode.moving) it.speed * 3.6 else 0.0

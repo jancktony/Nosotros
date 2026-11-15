@@ -13,7 +13,7 @@ class PairProximity {
         val ids = fixes.map { it.uid }.sorted()
         if (ids != members) { reset(); members = ids }
         if (fixes.size != 2 || ids.distinct().size != 2 || fixes.any {
-            it.uid.isBlank() || it.paused || it.updatedAt <= 0 || now - it.updatedAt !in -30_000L..120_000L ||
+            it.uid.isBlank() || it.paused || it.updatedAt <= 0 || now - it.updatedAt !in -30_000L..360_000L ||
             !it.lat.isFinite() || !it.lng.isFinite() || it.lat !in -90.0..90.0 || it.lng !in -180.0..180.0 ||
             !it.accuracy.isFinite() || it.accuracy <= 0f || it.accuracy > 35f
         }) { reset(); return false }

@@ -118,7 +118,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             while (true) {
                 val fixes = listOfNotNull(me, partner).map {
-                    com.tony.nosotros.util.PairFix(it.uid, it.lat, it.lng, it.acc, it.updatedAt, it.paused)
+                    com.tony.nosotros.util.PairFix(it.uid, it.lat, it.lng, it.acc, it.locationAt, it.paused)
                 }
                 together = proximity.update(fixes, System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime())
                 kotlinx.coroutines.delay(2000)
