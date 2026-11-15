@@ -1,0 +1,4 @@
+Correcciones para la prueba del dueño; no libera a la pareja.
+Walkie: el botón Reconectar fuerza un nuevo intento desde cualquiera de los teléfonos; conservar la pulsación mientras conecta, evitar ofertas simultáneas de calentamiento y recuperar más rápido el modo de redes difíciles tras fallos. El respaldo requiere que cada persona lo active en su teléfono; no se activa a distancia.
+Direcciones: separar torre/apartamento de la búsqueda, reconocer calle/carrera y contexto de Barranquilla/Riohacha, recurrir a un segundo buscador y mostrar ubicaciones aproximadas sin inventar números. Los fallos de red se distinguen de una búsqueda sin resultados.
+Mapas y navegación offline y nueva app nativa iPhone siguen en propuesta de diseño; no se incluyen en esta corrección.

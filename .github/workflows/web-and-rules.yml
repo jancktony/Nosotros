@@ -1,7 +1,7 @@
 name: Validar y publicar web privada
 on:
   push:
-    branches: [feature/pruebas-web-walkie, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13]
+    branches: [feature/pruebas-web-walkie, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13, fix/reintento-directo-1.13.1]
   workflow_dispatch:
 permissions:
   contents: read
