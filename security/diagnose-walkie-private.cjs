@@ -10,7 +10,9 @@ async function github(path,method='GET',body){
 async function main(){
  const account=JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT||'{}');
  if(account.project_id!=='nosotros-1e43a'||!account.private_key)throw Error('project');
- const release=await github('/releases/tags/v1.13.1');
+ const releases=await github('/releases?per_page=100');
+ const release=releases.find(r=>r.tag_name==='v1.13.1');
+ if(!release)throw Error('private candidate missing');
  if(release.draft!==true)throw Error('Diagnostic destination must remain private');
  const app=initializeApp({credential:cert(account)}),db=getFirestore(app);
  const source=readFileSync('app/src/main/java/com/tony/nosotros/data/Repo.kt','utf8');
