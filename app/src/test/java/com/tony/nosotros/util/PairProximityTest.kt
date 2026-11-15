@@ -4,6 +4,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PairProximityTest {
+    @Test fun proximityLabelsDoNotPresentGpsNoiseAsSeparation() {
+        assertEquals("Juntos",PairProximity.distanceText(true,14.0))
+        assertEquals("Verificando…",PairProximity.distanceText(false,14.0))
+        assertEquals("Por confirmar",PairProximity.distanceText(false,null))
+        assertTrue(PairProximity.distanceText(false,1200.0).startsWith("≈ "))
+    }
+    @Test fun aPausedSenderAlsoInvalidatesDistance() {
+        val fixes=pair().mapIndexed { i,p -> if(i==0)p.copy(paused=true) else p }
+        assertFalse(PairProximity.usable(fixes,now))
+    }
+
     private val now = 1_000_000L
     private fun pair(meters: Double = 10.0) = listOf(
         PairFix("a", 11.0, -74.0, 8f, now, false),

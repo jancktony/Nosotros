@@ -25,6 +25,9 @@ import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.derivedStateOf
 import kotlinx.coroutines.launch
@@ -61,8 +64,12 @@ import com.tony.nosotros.util.Together
 
 fun initialOf(name: String, fallback: String) = (name.trim().firstOrNull() ?: fallback.first()).uppercase()
 
+private fun Member.pairFix() = com.tony.nosotros.util.PairFix(uid,lat,lng,acc,locationAt,paused)
+
 fun distanceBetween(a: Member?, b: Member?): Double? =
-    if (a != null && b != null && a.hasLocation && b.hasLocation && !b.paused) Geo.dist(a.lat, a.lng, b.lat, b.lng) else null
+    if (a != null && b != null && a.hasLocation && b.hasLocation &&
+        com.tony.nosotros.util.PairProximity.usable(listOf(a.pairFix(),b.pairFix()),System.currentTimeMillis()))
+        Geo.dist(a.lat,a.lng,b.lat,b.lng) else null
 
 private enum class Focus { BOTH, ME, PARTNER }
 
@@ -93,6 +100,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
     var selectedPlace by remember { mutableStateOf<String?>(null) }
     val sheet = rememberBottomSheetScaffoldState(bottomSheetState = rememberStandardBottomSheetState(skipHiddenState = false))
     val scope = rememberCoroutineScope()
+    val sheetExpanded by remember { derivedStateOf { sheet.bottomSheetState.targetValue == SheetValue.Expanded } }
     val sheetHidden by remember { derivedStateOf { sheet.bottomSheetState.currentValue == SheetValue.Hidden || sheet.bottomSheetState.targetValue == SheetValue.Hidden } }
     // Hora estimada de llegada de la pareja mientras se mueve
     var eta by remember { mutableStateOf<Eta.Result?>(null) }
@@ -125,8 +133,20 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
             }
         }
     }
+    val context = LocalContext.current
+    // One bounded refresh on entering the map; passive background sampling is unchanged.
+    androidx.compose.runtime.LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            val current = vm.me.filterNotNull().first()
+            if (!current.paused && (current.locationAt <= 0 || System.currentTimeMillis()-current.locationAt > 60_000))
+                com.tony.nosotros.tracking.TrackingService.deliver(context,
+                    android.content.Intent().putExtra(com.tony.nosotros.tracking.TrackingService.EXTRA_REFRESH, true))
+            kotlinx.coroutines.awaitCancellation()
+        }
+    }
     val density = LocalDensity.current
     val distance = distanceBetween(me, partner)
+    val confirmedTogether = together && togetherEnabled && distance != null && distance <= 70.0
 
     val people = buildList {
         me?.takeIf { it.hasLocation }?.let {
@@ -159,6 +179,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
         sheetContent = {
             Box(Modifier.padding(bottom = bottomInset)) { PartnerSheet(
                 partner = partner, partnerUid = partnerUid, distance = distance, since = since,
+                together = confirmedTogether, collapsed = !sheetExpanded,
                 timeline = buildTimeline(visits, trips, partnerUid),
                 liveRequested = liveRequested, eta = eta, leftName = lastLeft?.placeName, leftAt = lastLeft?.end ?: 0L,
                 activity = listOfNotNull(otherApp.text(presenceNow, false)?.let { "${partner?.name?.ifBlank { null } ?: "Pareja"}: $it" }, otherSleep.text(presenceNow,true), myApp.text(presenceNow,false)?.let { "Yo: $it" }, mySleep.text(presenceNow,true)?.let { "Yo: $it" }),
@@ -170,8 +191,8 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
             LiveMap(
                 modifier = Modifier.fillMaxSize(),
                 people = people, places = places, routes = routes, fitKey = fitKey, focus = focusPts,
-                together = together && togetherEnabled,
-                onTogetherTap = { focus = Focus.BOTH; fitKey++; scope.launch { sheet.bottomSheetState.expand() } },
+                together = confirmedTogether,
+                onTogetherTap = { selectedPerson = null; selectedPlace = null; focus = Focus.BOTH; fitKey++; scope.launch { sheet.bottomSheetState.expand() } },
                 satellite = satellite, threeD = threeD,
                 topInsetPx = with(density) { (if (togetherEnabled && Together.span(since, presenceNow) != null) 150.dp else 80.dp).roundToPx() },
                 bottomInsetPx = with(density) { (bottomInset + if (sheetHidden) 0.dp else 88.dp).roundToPx() },
@@ -185,7 +206,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
                 },
             )
             Column(Modifier.statusBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                TopBar(me, partner, distance, onSettings,
+                TopBar(me, partner, distance, confirmedTogether, onSettings,
                     onMe = { focus = Focus.ME; fitKey++; selectedPerson = me?.uid },
                     onPartner = { focus = Focus.PARTNER; fitKey++; scope.launch { sheet.bottomSheetState.expand() } },
                     onBoth = { focus = Focus.BOTH; fitKey++ })
@@ -207,7 +228,10 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
             ) {
                 RoundButton(Ic.Nav, "Buscar dirección y ruta", onNavigate)
                 RoundButton(if (satellite) Ic.Map else Ic.Layers, if (satellite) "Mapa" else "Satélite") { vm.toggleSatellite() }
-                RoundButton(Ic.Locate, "Centrar") { fitKey++ }
+                RoundButton(Ic.Locate, "Centrar") {
+                    fitKey++
+                    com.tony.nosotros.tracking.TrackingService.deliver(context, android.content.Intent().putExtra(com.tony.nosotros.tracking.TrackingService.EXTRA_REFRESH, true))
+                }
                 if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MAP_3D)) TextButton(onClick = { vm.setMap3d(!threeD) }, modifier = Modifier
                     .clip(RoundedCornerShape(18.dp)).background(C.surface)) {
                     Text(if (threeD) "2D" else "3D", color = C.me, fontWeight = FontWeight.Bold)
@@ -229,7 +253,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
             val selPlace = places.firstOrNull { it.id == selectedPlace }
             if (sel != null || selPlace != null) {
                 Box(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 150.dp, start = 16.dp, end = 16.dp)) {
-                    if (sel != null) PersonCard(sel, isMe = sel.uid == me?.uid, other = if (sel.uid == me?.uid) partner else me) { selectedPerson = null }
+                    if (sel != null) PersonCard(sel, isMe = sel.uid == me?.uid, other = if (sel.uid == me?.uid) partner else me, together = confirmedTogether) { selectedPerson = null }
                     else if (selPlace != null) PlaceCard(selPlace, me, partner, vm.uid.value,
                         onEdit = { onEditPlace(selPlace); selectedPlace = null }) { selectedPlace = null }
                 }
@@ -259,23 +283,24 @@ private fun MapChip(text: String, selected: Boolean, color: Color = C.text, onCl
 }
 
 @Composable
-private fun TopBar(me: Member?, partner: Member?, distance: Double?, onSettings: () -> Unit,
+private fun TopBar(me: Member?, partner: Member?, distance: Double?, together: Boolean, onSettings: () -> Unit,
                    onMe: () -> Unit, onPartner: () -> Unit, onBoth: () -> Unit) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-        @Composable fun Profile(member: Member?, mine: Boolean, onClick: () -> Unit) {
+        @Composable fun Profile(member: Member?, mine: Boolean, modifier: Modifier, onClick: () -> Unit) {
             val accent = if (mine) C.me else C.partner
-            Row(Modifier.clip(RoundedCornerShape(24.dp)).background(C.glass).clickable(onClick = onClick)
+            Row(modifier.clip(RoundedCornerShape(24.dp)).background(C.glass).clickable(onClick = onClick)
                 .padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Avatar(initialOf(member?.name.orEmpty(), if (mine) "Yo" else "P"), accent,
                     if (mine) C.meInk else C.partnerInk, 30.dp, photo = member?.avatar.orEmpty())
                 Text(if (mine) "Yo" else member?.name?.ifBlank { null } ?: "Pareja", color = C.text, fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 72.dp).padding(horizontal = 7.dp))
+                    modifier = Modifier.weight(1f).padding(horizontal = 7.dp))
             }
         }
-        Profile(me, true, onMe); Profile(partner, false, onPartner)
-        TextButton(onClick = onBoth, contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
-            Text(distance?.let { TimeFmt.km(it) } ?: "Ambos", color = C.text, fontSize = 11.sp)
+        Profile(me, true, Modifier.weight(1f), onMe); Profile(partner, false, Modifier.weight(1f), onPartner)
+        TextButton(onClick = onBoth, modifier = Modifier.widthIn(max = 96.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp)) {
+            Text(com.tony.nosotros.util.PairProximity.distanceText(together, distance), color = C.text, fontSize = 11.sp,
+                maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         Spacer(Modifier.weight(1f))
         RoundButton(Ic.Gear, "Ajustes", onSettings)
@@ -283,7 +308,7 @@ private fun TopBar(me: Member?, partner: Member?, distance: Double?, onSettings:
 }
 
 @Composable
-private fun PersonCard(m: Member, isMe: Boolean, other: Member?, onClose: () -> Unit) {
+private fun PersonCard(m: Member, isMe: Boolean, other: Member?, together: Boolean, onClose: () -> Unit) {
     val color = if (isMe) C.me else C.partner
     FloatingCard(onClose) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -293,7 +318,7 @@ private fun PersonCard(m: Member, isMe: Boolean, other: Member?, onClose: () -> 
                 Text(if (isMe) "${m.name.ifBlank { "Yo" }} (tú)" else m.name.ifBlank { "Tu pareja" }, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Text(statusLine(m), color = C.sub, fontSize = 14.sp)
                 val d = distanceBetween(other, m) ?: distanceBetween(m, other)
-                if (d != null) Text("A ${TimeFmt.km(d)} de ${if (isMe) "tu pareja" else "ti"}", color = color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                if (together || d != null) Text(com.tony.nosotros.util.PairProximity.distanceText(together, d), color = color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 if (m.acc > 0) Text("Precisión ±${m.acc.toInt()} m", color = C.sub, fontSize = 13.sp)
             }
         }
@@ -329,17 +354,22 @@ private fun FloatingCard(onClose: () -> Unit, content: @Composable () -> Unit) {
     ) { content() }
 }
 
-private fun statusLine(m: Member): String = when {
-    !m.hasLocation -> "Sin ubicación todavía"
-    m.paused -> if (m.pausedUntil > 4_000_000_000_000L) "Ubicación en pausa" else "En pausa hasta las ${TimeFmt.hour(m.pausedUntil)}"
-    m.mode.moving && m.speedKmh >= 3 -> "${m.mode.label} · ${m.speedKmh.toInt()} km/h · ${TimeFmt.ago(m.updatedAt)}"
-    m.placeName != null -> "En ${m.placeName} · ${TimeFmt.ago(m.updatedAt)}"
-    else -> "${m.mode.label} · ${TimeFmt.ago(m.updatedAt)}"
+private fun statusLine(m: Member): String {
+    if (!m.hasLocation) return "Sin ubicación todavía"
+    if (m.paused) return if (m.pausedUntil > 4_000_000_000_000L) "Ubicación en pausa" else "En pausa hasta las ${TimeFmt.hour(m.pausedUntil)}"
+    val freshness = if (m.locationAt > 0) "GPS ${TimeFmt.ago(m.locationAt)}" else "Ubicación por confirmar"
+    val activity = when {
+        m.mode.moving && m.speedKmh >= 3 -> "${m.mode.label} · ${m.speedKmh.toInt()} km/h"
+        m.placeName != null -> "En ${m.placeName}"
+        else -> m.mode.label
+    }
+    return "$activity · $freshness"
 }
 
 @Composable
-private fun PartnerSheet(
+internal fun PartnerSheet(
     partner: Member?, partnerUid: String?, distance: Double?, since: Long, timeline: List<TimelineItem>,
+    together: Boolean, collapsed: Boolean,
     liveRequested: Long, eta: Eta.Result?, leftName: String?, leftAt: Long, activity: List<String>, onLive: () -> Unit,
 ) {
     Column(
@@ -372,12 +402,15 @@ private fun PartnerSheet(
             }
         }
 
+        // The collapsed sheet exposes only its header, never statistics behind the floating dock.
+        if (collapsed) return@Column
+
         if (eta != null && !paused) InfoBanner(Ic.Clock,
             (if (leftName != null) "Salió de $leftName a las ${TimeFmt.hour(leftAt)}. " else "") +
                 "Llega a ${eta.place.name} aprox. a las ${TimeFmt.hour(eta.arriveAt)} (en ${Eta.mins(eta.seconds)})", C.partner)
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MiniStat("Distancia", distance?.let { TimeFmt.km(it) } ?: "—", C.me, Modifier.weight(1f))
+            MiniStat(if (together) "Estado" else "Distancia", com.tony.nosotros.util.PairProximity.distanceText(together, distance), C.me, Modifier.weight(1f))
             MiniStat("Velocidad", partner?.takeIf { it.mode.moving && !paused }?.let { "${it.speedKmh.toInt()} km/h" } ?: "—", C.partner, Modifier.weight(1f))
         }
 

@@ -1,7 +1,7 @@
 name: Publicar versión Android
 on:
   push:
-    branches: [feature/juntos-animado-1.15, main, feature/pruebas-web-walkie, feature/voz-estable-juntos-1.14]
+    branches: [feature/correcciones-mapa-1.15.2, feature/juntos-animado-1.15, main, feature/pruebas-web-walkie, feature/voz-estable-juntos-1.14]
   workflow_dispatch:
     inputs:
       ui_run_id:
@@ -79,6 +79,21 @@ jobs:
           for WORKFLOW in security.yml web-and-rules.yml; do
             RUN=""
             for attempt in $(seq 1 90); do
+              RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW/runs?head_sha=$GITHUB_SHA&per_page=10" --jq '.workflow_runs | map(select(.head_sha == env.GITHUB_SHA and .conclusion == "success")) | first | .id // empty')
+              [ -n "$RUN" ] && break
+              sleep 10
+            done
+            test -n "$RUN"
+          done
+      - if: steps.v.outputs.skip != '1' && github.ref_name == 'feature/correcciones-mapa-1.15.2'
+        name: Exigir pruebas de interfaz y seguridad de esta misma revisión
+        timeout-minutes: 20
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for WORKFLOW in security.yml map-device.yml; do
+            RUN=""
+            for attempt in $(seq 1 110); do
               RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW/runs?head_sha=$GITHUB_SHA&per_page=10" --jq '.workflow_runs | map(select(.head_sha == env.GITHUB_SHA and .conclusion == "success")) | first | .id // empty')
               [ -n "$RUN" ] && break
               sleep 10
