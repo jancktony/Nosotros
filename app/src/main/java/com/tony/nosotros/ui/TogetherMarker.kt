@@ -35,15 +35,13 @@ internal fun togetherBitmap(ctx: Context, people: List<MapPerson>): Bitmap {
     return bitmap
 }
 
-internal fun togetherHeartsBitmap(ctx: Context): Bitmap {
+internal fun togetherHeartBitmap(ctx: Context): Bitmap {
     val d=ctx.resources.displayMetrics.density
-    val bitmap=Bitmap.createBitmap((110*d).toInt(),(76*d).toInt(),Bitmap.Config.ARGB_8888)
+    val bitmap=Bitmap.createBitmap((28*d).toInt(),(28*d).toInt(),Bitmap.Config.ARGB_8888)
     bitmap.density=ctx.resources.displayMetrics.densityDpi
-    val c=Canvas(bitmap); c.scale(d,d)
+    val c=Canvas(bitmap); c.scale(d,d); c.translate(2f,2f)
     val p=Paint(Paint.ANTI_ALIAS_FLAG).apply { color=Color.rgb(240,137,197) }
     val heart=PathParser.createPathFromPathData("M12 21L3.5 12.5C-3 6 5-2 12 5C19-2 27 6 20.5 12.5Z")!!
-    for((x,y,size) in listOf(Triple(18f,40f,16f),Triple(44f,18f,26f),Triple(78f,39f,20f),Triple(56f,55f,12f))) {
-        c.save(); c.translate(x,y); c.scale(size/24f,size/24f); c.drawPath(heart,p); c.restore()
-    }
+    c.drawPath(heart,p)
     return bitmap
 }

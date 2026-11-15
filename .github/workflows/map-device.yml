@@ -1,7 +1,7 @@
 name: Verificar panel compacto del mapa en Android
 on:
   push:
-    branches: [feature/correcciones-mapa-1.15.2]
+    branches: [feature/juntos-animacion-1.15.3, feature/correcciones-mapa-1.15.2]
     paths: ['app/**', '.github/workflows/map-device.yml']
 permissions:
   contents: read
@@ -21,7 +21,7 @@ jobs:
           arch: x86_64
           target: default
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest -PcodecTest=1 -Pandroid.testInstrumentationRunnerArguments.class=com.tony.nosotros.ui.MapPanelDeviceTest
+          script: ./gradlew connectedDebugAndroidTest -PcodecTest=1 -Pandroid.testInstrumentationRunnerArguments.class=com.tony.nosotros.ui.MapPanelDeviceTest,com.tony.nosotros.ui.TogetherAnimationDeviceTest
       - uses: actions/upload-artifact@v4
         if: always()
         with:

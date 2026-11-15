@@ -1,0 +1,29 @@
+package com.tony.nosotros.ui
+
+import androidx.test.platform.app.InstrumentationRegistry
+import org.maplibre.android.MapLibre
+import org.junit.Assert.*
+import org.junit.Test
+
+@org.junit.runner.RunWith(androidx.test.ext.junit.runners.AndroidJUnit4::class)
+class TogetherAnimationDeviceTest {
+    @get:org.junit.Rule val ui = androidx.compose.ui.test.junit4.createComposeRule()
+    @Test fun particlesAndPortraitsUseViewportAlignmentAtAnyCameraBearing() {
+        ui.runOnUiThread {
+        MapLibre.getInstance(InstrumentationRegistry.getInstrumentation().targetContext)
+        val portraits=togetherPortraitLayer()
+        assertEquals("viewport",portraits.iconRotationAlignment.value)
+        assertEquals("viewport",portraits.iconPitchAlignment.value)
+        repeat(TogetherMotion.HEARTS) {
+            val heart=togetherHeartLayer(it)
+            assertEquals("viewport",heart.iconTranslateAnchor.value)
+            assertEquals("viewport",heart.iconRotationAlignment.value)
+            assertEquals("viewport",heart.iconPitchAlignment.value)
+            assertTrue(heart.iconTranslate.value!![1] < -28f)
+        }
+        val halo=togetherHaloLayer()
+        assertEquals("viewport",halo.circlePitchAlignment.value)
+        assertEquals("viewport",halo.circlePitchScale.value)
+        }
+    }
+}

@@ -56,7 +56,7 @@ import org.maplibre.geojson.Point
  * high native zooms (confirmed in Riohacha). Overzoom available imagery instead. */
 private const val SATELLITE_STYLE = """{"version":8,"sources":{"sat":{"type":"raster","tileSize":256,"maxzoom":17,"attribution":"Esri, Maxar, Earthstar Geographics","tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]},"roads":{"type":"raster","tileSize":256,"maxzoom":19,"tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"]}},"layers":[{"id":"sat","type":"raster","source":"sat"},{"id":"roads","type":"raster","source":"roads","paint":{"raster-opacity":0.7}}]}"""
 
-private val OUR_LAYERS = setOf("route-glow", "route-line", "place-area", "place-label", "people-halo", "people-icon", "nosotros-poi", "nosotros-campus", "together-halo", "together-icon", "together-hearts")
+private val OUR_LAYERS = setOf("route-glow", "route-line", "place-area", "place-label", "people-halo", "people-icon", "nosotros-poi", "nosotros-campus", "together-halo", "together-icon", "together-heart-0", "together-heart-1", "together-heart-2", "together-heart-3")
 
 data class MapPerson(
     val uid: String, val initial: String, val color: Int, val ink: Int,
@@ -255,28 +255,38 @@ fun LiveMap(
     }
 
 
-    // Render-only animation: no GPS requests, network traffic or bitmap allocations per frame.
+    // Screen-space particles stay above the portraits at every bearing and map tilt.
     LaunchedEffect(style, together, resumed) {
         val halo = style?.getLayer("together-halo") ?: return@LaunchedEffect
-        val hearts = style?.getLayer("together-hearts") ?: return@LaunchedEffect
-        halo.setProperties(PropertyFactory.circleRadius(76f), PropertyFactory.circleOpacity(0.16f))
-        hearts.setProperties(PropertyFactory.iconTranslate(arrayOf(0f, -53f)), PropertyFactory.iconOpacity(1f))
-        val saving = ctx.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
-        if (!together || !resumed || saving || !android.animation.ValueAnimator.areAnimatorsEnabled()) return@LaunchedEffect
-        var lastPowerCheck = 0L
-        while (true) {
-            val elapsed = android.os.SystemClock.elapsedRealtime()
-            if (elapsed - lastPowerCheck >= 1000) {
-                lastPowerCheck = elapsed
-                if (!android.animation.ValueAnimator.areAnimatorsEnabled() || ctx.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true) break
+        val hearts = (0 until TogetherMotion.HEARTS).map { style?.getLayer("together-heart-$it") ?: return@LaunchedEffect }
+        fun particles(elapsed: Long, animated: Boolean) {
+            hearts.forEachIndexed { index, layer ->
+                val f=TogetherMotion.heart(index,elapsed,animated)
+                layer.setProperties(PropertyFactory.iconTranslate(arrayOf(f.x,f.y)),
+                    PropertyFactory.iconOpacity(f.opacity),PropertyFactory.iconSize(f.scale))
             }
-            val phase = (android.os.SystemClock.elapsedRealtime() % 2800L) / 2800f
-            val wave = (1f - kotlin.math.cos(phase * 2f * Math.PI).toFloat()) / 2f
-            halo.setProperties(PropertyFactory.circleRadius(65f + 15f * wave),
-                PropertyFactory.circleOpacity(0.12f + 0.10f * wave))
-            hearts.setProperties(PropertyFactory.iconTranslate(arrayOf(0f, -49f - 16f * phase)),
-                PropertyFactory.iconOpacity(0.55f + 0.45f * kotlin.math.sin(phase * Math.PI).toFloat()))
-            kotlinx.coroutines.delay(70)
+        }
+        fun still() {
+            halo.setProperties(PropertyFactory.circleRadius(76f),PropertyFactory.circleOpacity(.18f))
+            particles(0,false)
+        }
+        still()
+        val power=ctx.getSystemService(android.os.PowerManager::class.java)
+        if (!together || !resumed || power?.isPowerSaveMode == true || !android.animation.ValueAnimator.areAnimatorsEnabled())
+            return@LaunchedEffect
+        var lastPowerCheck=0L
+        while (true) {
+            val elapsed=android.os.SystemClock.elapsedRealtime()
+            if (elapsed-lastPowerCheck >= 1000) {
+                lastPowerCheck=elapsed
+                if (power?.isPowerSaveMode == true || !android.animation.ValueAnimator.areAnimatorsEnabled()) { still(); break }
+            }
+            val phase=(elapsed % 3200L)/3200f
+            val wave=(1f-kotlin.math.cos(phase*2*Math.PI).toFloat())/2f
+            halo.setProperties(PropertyFactory.circleRadius(68f+12f*wave),
+                PropertyFactory.circleOpacity(.12f+.10f*wave))
+            particles(elapsed,true)
+            kotlinx.coroutines.delay(33)
         }
     }
 
@@ -377,7 +387,7 @@ private fun setupLayers(s: Style) {
     )
     // Círculo del radio real del lugar (en metros, escala con el zoom)
     s.addLayer(
-        CircleLayer("place-area", "places").withProperties(
+        CircleLayer("place-area", "places").withFilter(Expression.eq(Expression.get("containsPair"), Expression.literal(false))).withProperties(
             PropertyFactory.circleColor(color), PropertyFactory.circleOpacity(0.10f),
             PropertyFactory.circleStrokeColor(color), PropertyFactory.circleStrokeOpacity(0.55f),
             PropertyFactory.circleStrokeWidth(1.5f),
@@ -408,19 +418,37 @@ private fun setupLayers(s: Style) {
             PropertyFactory.iconIgnorePlacement(true),
         )
     )
-    s.addLayer(CircleLayer("together-halo", "together").withProperties(
-        PropertyFactory.circleColor("#BE91F0"), PropertyFactory.circleRadius(76f),
-        PropertyFactory.circleOpacity(0.16f), PropertyFactory.circleBlur(0.5f)))
-    s.addLayer(SymbolLayer("together-icon", "together").withProperties(
-        PropertyFactory.iconImage(Expression.get("icon")), PropertyFactory.iconAllowOverlap(true),
-        PropertyFactory.iconIgnorePlacement(true)))
-    s.addLayer(SymbolLayer("together-hearts", "together").withProperties(
-        PropertyFactory.iconImage("together-hearts"), PropertyFactory.iconAllowOverlap(true),
-        PropertyFactory.iconIgnorePlacement(true), PropertyFactory.iconTranslate(arrayOf(0f, -53f))))
+    s.addLayer(togetherHaloLayer())
+    s.addLayer(togetherPortraitLayer())
+    repeat(TogetherMotion.HEARTS) { s.addLayer(togetherHeartLayer(it)) }
+}
+
+internal fun togetherHaloLayer() = CircleLayer("together-halo", "together").withProperties(
+    PropertyFactory.circleColor("#BE91F0"), PropertyFactory.circleRadius(76f),
+    PropertyFactory.circleOpacity(.18f), PropertyFactory.circleBlur(.5f),
+    PropertyFactory.circlePitchAlignment(Property.CIRCLE_PITCH_ALIGNMENT_VIEWPORT),
+    PropertyFactory.circlePitchScale(Property.CIRCLE_PITCH_SCALE_VIEWPORT))
+
+internal fun togetherPortraitLayer() = SymbolLayer("together-icon", "together").withProperties(
+    PropertyFactory.iconImage(Expression.get("icon")), PropertyFactory.iconAllowOverlap(true),
+    PropertyFactory.iconIgnorePlacement(true),
+    PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_VIEWPORT),
+    PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_VIEWPORT))
+
+internal fun togetherHeartLayer(index: Int): SymbolLayer {
+    val f=TogetherMotion.heart(index,0,false)
+    return SymbolLayer("together-heart-$index","together").withProperties(
+        PropertyFactory.iconImage("together-heart"), PropertyFactory.iconAllowOverlap(true),
+        PropertyFactory.iconIgnorePlacement(true),
+        PropertyFactory.iconTranslateAnchor(Property.ICON_TRANSLATE_ANCHOR_VIEWPORT),
+        PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_VIEWPORT),
+        PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_VIEWPORT),
+        PropertyFactory.iconTranslate(arrayOf(f.x,f.y)), PropertyFactory.iconSize(f.scale))
 }
 
 private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPerson>, places: List<Place>, routes: List<MapRoute>, together: Boolean = false) {
     val joined = together && people.size == 2
+    val pairCenter = if (joined) com.tony.nosotros.util.PairProximity.center(people[0].lat,people[0].lng,people[1].lat,people[1].lng) else null
     (s.getSource("routes") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(
         routes.filter { it.points.size >= 2 }.map { r ->
             Feature.fromGeometry(LineString.fromLngLats(r.points.map { Point.fromLngLat(it.lng, it.lat) })).apply {
@@ -438,6 +466,9 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
                 addStringProperty("pid", p.id)
                 addStringProperty("color", hex(pal.me.toArgb()))
                 addNumberProperty("r", p.radius)
+                addBooleanProperty("containsPair", pairCenter?.let {
+                    com.tony.nosotros.util.Geo.dist(it.lat,it.lng,p.lat,p.lng) <= p.radius
+                } == true)
             }
         }
     ))
@@ -457,7 +488,7 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
     val pairFeatures = if (joined) {
         val key = "tg_" + people.map { listOf(it.uid, it.initial, it.avatar, it.color, it.ink) }.hashCode()
         if (s.getImage(key) == null) s.addImage(key, togetherBitmap(ctx, people))
-        if (s.getImage("together-hearts") == null) s.addImage("together-hearts", togetherHeartsBitmap(ctx))
+        if (s.getImage("together-heart") == null) s.addImage("together-heart", togetherHeartBitmap(ctx))
         val center = com.tony.nosotros.util.PairProximity.center(people[0].lat, people[0].lng, people[1].lat, people[1].lng)
         listOf(Feature.fromGeometry(Point.fromLngLat(center.lng, center.lat)).apply { addStringProperty("icon", key) })
     } else emptyList()
