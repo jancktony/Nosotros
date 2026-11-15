@@ -1,0 +1,28 @@
+name: Vista previa privada de Juntos
+on:
+  push:
+    branches: [feature/voz-estable-juntos-1.14]
+    paths: ['preview-juntos/**', '.github/workflows/preview-juntos.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - run: node --check preview-juntos/app.js
+      - name: Publicar solo un canal temporal, sin cambiar la app ni la web principal
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/preview-credential.json"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          node security/prepare-web.cjs
+          cp web/config.js preview-juntos/config.js
+          npx firebase hosting:channel:deploy juntos --expires 7d --project nosotros-1e43a --config preview-juntos/firebase.json --non-interactive
