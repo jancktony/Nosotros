@@ -26,6 +26,12 @@ jobs:
           target: default
           disable-animations: true
           script: npx firebase emulators:exec --only auth,firestore --project demo-nosotros 'node security/seed-voice-emulators.cjs && (./gradlew connectedDebugAndroidTest -PcodecTest=1; CODE=$?; adb logcat -d > emulator-logcat.txt; exit $CODE)'
+      - name: Detalle del emulador ficticio si falla voz
+        if: failure()
+        run: |
+          if [ -f emulator-logcat.txt ]; then
+            grep -E 'Firestore|PERMISSION_DENIED|UNAUTHENTICATED|DEADLINE|Write failed|Listen.*failed' emulator-logcat.txt | tail -80 || true
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
