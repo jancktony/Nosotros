@@ -127,7 +127,11 @@ class WalkieService : Service() {
             }
         }.also { it.start() }
     }
-    fun reconnect() { retryAttempt = 0; handler.removeCallbacks(retry); stopTalking(); connection?.end("Reconectando…"); refreshRelay(); prepare() }
+    fun reconnect() {
+        retryAttempt = 0; handler.removeCallbacks(retry); stopTalking(); connection?.end("Reconectando…"); refreshRelay()
+        // The elected warmer only applies to passive preparation, never to a user's reconnect action.
+        partner?.let { if (connection?.active != true) connection?.dial(it) }
+    }
     fun prepare() {
         val current = connection ?: return
         val to = partner ?: return
