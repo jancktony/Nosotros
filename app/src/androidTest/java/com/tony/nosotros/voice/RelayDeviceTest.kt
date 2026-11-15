@@ -31,16 +31,27 @@ class RelayDeviceTest {
   val (appA,dbA)=backend("relay-alice","jancktoni@gmail.com")
   val (appB,dbB)=backend("relay-bob","kelinherrera130323@gmail.com")
   var a:WalkieRelay?=null;var b:WalkieRelay?=null
+  var statusA="";var statusB=""
+  val clockA=VoiceClock{android.os.SystemClock.elapsedRealtime()};val clockB=VoiceClock{android.os.SystemClock.elapsedRealtime()}
+  assertEquals("alice",FirebaseAuth.getInstance(appA).currentUser?.uid)
+  assertEquals("bob",FirebaseAuth.getInstance(appB).currentUser?.uid)
+  assertTrue(FirebaseAuth.getInstance(appA).currentUser?.isEmailVerified==true)
+  assertNotNull(Tasks.await(dbA.document("pairs/voice-integration").get(com.google.firebase.firestore.Source.SERVER),10,TimeUnit.SECONDS).get("members"))
   val arrival=CountDownLatch(2);val actual=mutableListOf<ByteArray>()
   val packetA=VoiceWire.packet(0,listOf(byteArrayOf(1,2,3,4)),123)
   val packetB=VoiceWire.packet(0,listOf(byteArrayOf(5,6,7,8)),456)
   try {
    withContext(Dispatchers.Main){
-    a=WalkieRelay("voice-integration","alice","bob",database=dbA,received={actual.add(it);arrival.countDown()},focus={true}){_,_->}
-    b=WalkieRelay("voice-integration","bob","alice",database=dbB,received={actual.add(it);arrival.countDown()},focus={true}){_,_->}
+    a=WalkieRelay("voice-integration","alice","bob",clock=clockA,database=dbA,received={actual.add(it);arrival.countDown()},focus={true}){message,_->statusA=message}
+    b=WalkieRelay("voice-integration","bob","alice",clock=clockB,database=dbB,received={actual.add(it);arrival.countDown()},focus={true}){message,_->statusB=message}
     a!!.start();b!!.start()
    }
-   withTimeout(20_000){while(a?.ready!=true||b?.ready!=true)delay(50)}
+   try { withTimeout(20_000){while(a?.ready!=true||b?.ready!=true)delay(50)} }
+   catch(e:kotlinx.coroutines.TimeoutCancellationException) {
+    val pa=Tasks.await(dbA.document("pairs/voice-integration/walkiePresence/bob").get(com.google.firebase.firestore.Source.SERVER),10,TimeUnit.SECONDS)
+    val pb=Tasks.await(dbB.document("pairs/voice-integration/walkiePresence/alice").get(com.google.firebase.firestore.Source.SERVER),10,TimeUnit.SECONDS)
+    fail("Transport readiness: A="+statusA+" B="+statusB+" clockA="+clockA.ready+" clockB="+clockB.ready+" peerA="+pa.data+" peerB="+pb.data)
+   }
    withContext(Dispatchers.Main){
     assertTrue(a!!.enqueue(packetA));a!!.flush()
     assertTrue(b!!.enqueue(packetB));b!!.flush()
