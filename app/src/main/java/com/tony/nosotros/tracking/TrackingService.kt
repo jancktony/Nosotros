@@ -144,6 +144,7 @@ class TrackingService : Service() {
         presence?.stop()
         com.tony.nosotros.find.PhoneFinder.close()
         fused.removeLocationUpdates(callback)
+        oneFix?.cancel(); oneFix = null
         scope.cancel()
         super.onDestroy()
     }
@@ -221,6 +222,7 @@ class TrackingService : Service() {
     @SuppressLint("MissingPermission")
     private fun applyPolicy(force: Boolean = false) {
         if (!hasLocationPermission()) return
+        if (isPaused()) { oneFix?.cancel(); oneFix = null }
         val now = System.currentTimeMillis()
         val live = liveUntil > now
         val (key, req) = when {
@@ -259,11 +261,24 @@ class TrackingService : Service() {
         updateNotification()
     }
 
+    private var oneFix: com.google.android.gms.tasks.CancellationTokenSource? = null
+    private var lastOneFixAt = -30_000L
+
     @SuppressLint("MissingPermission")
     private fun requestOneFix() {
-        if (!hasLocationPermission() || isPaused()) return
-        fused.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-            .addOnSuccessListener { it?.let { loc -> onLocation(loc) } }
+        if (!hasLocationPermission() || isPaused() || oneFix != null) return
+        val elapsed = SystemClock.elapsedRealtime()
+        if (elapsed-lastOneFixAt < 30_000L) return
+        lastOneFixAt = elapsed
+        val token = com.google.android.gms.tasks.CancellationTokenSource()
+        oneFix = token
+        val request = com.google.android.gms.location.CurrentLocationRequest.Builder()
+            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+            .setMaxUpdateAgeMillis(15_000L).setDurationMillis(12_000L).build()
+        try { fused.getCurrentLocation(request, token.token)
+            .addOnSuccessListener { loc -> if (oneFix === token) loc?.let { onLocation(it) } }
+            .addOnCompleteListener { if (oneFix === token) oneFix = null }
+        } catch (_: SecurityException) { oneFix = null; token.cancel() }
     }
 
     private fun hasLocationPermission() =

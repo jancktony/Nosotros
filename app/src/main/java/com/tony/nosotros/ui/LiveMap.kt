@@ -54,15 +54,7 @@ import org.maplibre.geojson.Point
 
 /** Esri may return a successful HTTP response containing a grey "no data" image at
  * high native zooms (confirmed in Riohacha). Overzoom available imagery instead. */
-private const val SATELLITE_STYLE = """{"version":8,"sources":{
-"sat":{"type":"raster","tileSize":256,"maxzoom":17,"attribution":"Esri, Maxar, Earthstar Geographics",
-"tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]},
-"roads":{"type":"raster","tileSize":256,"maxzoom":19,
-"tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"]},
-"names":{"type":"raster","tileSize":256,"maxzoom":19,
-"tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"]}},
-"layers":[{"id":"sat","type":"raster","source":"sat"},{"id":"roads","type":"raster","source":"roads","paint":{"raster-opacity":0.7}},
-{"id":"names","type":"raster","source":"names"}]}"""
+private const val SATELLITE_STYLE = """{"version":8,"sources":{"sat":{"type":"raster","tileSize":256,"maxzoom":17,"attribution":"Esri, Maxar, Earthstar Geographics","tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]},"roads":{"type":"raster","tileSize":256,"maxzoom":19,"tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"]}},"layers":[{"id":"sat","type":"raster","source":"sat"},{"id":"roads","type":"raster","source":"roads","paint":{"raster-opacity":0.7}}]}"""
 
 private val OUR_LAYERS = setOf("route-glow", "route-line", "place-area", "place-label", "people-halo", "people-icon", "nosotros-poi", "nosotros-campus", "together-halo", "together-icon", "together-hearts")
 
@@ -208,13 +200,13 @@ fun LiveMap(
         val base = JSONObject(ctx.assets.open("maps/${if (palette.dark) "night" else "pink"}.json").bufferedReader().use { it.readText() })
         val json = if (satellite) JSONObject(SATELLITE_STYLE).apply {
             put("glyphs", base.getString("glyphs"))
-            if (publicPlaces) getJSONObject("sources").put("openmaptiles", base.getJSONObject("sources").getJSONObject("openmaptiles"))
+            getJSONObject("sources").put("openmaptiles", base.getJSONObject("sources").getJSONObject("openmaptiles"))
         } else base
         if (globe) json.put("projection", JSONObject().put("type", "globe"))
         val builder = Style.Builder().fromJson(json.toString())
         m.setStyle(builder) { s ->
             if (!satellite) tintStyle(s, palette)
-            if (!satellite) setupBuildings(s, palette)
+            setupBuildings(s, palette)
             if (publicPlaces) setupPublicPlaces(s, satellite || palette.dark)
             setupLayers(s)
             style = s
@@ -346,9 +338,10 @@ private fun tintStyle(s: Style, p: Palette) {
 private fun setupBuildings(s: Style, palette: Palette) {
     val footprint = s.layers.filterIsInstance<FillLayer>().firstOrNull {
         it.id.contains("building", ignoreCase = true) && s.getSource(it.sourceId) is VectorSource
-    } ?: return
-    val sourceLayer = footprint.sourceLayer ?: return
-    val buildings = FillExtrusionLayer("nosotros-buildings-3d", footprint.sourceId).apply {
+    }
+    val sourceId = footprint?.sourceId ?: "openmaptiles".takeIf { s.getSource(it) is VectorSource } ?: return
+    val sourceLayer = footprint?.sourceLayer ?: "building"
+    val buildings = FillExtrusionLayer("nosotros-buildings-3d", sourceId).apply {
         this.sourceLayer = sourceLayer
         minZoom = 14f
         setProperties(
@@ -400,8 +393,8 @@ private fun setupLayers(s: Style) {
     )
     s.addLayer(
         SymbolLayer("place-label", "places").withProperties(
-            PropertyFactory.iconImage(Expression.get("icon")), PropertyFactory.iconAllowOverlap(true),
-            PropertyFactory.iconIgnorePlacement(true), PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+            PropertyFactory.iconImage(Expression.get("icon")), PropertyFactory.iconAllowOverlap(false),
+            PropertyFactory.iconIgnorePlacement(false), PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM), PropertyFactory.iconPadding(8f),
         )
     )
     s.addLayer(
