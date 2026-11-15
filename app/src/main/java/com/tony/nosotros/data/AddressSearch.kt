@@ -15,7 +15,7 @@ object AddressSearch {
                 .minByOrNull { Geo.dist(p.lat,p.lng,it.second.lat,it.second.lng) }
                 ?.takeIf { Geo.dist(p.lat,p.lng,it.second.lat,it.second.lng)<30_000 }?.first
         }
-        var clean=raw.replace(Regex("(?i)\\b(?:torre|apartamento|apto\\.?|apartment|piso|interior|int\\.)\\s*\\d.*$"),"")
+        var clean=raw.replace(Regex("(?i)\\b(?:torre|apartamento|apto|apartment|piso|interior|int)\\b\\.?\\s*\\d.*$"),"")
             .replace(Regex("(?i)\\b(?:al lado de|al lado|cerca de|frente a)\\b.*$"),"").trim(' ', ',')
             .replace(Regex("(?i)\\b(?:numero|número|nro\\.?)\\b"),"#")
         clean=clean.replace(Regex("(?i)^(?:cl\\.?|cll\\.?)\\s*"),"Calle ")
