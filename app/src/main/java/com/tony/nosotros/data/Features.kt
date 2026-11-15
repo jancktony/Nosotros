@@ -5,6 +5,7 @@ enum class Feature(val id: String, val title: String, val defaultMode: String = 
     WALKIE_RELAY("walkieRelay", "Walkie en redes difíciles (opcional)", "off"),
     APP_PRESENCE("appPresence", "Compartir aplicación en uso (voluntario)", "off"),
     SLEEP_STATUS("sleepStatus", "Descanso estimado (voluntario)", "off"),
+    MAP_TOGETHER("mapTogether", "Juntos · perfiles y corazones animados", "admin"),
     MAP_PLACES("mapPlaces", "Nombres de universidades y lugares", "off"),
     MAP_GLOBE("mapGlobe", "Globo terrestre experimental", "off"),
     WALKIE("walkie", "Walkie-talkie en directo", "off"),

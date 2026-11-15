@@ -11,3 +11,5 @@ function tab(name){$('other').hidden=name==='Mapa';if(name!=='Mapa'){$('other').
 for(const b of document.querySelectorAll('[data-tab]'))b.onclick=()=>tab(b.dataset.tab);
 $('profile-j').onclick=$('profile-k').onclick=()=>tab('Mapa');
 $('settings').onclick=()=>{tab('Más');$('other').querySelector('h2').textContent='Ajustes';$('other').querySelector('p').textContent='General · Perfil · Actividad · Ubicación · Avisos · Widgets · Cuenta · Administración'};
+
+$('animate').onclick=()=>{const off=document.body.classList.toggle('motion-off');$('animate').setAttribute('aria-pressed',String(!off));$('animate').textContent=off?'Animación pausada':'Animación activada'};
