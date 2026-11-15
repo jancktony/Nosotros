@@ -30,6 +30,10 @@ class WalkieService : Service() {
     private var partner: String? = null
     private var retryAttempt = 0
     private val retry = Runnable { if (WalkieHub.foregroundOpen && App.instance.prefs.receiveWalkie) prepare() }
+    private val clock = VoiceClock { SystemClock.elapsedRealtime() }
+    private var pendingCalls: com.google.firebase.firestore.QuerySnapshot? = null
+    private var destroyed = false
+    private val clockRetry = Runnable { synchronizeClock() }
     private var requested = false
     private var uid = ""
     private val handler = Handler(Looper.getMainLooper())
@@ -72,6 +76,7 @@ class WalkieService : Service() {
                     handler.removeCallbacks(retry); retryAttempt++
                     handler.postDelayed(retry, 2000L * retryAttempt)
                 }
+                if (available && requested) startTalking()
             }
         } catch (_: Exception) { WalkieHub.state.value = WalkieHub.State(message = "No se pudo abrir el walkie"); stopSelf(); return START_NOT_STICKY }
         authListener = FirebaseAuth.AuthStateListener { auth -> if (auth.currentUser?.uid != uid || !Repo.authorizedSession) stopSelf() }
@@ -83,28 +88,56 @@ class WalkieService : Service() {
             partner = members.firstOrNull { it != uid }
             relayPermitted = FeatureAccess(modes, snapshot?.getString("admin") == uid).enabled(Feature.WALKIE_RELAY)
             refreshRelay()
-            if (WalkieHub.foregroundOpen) prepare()
+            if (requested && clock.ready) talk() else if (WalkieHub.foregroundOpen) prepare()
         }
         callsListener = Repo.db.collection("pairs").document(pair).collection("walkieCalls")
             .orderBy("createdAt", Query.Direction.DESCENDING).limit(10).addSnapshotListener { snapshot, error ->
                 if (error != null) { connection?.end("No se pudo acceder al canal privado"); return@addSnapshotListener }
-                val incoming = snapshot?.documents?.firstOrNull {
-                    it.getString("to") == uid && it.getString("answer") == null &&
-                        (it.getTimestamp("createdAt")?.toDate()?.time ?: 0) > System.currentTimeMillis() - 45000
-                } ?: return@addSnapshotListener
-                val current = connection ?: return@addSnapshotListener
-                if (current.currentCallId == incoming.id) return@addSnapshotListener
-                if (current.active) {
-                    // Deterministic resolution when both press simultaneously.
-                    if (incoming.getString("uid").orEmpty() >= uid) return@addSnapshotListener
-                    val held = requested
-                    current.end()
-                    requested = held
-                }
-                if (audioManager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return@addSnapshotListener
-                current.accept(incoming)
+                pendingCalls = snapshot
+                acceptPendingCall()
             }
+        synchronizeClock()
         return START_NOT_STICKY
+    }
+    private fun synchronizeClock() {
+        if (destroyed) return
+        val own = Repo.db.collection("pairs").document(pairId).collection("members").document(uid)
+        own.set(mapOf("voiceClockAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()), com.google.firebase.firestore.SetOptions.merge())
+            .continueWithTask { task -> task.result; own.get(com.google.firebase.firestore.Source.CACHE) }
+            .addOnSuccessListener { doc ->
+                if (destroyed) return@addOnSuccessListener
+                val stamp = doc.getTimestamp("voiceClockAt")?.toDate()?.time
+                if (stamp == null) {
+                    handler.postDelayed(clockRetry, 2000); return@addOnSuccessListener
+                }
+                clock.synchronize(stamp)
+                acceptPendingCall()
+                if (requested) talk() else if (WalkieHub.foregroundOpen) prepare()
+            }.addOnFailureListener {
+                if (!destroyed) {
+                    WalkieHub.state.value = WalkieHub.state.value.copy(message = "No se pudo preparar el canal privado. Revisa internet.")
+                    handler.removeCallbacks(clockRetry); handler.postDelayed(clockRetry, 5000)
+                }
+            }
+    }
+    private fun acceptPendingCall() {
+        if (!clock.ready || destroyed) return
+        val incoming = pendingCalls?.documents?.firstOrNull {
+            it.getString("to") == uid && it.getString("answer") == null &&
+                clock.fresh(it.getTimestamp("createdAt")?.toDate()?.time ?: 0, 45_000)
+        } ?: return
+        val current = connection ?: return
+        if (current.currentCallId == incoming.id) return
+        if (current.active) {
+            // Deterministic resolution when both press simultaneously.
+            if (incoming.getString("uid").orEmpty() >= uid) return
+            val held = requested
+            current.end()
+            requested = held
+        }
+        if (audioManager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return
+        current.accept(incoming)
+
     }
     fun refreshRelay() {
         val enabled = relayPermitted && App.instance.prefs.allowVoiceRelay && partner != null
@@ -119,8 +152,8 @@ class WalkieService : Service() {
         }
         if (relay != null && relayPartner == partner) return
         relay?.close(); relayPartner = partner
-        relay = WalkieRelay(pairId, uid, partner!!,
-            { audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED }) { message, ready ->
+        relay = WalkieRelay(pairId, uid, partner!!, clock = clock,
+            focus = { audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED }) { message, ready ->
             if (connection?.ready != true) {
                 WalkieHub.state.value = WalkieHub.state.value.copy(connected = ready, message = message)
                 if (!ready && WalkieHub.state.value.talking) stopTalking() else if (ready && requested) startTalking()
@@ -130,9 +163,10 @@ class WalkieService : Service() {
     fun reconnect() {
         retryAttempt = 0; handler.removeCallbacks(retry); stopTalking(); connection?.end("Reconectando…"); refreshRelay()
         // The elected warmer only applies to passive preparation, never to a user's reconnect action.
-        partner?.let { if (connection?.active != true) connection?.dial(it) }
+        if (clock.ready) partner?.let { if (connection?.active != true) connection?.dial(it) }
     }
     fun prepare() {
+        if (!clock.ready) return
         val current = connection ?: return
         val to = partner ?: return
         // One elected warmer avoids two simultaneous offers. A deliberate press may still call either way.
@@ -141,9 +175,10 @@ class WalkieService : Service() {
     fun talk() {
         val current = connection ?: return
         requested = true
-        if (WalkieHub.state.value.connected) startTalking()
+        if (!clock.ready) { WalkieHub.state.value = WalkieHub.state.value.copy(message = "Preparando canal privado…"); return }
+        if (connection?.ready == true || relay?.ready == true) startTalking()
         else if (!current.active) {
-            val to = partner ?: run { requested = false; WalkieHub.state.value = WalkieHub.state.value.copy(message = "Cargando el canal… inténtalo en un momento"); return }
+            val to = partner ?: run { WalkieHub.state.value = WalkieHub.state.value.copy(message = "Cargando el canal…"); return }
             current.dial(to)
             // The mic starts only if the finger is still pressed when the channel becomes ready.
             requested = true
@@ -189,7 +224,7 @@ class WalkieService : Service() {
         runCatching { ServiceCompat.startForeground(this, ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK) }
     }
     override fun onDestroy() {
-        handler.removeCallbacks(retry); stopTalking(); pairListener?.remove(); callsListener?.remove()
+        destroyed = true; handler.removeCallbacks(clockRetry); handler.removeCallbacks(retry); stopTalking(); pairListener?.remove(); callsListener?.remove()
         authListener?.let { FirebaseAuth.getInstance().removeAuthStateListener(it) }
         relay?.close(); relay = null
         connection?.close(); connection = null

@@ -1,0 +1,22 @@
+name: Diagnóstico privado de conexión de voz
+on:
+  push:
+    branches: [feature/voz-estable-juntos-1.14]
+    paths: ['security/diagnose-walkie-private.cjs', '.github/workflows/diagnose-walkie.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - name: Guardar metadata de transporte solo en un borrador privado
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node security/diagnose-walkie-private.cjs
