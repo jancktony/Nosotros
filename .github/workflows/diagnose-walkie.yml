@@ -1,7 +1,7 @@
 name: Diagnóstico privado de conexión de voz
 on:
   push:
-    branches: [feature/voz-estable-juntos-1.14]
+    branches: [diagnostic/voice-live-probe]
     paths: ['security/diagnose-walkie-private.cjs', '.github/workflows/diagnose-walkie.yml']
   workflow_dispatch:
 permissions:
