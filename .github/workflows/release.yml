@@ -91,7 +91,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for WORKFLOW in security.yml voice-device.yml; do
+          for WORKFLOW in security.yml map-device.yml; do
             RUN=""
             for attempt in $(seq 1 110); do
               RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW/runs?head_sha=$GITHUB_SHA&per_page=10" --jq '.workflow_runs | map(select(.head_sha == env.GITHUB_SHA and .conclusion == "success")) | first | .id // empty')

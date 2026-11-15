@@ -1,0 +1,30 @@
+name: Verificar panel compacto del mapa en Android
+on:
+  push:
+    branches: [feature/correcciones-mapa-1.15.2]
+    paths: ['app/**', '.github/workflows/map-device.yml']
+permissions:
+  contents: read
+jobs:
+  map-panel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - name: Habilitar KVM
+        run: sudo chmod 666 /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: default
+          disable-animations: true
+          script: ./gradlew connectedDebugAndroidTest -PcodecTest=1 -Pandroid.testInstrumentationRunnerArguments.class=com.tony.nosotros.ui.MapPanelDeviceTest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: map-panel-test-results
+          path: app/build/reports/androidTests/connected/
+          retention-days: 3
