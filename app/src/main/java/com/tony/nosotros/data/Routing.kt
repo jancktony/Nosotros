@@ -10,31 +10,63 @@ import java.net.URLEncoder
 
 /** Búsqueda de direcciones (Nominatim) y rutas (OSRM), todo gratis con OpenStreetMap. */
 object Routing {
-    data class Hit(val name: String, val lat: Double, val lng: Double)
+    data class Hit(val name: String, val lat: Double, val lng: Double, val detail: String = "")
     data class Step(val text: String, val distanceM: Double)
     data class Route(val points: List<Pt>, val distanceM: Double, val seconds: Double, val steps: List<Step>)
 
+    enum class SearchFailure { NONE, NOT_FOUND, UNAVAILABLE }
+    data class SearchResult(val hits: List<Hit>, val failure: SearchFailure = SearchFailure.NONE)
+    private val searchLock = kotlinx.coroutines.sync.Mutex()
+    private var lastNominatim = 0L
+
     private fun get(url: String): String = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).run {
-        setRequestProperty("User-Agent", "NosotrosApp/1.0")
-        connectTimeout = 12000; readTimeout = 15000
+        setRequestProperty("User-Agent", "NosotrosApp/1.13 (github.com/jancktony/Nosotros)")
+        connectTimeout = 7000; readTimeout = 8000
         try { inputStream.bufferedReader().use { it.readText() } } finally { disconnect() }
     }
 
-    /** Busca una dirección o lugar. [near] mejora el orden por cercanía. */
-    suspend fun search(query: String, near: Pt?): List<Hit> = withContext(Dispatchers.IO) {
-        if (query.isBlank()) return@withContext emptyList()
-        runCatching {
-            val q = URLEncoder.encode(query, "UTF-8")
-            val vb = near?.let {
-                val d = 0.5
-                "&viewbox=${it.lng - d},${it.lat + d},${it.lng + d},${it.lat - d}&bounded=0"
-            } ?: ""
-            val json = JSONArray(get("https://nominatim.openstreetmap.org/search?q=$q&format=json&limit=6&accept-language=es&countrycodes=co$vb"))
-            (0 until json.length()).map {
-                val o = json.getJSONObject(it)
-                Hit(o.getString("display_name"), o.getString("lat").toDouble(), o.getString("lon").toDouble())
+    /** Bounded fallback search; no apartment data, no autocomplete or silent network errors. */
+    suspend fun search(query: String, near: Pt?): SearchResult = withContext(Dispatchers.IO) {
+        var unavailable=false
+        for(candidate in AddressSearch.candidates(query,near)) {
+            val encoded=URLEncoder.encode(candidate.text,"UTF-8")
+            val view=near?.let { "&viewbox=${it.lng-.5},${it.lat+.5},${it.lng+.5},${it.lat-.5}&bounded=0" }.orEmpty()
+            for(provider in 0..1) {
+                try {
+                    val hits=if(provider==0) {
+                        searchLock.lock()
+                        val json=try {
+                            val wait=1100-(System.nanoTime()/1_000_000-lastNominatim)
+                            if(wait>0)kotlinx.coroutines.delay(wait)
+                            lastNominatim=System.nanoTime()/1_000_000
+                            JSONArray(get("https://nominatim.openstreetmap.org/search?q=$encoded&format=json&limit=6&addressdetails=1&accept-language=es&countrycodes=co$view"))
+                        } finally { searchLock.unlock() }
+                        (0 until json.length()).map { i ->
+                            val o=json.getJSONObject(i)
+                            val house=o.optJSONObject("address")?.optString("house_number").orEmpty()
+                            Hit(o.getString("display_name"),o.getString("lat").toDouble(),o.getString("lon").toDouble(),
+                                if(candidate.approximate||house.isBlank()&&candidate.text.contains("#"))"Ubicación aproximada; número sin confirmar" else "Coincidencia del mapa")
+                        }
+                    } else {
+                        // Photon supports only a limited language set; lang=es returns HTTP 400.
+                        val proximity=near?.let { "&lat=${it.lat}&lon=${it.lng}" }.orEmpty()
+                        val json=JSONObject(get("https://photon.komoot.io/api/?q=$encoded&limit=6$proximity")).getJSONArray("features")
+                        (0 until json.length()).mapNotNull { i ->
+                            val feature=json.getJSONObject(i);val p=feature.getJSONObject("properties")
+                            if(!p.optString("countrycode").equals("CO",true))null else {
+                                val coordinates=feature.getJSONObject("geometry").getJSONArray("coordinates")
+                                val label=listOf(p.optString("name"),p.optString("street"),p.optString("housenumber"),p.optString("city"),p.optString("state"))
+                                    .filter { it.isNotBlank() }.distinct().joinToString(", ")
+                                Hit(label,coordinates.getDouble(1),coordinates.getDouble(0),if(candidate.approximate||p.optString("housenumber").isBlank())"Ubicación aproximada; confirma el punto" else "Coincidencia del mapa")
+                            }
+                        }
+                    }
+                    if(hits.isNotEmpty())return@withContext SearchResult(if(near==null)hits else hits.sortedBy { Geo.dist(near.lat,near.lng,it.lat,it.lng) })
+                } catch(e:kotlinx.coroutines.CancellationException){throw e}
+                  catch(_:Exception){unavailable=true}
             }
-        }.getOrDefault(emptyList())
+        }
+        SearchResult(emptyList(),if(unavailable)SearchFailure.UNAVAILABLE else SearchFailure.NOT_FOUND)
     }
 
     /** Ruta entre dos puntos. [foot] = a pie (prioriza calles peatonales). */
