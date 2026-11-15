@@ -91,8 +91,9 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
     val otherSleep by vm.partnerSleepPresence.collectAsState()
     val presenceNow by vm.tick.collectAsState()
     val showAppActivity = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.APP_PRESENCE)
-    val partnerActivity = if (showAppActivity) com.tony.nosotros.presence.AppActivity.from(otherApp,presenceNow) else null
-    val ownActivity = if (showAppActivity) com.tony.nosotros.presence.AppActivity.from(myApp,presenceNow) else null
+    val activityNow = System.currentTimeMillis()
+    val partnerActivity = if (showAppActivity) com.tony.nosotros.presence.AppActivity.from(otherApp,activityNow) else null
+    val ownActivity = if (showAppActivity) com.tony.nosotros.presence.AppActivity.from(myApp,activityNow) else null
     var headerHeight by remember { mutableIntStateOf(0) }
 
     val threeD by vm.map3d.collectAsState()
