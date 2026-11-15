@@ -23,8 +23,15 @@ async function main(){
  const reviews=docs.docs.filter(d=>d.get('uid')===pair.get('admin')).map(d=>({version:d.id,state:d.get('state'),notes:d.get('notes')||'',updatedAt:d.get('updatedAt')?.toDate().toISOString()}));
  const requestsSnapshot=await pair.ref.collection('improvementRequests').orderBy('createdAt','desc').limit(20).get();
  const requests=requestsSnapshot.docs.filter(d=>d.get('uid')===pair.get('admin')).map(d=>({id:d.id,text:d.get('text'),state:d.get('state'),version:d.get('version'),createdAt:d.get('createdAt')?.toDate().toISOString()}));
+ const diagnostics={featureModes:{walkie:pair.get('featureFlags')?.walkie||'off',relay:pair.get('featureFlags')?.walkieRelay||'off'},phones:[],calls:[]};
+ for(const user of uids){
+  const [member,presence]=await Promise.all([pair.ref.collection('members').doc(user).get(),pair.ref.collection('walkiePresence').doc(user).get()]);
+  diagnostics.phones.push({role:user===pair.get('admin')?'admin':'partner',version:member.get('appVersion')||'',relay:presence.get('relay')===true,protocol:presence.get('protocol')||'',updatedAt:presence.get('updatedAt')?.toDate().toISOString()||null});
+ }
+ const calls=await pair.ref.collection('walkieCalls').orderBy('createdAt','desc').limit(8).select('uid','createdAt','answer').get();
+ diagnostics.calls=calls.docs.map(d=>({sender:d.get('uid')===pair.get('admin')?'admin':'partner',answered:typeof d.get('answer')==='string',createdAt:d.get('createdAt')?.toDate().toISOString()||null}));
  const key=randomBytes(32),iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key,iv);
- const encrypted=Buffer.concat([cipher.update(JSON.stringify({reviews,requests}),'utf8'),cipher.final()]);
+ const encrypted=Buffer.concat([cipher.update(JSON.stringify({reviews,requests,diagnostics}),'utf8'),cipher.final()]);
  const b64=b=>b.toString('base64');
  writeFileSync('reviews.encrypted.json',JSON.stringify({key:b64(publicEncrypt({key:recipient,padding:constants.RSA_PKCS1_OAEP_PADDING,oaepHash:'sha256'},key)),iv:b64(iv),tag:b64(cipher.getAuthTag()),data:b64(encrypted)}));
  console.log('Exportación cifrada lista; no se modificaron datos ni versiones.');
