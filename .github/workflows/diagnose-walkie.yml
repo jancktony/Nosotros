@@ -13,13 +13,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Cancelar candidata anterior sustituida por 1.15.1
+      - name: Cancelar publicación sustituida por validación dedicada de mapa
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          STATE=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/43745434347" --jq '.status')
+          STATE=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/43753411601" --jq '.status')
           if [ "$STATE" != "completed" ]; then
-            gh run cancel 43745434347 --repo "$GITHUB_REPOSITORY"
+            gh run cancel 43753411601 --repo "$GITHUB_REPOSITORY"
           fi
       - uses: actions/setup-node@v4
         with: {node-version: '22', cache: npm}
