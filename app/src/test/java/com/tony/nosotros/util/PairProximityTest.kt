@@ -6,7 +6,7 @@ import org.junit.Test
 class PairProximityTest {
     @Test fun proximityLabelsDoNotPresentGpsNoiseAsSeparation() {
         assertEquals("Juntos",PairProximity.distanceText(true,14.0))
-        assertEquals("Verificando…",PairProximity.distanceText(false,14.0))
+        assertEquals("Confirmando",PairProximity.distanceText(false,14.0))
         assertEquals("Por confirmar",PairProximity.distanceText(false,null))
         assertTrue(PairProximity.distanceText(false,1200.0).startsWith("≈ "))
     }

@@ -36,7 +36,7 @@ class PairProximity {
         fun distanceText(together: Boolean, meters: Double?): String = when {
             together -> "Juntos"
             meters == null -> "Por confirmar"
-            meters <= 40.0 -> "Verificando…"
+            meters <= 40.0 -> "Confirmando"
             else -> "≈ ${TimeFmt.km(meters)}"
         }
 

@@ -1,7 +1,7 @@
 name: Verificar panel compacto del mapa en Android
 on:
   push:
-    branches: [feature/juntos-animacion-1.15.3, feature/correcciones-mapa-1.15.2]
+    branches: [feature/actividad-ficha-1.15.4, feature/juntos-animacion-1.15.3, feature/correcciones-mapa-1.15.2]
     paths: ['app/**', '.github/workflows/map-device.yml']
 permissions:
   contents: read
