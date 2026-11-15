@@ -26,7 +26,7 @@ async function main(){
  const result=await db.collection('pairs').where('members','array-contains',uids[0]).get();
  const pairs=result.docs.filter(d=>d.get('members')?.length===2&&d.get('members').every(x=>uids.includes(x)));
  if(pairs.length!==1)throw Error('pair');const pair=pairs[0],admin=pair.get('admin');
- const diagnostic={checkedAt:new Date().toISOString(),releasedVersion:pair.get('relVersion')||null,modes:{walkie:pair.get('featureFlags')?.walkie||'off',relay:pair.get('featureFlags')?.walkieRelay||'off'},phones:[],offers:[],packets:[]};
+ const diagnostic={checkedAt:new Date().toISOString(),releasedVersion:pair.get('relVersion')||null,testVersion:pair.get('testVersion')||null,forcedVersion:pair.get('forceUpdateVersion')||null,modes:{walkie:pair.get('featureFlags')?.walkie||'off',relay:pair.get('featureFlags')?.walkieRelay||'off'},phones:[],offers:[],packets:[]};
  phase='write-probe';
  const probe=pair.ref.collection('voiceProbe').doc('server');
  try {
@@ -37,7 +37,7 @@ async function main(){
  for(const uid of uids){
   const [member,presence]=await Promise.all([pair.ref.collection('members').doc(uid).get(),pair.ref.collection('walkiePresence').doc(uid).get()]);
   const time=presence.get('updatedAt')?.toDate()?.getTime();
-  diagnostic.phones.push({role:uid===admin?'admin':'partner',version:member.get('appVersion')||null,publishedRelayConsent:presence.exists?presence.get('relay')===true:null,protocol:presence.get('protocol')||null,gpsAgeSeconds:member.get('locationAt')?Math.round((Date.now()-member.get('locationAt'))/1000):null,accuracyMeters:member.get('acc')||null,togetherMode:pair.get('featureFlags')?.mapTogether||'admin',heartbeatAgeSeconds:time?Math.round((Date.now()-time)/1000):null});
+  diagnostic.phones.push({role:uid===admin?'admin':'partner',version:member.get('appVersion')||null,publishedRelayConsent:presence.exists?presence.get('relay')===true:null,protocol:presence.get('protocol')||null,gpsAgeSeconds:member.get('locationAt')?Math.round((Date.now()-member.get('locationAt'))/1000):null,accuracyMeters:member.get('acc')||null,paused:member.get('pausedUntil')>Date.now(),updateStatus:member.get('updateStatus')||null,updateTarget:member.get('updateTarget')||null,togetherMode:pair.get('featureFlags')?.mapTogether||'admin',heartbeatAgeSeconds:time?Math.round((Date.now()-time)/1000):null});
  }
  const calls=await pair.ref.collection('walkieCalls').orderBy('createdAt','desc').limit(8).select('uid','answer','createdAt').get();
  diagnostic.offers=calls.docs.map(d=>({sender:d.get('uid')===admin?'admin':'partner',answered:typeof d.get('answer')==='string',ageSeconds:Math.round((Date.now()-(d.get('createdAt')?.toDate()?.getTime()||0))/1000)}));
