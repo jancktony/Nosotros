@@ -1,0 +1,43 @@
+name: Aislar presencia de voz sin pruebas de interfaz
+on:
+  push:
+    branches: [diagnostic/relay-isolated]
+    paths: ['.github/workflows/relay-isolated.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  codec:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - name: Habilitar KVM
+        run: sudo chmod 666 /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: default
+          disable-animations: true
+          script: npx firebase emulators:exec --only auth,firestore --project demo-nosotros 'node security/seed-voice-emulators.cjs && (./gradlew connectedDebugAndroidTest -PcodecTest=1 -Pandroid.testInstrumentationRunnerArguments.class=com.tony.nosotros.voice.RelayDeviceTest; CODE=$?; node security/inspect-voice-emulator.cjs; adb logcat -d > emulator-logcat.txt; exit $CODE)'
+      - name: Detalle del emulador ficticio si falla voz
+        if: failure()
+        run: |
+          if [ -f emulator-logcat.txt ]; then
+            grep -E 'Firestore|PERMISSION_DENIED|UNAUTHENTICATED|DEADLINE|Write failed|Listen.*failed' emulator-logcat.txt | tail -80 || true
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-relay-test-results
+          path: |
+            app/build/reports/androidTests/connected/
+            emulator-logcat.txt
+            firestore-debug.log
+          retention-days: 3
