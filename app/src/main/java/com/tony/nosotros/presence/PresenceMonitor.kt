@@ -21,6 +21,11 @@ class PresenceMonitor(private val context: Context, private val prefs: Prefs, pr
     private var cursor = 0L
     private val resumed = mutableMapOf<Pair<String, String>, Long>()
     private val labels = mutableMapOf<String, String>()
+    private val homePackage by lazy { runCatching {
+        context.packageManager.resolveActivity(android.content.Intent(android.content.Intent.ACTION_MAIN)
+            .addCategory(android.content.Intent.CATEGORY_HOME),android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+            ?.activityInfo?.packageName
+    }.getOrNull() }
     private val lastValue = arrayOf<String?>(null, null)
     private val sentAt = longArrayOf(0, 0)
 
@@ -78,6 +83,7 @@ class PresenceMonitor(private val context: Context, private val prefs: Prefs, pr
         cursor = now
         val packageName = resumed.maxByOrNull { it.value }?.key?.first ?: return ""
         if (packageName == "com.android.systemui") return ""
+        if (packageName == homePackage || packageName == "com.sec.android.app.launcher") return "Pantalla de inicio"
         return labels.getOrPut(packageName) {
             runCatching { val pm = context.packageManager
                 pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString().take(100)

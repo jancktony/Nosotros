@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -89,6 +90,11 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
     val mySleep by vm.mySleepPresence.collectAsState()
     val otherSleep by vm.partnerSleepPresence.collectAsState()
     val presenceNow by vm.tick.collectAsState()
+    val showAppActivity = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.APP_PRESENCE)
+    val activityNow = System.currentTimeMillis()
+    val partnerActivity = if (showAppActivity) com.tony.nosotros.presence.AppActivity.from(otherApp,activityNow) else null
+    val ownActivity = if (showAppActivity) com.tony.nosotros.presence.AppActivity.from(myApp,activityNow) else null
+    var headerHeight by remember { mutableIntStateOf(0) }
 
     val threeD by vm.map3d.collectAsState()
     vm.tick.collectAsState().value
@@ -145,6 +151,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
         }
     }
     val density = LocalDensity.current
+    val peekHeader = if (headerHeight > 0) with(density) { headerHeight.toDp() } + 36.dp else if (showAppActivity) 156.dp else 88.dp
     val distance = distanceBetween(me, partner)
     val confirmedTogether = together && togetherEnabled && distance != null && distance <= 70.0
 
@@ -168,7 +175,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
 
     BottomSheetScaffold(
         scaffoldState = sheet,
-        sheetPeekHeight = 88.dp + bottomInset,
+        sheetPeekHeight = peekHeader + bottomInset,
         sheetContainerColor = C.surface,
         sheetContentColor = C.text,
         sheetShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
@@ -182,7 +189,8 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
                 together = confirmedTogether, collapsed = !sheetExpanded,
                 timeline = buildTimeline(visits, trips, partnerUid),
                 liveRequested = liveRequested, eta = eta, leftName = lastLeft?.placeName, leftAt = lastLeft?.end ?: 0L,
-                activity = listOfNotNull(otherApp.text(presenceNow, false)?.let { "${partner?.name?.ifBlank { null } ?: "Pareja"}: $it" }, otherSleep.text(presenceNow,true), myApp.text(presenceNow,false)?.let { "Yo: $it" }, mySleep.text(presenceNow,true)?.let { "Yo: $it" }),
+                appActivity = partnerActivity, sleepStatus = otherSleep.text(presenceNow,true),
+                onHeaderHeight = { headerHeight = it },
                 onLive = { vm.requestLive(); liveRequested = System.currentTimeMillis(); focus = Focus.PARTNER; fitKey++ },
             ) }
         },
@@ -195,7 +203,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
                 onTogetherTap = { selectedPerson = null; selectedPlace = null; focus = Focus.BOTH; fitKey++; scope.launch { sheet.bottomSheetState.expand() } },
                 satellite = satellite, threeD = threeD,
                 topInsetPx = with(density) { (if (togetherEnabled && Together.span(since, presenceNow) != null) 150.dp else 80.dp).roundToPx() },
-                bottomInsetPx = with(density) { (bottomInset + if (sheetHidden) 0.dp else 88.dp).roundToPx() },
+                bottomInsetPx = with(density) { (bottomInset + if (sheetHidden) 0.dp else peekHeader).roundToPx() },
                 onLongPress = onAddPlace,
                 onPersonTap = { selectedPerson = it; selectedPlace = null },
                 onPlaceTap = { selectedPlace = it; selectedPerson = null },
@@ -223,7 +231,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
             }
             // Botones flotantes a la derecha
             Column(
-                Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = bottomInset + if (sheetHidden) 16.dp else 104.dp),
+                Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = bottomInset + if (sheetHidden) 16.dp else peekHeader + 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 RoundButton(Ic.Nav, "Buscar dirección y ruta", onNavigate)
@@ -253,7 +261,9 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
             val selPlace = places.firstOrNull { it.id == selectedPlace }
             if (sel != null || selPlace != null) {
                 Box(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 150.dp, start = 16.dp, end = 16.dp)) {
-                    if (sel != null) PersonCard(sel, isMe = sel.uid == me?.uid, other = if (sel.uid == me?.uid) partner else me, together = confirmedTogether) { selectedPerson = null }
+                    if (sel != null) PersonCard(sel, isMe = sel.uid == me?.uid, other = if (sel.uid == me?.uid) partner else me, together = confirmedTogether,
+                        appActivity = if(sel.uid==me?.uid)ownActivity else partnerActivity,
+                        sleepStatus = if(sel.uid==me?.uid)mySleep.text(presenceNow,true) else otherSleep.text(presenceNow,true)) { selectedPerson = null }
                     else if (selPlace != null) PlaceCard(selPlace, me, partner, vm.uid.value,
                         onEdit = { onEditPlace(selPlace); selectedPlace = null }) { selectedPlace = null }
                 }
@@ -308,9 +318,10 @@ private fun TopBar(me: Member?, partner: Member?, distance: Double?, together: B
 }
 
 @Composable
-private fun PersonCard(m: Member, isMe: Boolean, other: Member?, together: Boolean, onClose: () -> Unit) {
+private fun PersonCard(m: Member, isMe: Boolean, other: Member?, together: Boolean, appActivity: com.tony.nosotros.presence.AppActivity?, sleepStatus: String?, onClose: () -> Unit) {
     val color = if (isMe) C.me else C.partner
     FloatingCard(onClose) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Avatar(initialOf(m.name, if (isMe) "Yo" else "P"), color, if (isMe) C.meInk else C.partnerInk, 44.dp, dim = m.paused, photo = m.avatar)
             Spacer(Modifier.width(12.dp))
@@ -321,6 +332,9 @@ private fun PersonCard(m: Member, isMe: Boolean, other: Member?, together: Boole
                 if (together || d != null) Text(com.tony.nosotros.util.PairProximity.distanceText(together, d), color = color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 if (m.acc > 0) Text("Precisión ±${m.acc.toInt()} m", color = C.sub, fontSize = 13.sp)
             }
+        }
+        appActivity?.let { AppActivityRow(if(isMe)"Yo" else m.name.ifBlank { "tu pareja" },it,color) }
+        sleepStatus?.let { Text(it,color=C.sub,fontSize=13.sp) }
         }
     }
 }
@@ -370,7 +384,9 @@ private fun statusLine(m: Member): String {
 internal fun PartnerSheet(
     partner: Member?, partnerUid: String?, distance: Double?, since: Long, timeline: List<TimelineItem>,
     together: Boolean, collapsed: Boolean,
-    liveRequested: Long, eta: Eta.Result?, leftName: String?, leftAt: Long, activity: List<String>, onLive: () -> Unit,
+    liveRequested: Long, eta: Eta.Result?, leftName: String?, leftAt: Long, onLive: () -> Unit,
+    appActivity: com.tony.nosotros.presence.AppActivity? = null, sleepStatus: String? = null,
+    onHeaderHeight: (Int) -> Unit = {},
 ) {
     Column(
         Modifier.fillMaxWidth().height(600.dp).verticalScroll(rememberScrollState())
@@ -385,6 +401,7 @@ internal fun PartnerSheet(
         }
         val name = partner?.name?.ifBlank { null } ?: "Tu pareja"
         val paused = partner?.paused == true
+        Column(Modifier.fillMaxWidth().onSizeChanged { onHeaderHeight(it.height) }, verticalArrangement=Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Avatar(initialOf(name, "P"), C.partner, C.partnerInk, 52.dp, dim = paused, photo = partner?.avatar.orEmpty())
             Spacer(Modifier.width(12.dp))
@@ -402,6 +419,9 @@ internal fun PartnerSheet(
             }
         }
 
+            appActivity?.let { AppActivityRow(name,it) }
+        }
+
         // The collapsed sheet exposes only its header, never statistics behind the floating dock.
         if (collapsed) return@Column
 
@@ -410,7 +430,7 @@ internal fun PartnerSheet(
                 "Llega a ${eta.place.name} aprox. a las ${TimeFmt.hour(eta.arriveAt)} (en ${Eta.mins(eta.seconds)})", C.partner)
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            MiniStat(if (together) "Estado" else "Distancia", com.tony.nosotros.util.PairProximity.distanceText(together, distance), C.me, Modifier.weight(1f))
+            MiniStat(if (together || distance == null || distance <= 40.0) "Estado" else "Distancia", com.tony.nosotros.util.PairProximity.distanceText(together, distance), C.me, Modifier.weight(1f))
             MiniStat("Velocidad", partner?.takeIf { it.mode.moving && !paused }?.let { "${it.speedKmh.toInt()} km/h" } ?: "—", C.partner, Modifier.weight(1f))
         }
 
@@ -438,9 +458,7 @@ internal fun PartnerSheet(
             )
         }
 
-        if (activity.isNotEmpty()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(C.surface2).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            activity.forEach { Text(it, color = C.text, fontSize = 13.sp) }
-        }
+        sleepStatus?.let { Text(it,color=C.sub,fontSize=13.sp) }
         TogetherCard(since)
 
         SectionLabel("Hoy")
@@ -452,10 +470,12 @@ internal fun PartnerSheet(
 @Composable
 private fun MiniStat(label: String, value: String, accent: Color, modifier: Modifier) {
     Column(
-        modifier.clip(RoundedCornerShape(16.dp)).background(C.surface2).padding(14.dp),
+        modifier.padding(vertical = 6.dp),
     ) {
-        Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = accent)
-        Text(label, fontSize = 13.sp, color = C.sub)
+        Text(label, fontSize = 12.sp, color = C.sub)
+        Spacer(Modifier.height(4.dp))
+        Text(value, fontSize = if (value.length > 10) 15.sp else 18.sp, fontWeight = FontWeight.SemiBold, color = accent,
+            maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 

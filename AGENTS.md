@@ -19,3 +19,5 @@ Reglas solicitadas por Jancktony a partir de `karpathy-guidelines` (MIT), aplica
 - Trabajar con objetivos verificables: definir qué resultado demuestra que la tarea está resuelta. En tareas de varios pasos, indicar un plan breve con su verificación. Reproducir los fallos cuando corresponda, ejecutar comprobaciones proporcionales al cambio e informar de lo verificado y de los límites pendientes.
 
 - El nombre correcto de la pareja es Kelin, según corrección expresa del dueño.
+
+- Se aprobó expresamente la opción A de actividad («La A»): última app detectada junto al nombre y ubicación de Kelin, visible en la ficha cerrada; actividad propia en la ficha propia, con detalle al tocar. Vista previa conservada en preview/actividad-variantes y en el mismo enlace de propuestas. Los estados distinguen detección reciente, pantalla de inicio, datos antiguos y actividad no compartida.
