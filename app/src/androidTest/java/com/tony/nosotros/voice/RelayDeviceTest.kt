@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit
 /** Both authenticated identities, real rules, server timestamps and delivery. Local emulators only. */
 class RelayDeviceTest {
  @Test fun twoConsentingAccountsExchangePacketsThroughFirestore()=runBlocking {
+  com.google.firebase.firestore.FirebaseFirestore.setLoggingEnabled(true)
   repeat(3) { round ->
   val context=InstrumentationRegistry.getInstrumentation().targetContext
   fun backend(name:String,email:String):Pair<FirebaseApp,FirebaseFirestore>{
@@ -51,7 +52,9 @@ class RelayDeviceTest {
    catch(e:kotlinx.coroutines.TimeoutCancellationException) {
     val pa=Tasks.await(dbA.document("pairs/voice-integration-$round/walkiePresence/bob").get(com.google.firebase.firestore.Source.SERVER),10,TimeUnit.SECONDS)
     val pb=Tasks.await(dbB.document("pairs/voice-integration-$round/walkiePresence/alice").get(com.google.firebase.firestore.Source.SERVER),10,TimeUnit.SECONDS)
-    fail("Transport readiness: A="+statusA+" B="+statusB+" clockA="+clockA.ready+" clockB="+clockB.ready+" peerA="+pa.data+" peerB="+pb.data)
+    val ownA=Tasks.await(dbA.document("pairs/voice-integration-$round/walkiePresence/alice").get(com.google.firebase.firestore.Source.SERVER),10,TimeUnit.SECONDS)
+    val ownB=Tasks.await(dbB.document("pairs/voice-integration-$round/walkiePresence/bob").get(com.google.firebase.firestore.Source.SERVER),10,TimeUnit.SECONDS)
+    fail("round="+round+" readyA="+a?.ready+" readyB="+b?.ready+" ownA="+ownA.data+" ownB="+ownB.data+" Transport readiness: A="+statusA+" B="+statusB+" clockA="+clockA.ready+" clockB="+clockB.ready+" peerA="+pa.data+" peerB="+pb.data)
    }
    withContext(Dispatchers.Main){
     assertTrue(a!!.enqueue(packetA));a!!.flush()

@@ -64,7 +64,7 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
                 runCatching {
                     presence.document(uid).set(mapOf("relay" to true, "protocol" to VoiceWire.CHANNEL,
                         "updatedAt" to FieldValue.serverTimestamp())).await()
-                    val acknowledged = presence.document(uid).get(Source.CACHE).await().getTimestamp("updatedAt")?.toDate()?.time
+                    val acknowledged = presence.document(uid).get(Source.SERVER).await().getTimestamp("updatedAt")?.toDate()?.time
                     require(acknowledged != null)
                     clock.synchronize(acknowledged)
                     ownReady = true
@@ -81,7 +81,12 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
                             if (clock.now() - (it.getTimestamp("createdAt")?.toDate()?.time ?: 0) > 15_000) it.reference.delete()
                         }
                     }
-                }.onFailure { ownReady = false; report() }
+                }.onFailure {
+                    ownReady = false
+                    android.util.Log.w("WalkieRelay", "Presence not acknowledged: " +
+                        ((it as? FirebaseFirestoreException)?.code?.name ?: it.javaClass.simpleName))
+                    report()
+                }
                 waitingAttempts = if (ready) 0 else waitingAttempts + 1
                 // Fast initial recovery; bounded idle traffic when the other phone is unavailable.
                 delay(if (ready) 240_000 else if (waitingAttempts <= 3) 5_000 else 60_000)
