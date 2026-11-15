@@ -58,7 +58,8 @@ class WalkieService : Service() {
         try {
             connection = WalkieConnection(this, pair, uid) { message, ready ->
                 val available = ready || relay?.ready == true
-                if (!available) { stopTalking(); audioManager.abandonAudioFocusRequest(focus) }
+                // Connecting is not a release gesture: keep a held press pending until OPEN.
+                if (!available && connection?.active != true) { stopTalking(); audioManager.abandonAudioFocusRequest(focus) }
                 WalkieHub.state.value = WalkieHub.state.value.copy(enabled = true, connected = available,
                     message = if (!ready && relay?.ready == true) "Red lenta · voz comprimida lista" else message)
                 if (ready) {
@@ -96,7 +97,9 @@ class WalkieService : Service() {
                 if (current.active) {
                     // Deterministic resolution when both press simultaneously.
                     if (incoming.getString("uid").orEmpty() >= uid) return@addSnapshotListener
+                    val held = requested
                     current.end()
+                    requested = held
                 }
                 if (audioManager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return@addSnapshotListener
                 current.accept(incoming)
@@ -120,7 +123,7 @@ class WalkieService : Service() {
             { audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED }) { message, ready ->
             if (connection?.ready != true) {
                 WalkieHub.state.value = WalkieHub.state.value.copy(connected = ready, message = message)
-                if (!ready) stopTalking() else if (requested) startTalking()
+                if (!ready && WalkieHub.state.value.talking) stopTalking() else if (ready && requested) startTalking()
             }
         }.also { it.start() }
     }
@@ -128,7 +131,8 @@ class WalkieService : Service() {
     fun prepare() {
         val current = connection ?: return
         val to = partner ?: return
-        if (!current.active) current.dial(to)
+        // One elected warmer avoids two simultaneous offers. A deliberate press may still call either way.
+        if (!current.active && uid < to) current.dial(to)
     }
     fun talk() {
         val current = connection ?: return

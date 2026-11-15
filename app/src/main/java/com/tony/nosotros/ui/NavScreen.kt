@@ -87,13 +87,22 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
 
     val myPt = localFix?.let { Pt(it.latitude,it.longitude) } ?: sharedPt
 
+    var searchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     fun search() {
         keyboard.clearFocus()
-        scope.launch {
-            busy = true; error = null
-            hits = Routing.search(query, myPt)
-            if (hits.isNullOrEmpty()) error = "No encontré esa dirección. Prueba con barrio o ciudad."
-            busy = false
+        searchJob?.cancel()
+        val entered=query
+        searchJob=scope.launch {
+            busy=true;error=null;hits=null
+            try {
+                val result=Routing.search(entered,myPt)
+                hits=result.hits
+                error=when(result.failure){
+                    Routing.SearchFailure.NONE -> null
+                    Routing.SearchFailure.NOT_FOUND -> "No hay coincidencias. Puedes elegir el punto manteniendo pulsado el mapa."
+                    Routing.SearchFailure.UNAVAILABLE -> "No se pudo completar la búsqueda. Revisa internet o inténtalo otra vez."
+                }
+            } finally { busy=false }
         }
     }
 
@@ -196,6 +205,7 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(h.name, color = C.text, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                if(h.detail.isNotBlank())Text(h.detail,color=C.sub,fontSize=12.sp)
                                 myPt?.let { Text("A ${TimeFmt.km(com.tony.nosotros.util.Geo.dist(it.lat, it.lng, h.lat, h.lng))}", color = C.sub, fontSize = 12.sp) }
                             }
                         }

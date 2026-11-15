@@ -33,16 +33,16 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
     private val seen = LinkedHashSet<String>()
     val ready get() = !closed && ownReady && peerEnabled && System.currentTimeMillis() - peerAt in 0..480_000L
     fun start() {
-        peer = presence.document(partner).addSnapshotListener { d, error ->
-            peerEnabled = error == null && d?.getBoolean("relay") == true && d.getString("protocol") == VoiceWire.CHANNEL
+        peer = presence.document(partner).addSnapshotListener(MetadataChanges.INCLUDE) { d, error ->
+            peerEnabled = error == null && d?.metadata?.isFromCache == false && d.getBoolean("relay") == true && d.getString("protocol") == VoiceWire.CHANNEL
             peerAt = d?.getTimestamp("updatedAt")?.toDate()?.time ?: 0
             report()
         }
-        incoming = packets.whereEqualTo("to", uid).limit(30).addSnapshotListener { snapshot, error ->
+        incoming = packets.whereEqualTo("to", uid).limit(30).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
             if (closed) return@addSnapshotListener
             if (error != null) { status("No se pudo abrir el modo de redes difíciles", false); return@addSnapshotListener }
             snapshot?.documents?.sortedBy { it.getTimestamp("createdAt")?.toDate()?.time ?: 0 }?.forEach { d ->
-                if (d.metadata.isFromCache || !seen.add(d.id)) return@forEach
+                if (d.metadata.isFromCache || d.metadata.hasPendingWrites() || !seen.add(d.id)) return@forEach
                 while (seen.size > 128) seen.remove(seen.first())
                 val at = d.getTimestamp("createdAt")?.toDate()?.time ?: 0
                 val bytes = d.getBlob("audio")?.toBytes()
@@ -64,7 +64,7 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
                         if (System.currentTimeMillis() - (it.getTimestamp("createdAt")?.toDate()?.time ?: 0) > 15_000) it.reference.delete()
                     }
                 }.onFailure { ownReady = false; report() }
-                delay(240_000)
+                delay(if(ownReady) 240_000 else 5_000)
             }
         }
     }
