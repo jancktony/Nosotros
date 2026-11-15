@@ -107,7 +107,7 @@ class WalkieService : Service() {
             .addOnSuccessListener { doc ->
                 if (destroyed) return@addOnSuccessListener
                 val stamp = doc.getTimestamp("voiceClockAt")?.toDate()?.time
-                if (stamp == null || doc.metadata.hasPendingWrites()) {
+                if (stamp == null) {
                     handler.postDelayed(clockRetry, 2000); return@addOnSuccessListener
                 }
                 clock.synchronize(stamp)

@@ -24,10 +24,10 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
     private var reportedReady = false
     private var peer: ListenerRegistration? = null
     private var incoming: ListenerRegistration? = null
-    private var ownReady = false
-    private var peerAt = 0L
-    private var peerEnabled = false
-    private var closed = false
+    @Volatile private var ownReady = false
+    @Volatile private var peerAt = 0L
+    @Volatile private var peerEnabled = false
+    @Volatile private var closed = false
     private var engine: PushAudio? = null
     private var audioJob: Job? = null
     private var lastActivity = 0L
