@@ -5,8 +5,9 @@ import org.maplibre.android.MapLibre
 import org.junit.Assert.*
 import org.junit.Test
 
+@org.junit.runner.RunWith(androidx.test.ext.junit.runners.AndroidJUnit4::class)
 class TogetherAnimationDeviceTest {
-    @Test fun particlesAndPortraitsUseViewportAlignmentAtAnyCameraBearing() {
+    @Test @androidx.test.annotation.UiThreadTest fun particlesAndPortraitsUseViewportAlignmentAtAnyCameraBearing() {
         MapLibre.getInstance(InstrumentationRegistry.getInstrumentation().targetContext)
         val portraits=togetherPortraitLayer()
         assertEquals("viewport",portraits.iconRotationAlignment.value)
