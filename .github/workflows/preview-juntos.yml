@@ -1,7 +1,7 @@
-name: Vista previa privada de Juntos
+name: Vista previa privada de actividad
 on:
   push:
-    branches: [feature/voz-estable-juntos-1.14]
+    branches: [preview/actividad-variantes]
     paths: ['preview-juntos/**', '.github/workflows/preview-juntos.yml']
   workflow_dispatch:
 permissions:
