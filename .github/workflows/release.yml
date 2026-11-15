@@ -1,7 +1,7 @@
 name: Publicar versión Android
 on:
   push:
-    branches: [main, feature/pruebas-web-walkie]
+    branches: [main, feature/pruebas-web-walkie, feature/voz-estable-juntos-1.14]
   workflow_dispatch:
     inputs:
       ui_run_id:
@@ -54,6 +54,22 @@ jobs:
           TEST_SHA=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UI_RUN" --jq '.head_sha')
           test "$TEST_SHA" = "$GITHUB_SHA"
           gh run watch "$UI_RUN" --repo "$GITHUB_REPOSITORY" --interval 15 --exit-status
+      - if: steps.v.outputs.skip != '1' && github.ref_name == 'feature/voz-estable-juntos-1.14'
+        name: Exigir pruebas de voz de esta misma revisión
+        timeout-minutes: 25
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN=""
+          for attempt in $(seq 1 30); do
+            RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/voice-device.yml/runs?head_sha=$GITHUB_SHA&per_page=10" --jq '.workflow_runs | map(select(.head_sha == env.GITHUB_SHA)) | first | .id // empty')
+            [ -n "$RUN" ] && break
+            sleep 10
+          done
+          test -n "$RUN"
+          TEST_SHA=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN" --jq '.head_sha')
+          test "$TEST_SHA" = "$GITHUB_SHA"
+          gh run watch "$RUN" --repo "$GITHUB_REPOSITORY" --interval 15 --exit-status
       - if: steps.v.outputs.skip != '1'
         run: cp app/build/outputs/apk/release/app-release.apk Nosotros-${{ steps.v.outputs.tag }}.apk
       - if: steps.v.outputs.skip != '1'
