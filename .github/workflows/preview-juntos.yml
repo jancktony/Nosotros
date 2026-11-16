@@ -1,7 +1,7 @@
-name: Vista previa privada de Juntos
+name: Vista previa privada del proceso de actualización
 on:
   push:
-    branches: [feature/voz-estable-juntos-1.14]
+    branches: [preview/instalacion-visible]
     paths: ['preview-juntos/**', '.github/workflows/preview-juntos.yml']
   workflow_dispatch:
 permissions:
@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22', cache: npm}
       - run: npm ci --no-audit --no-fund
-      - run: node --check preview-juntos/app.js
+      - run: node --check preview-juntos/app.js && node --check preview-juntos/install-preview.js
       - name: Publicar solo un canal temporal, sin cambiar la app ni la web principal
         env:
           GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
