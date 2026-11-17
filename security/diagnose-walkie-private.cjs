@@ -37,7 +37,7 @@ async function main(){
  for(const uid of uids){
   const [member,presence]=await Promise.all([pair.ref.collection('members').doc(uid).get(),pair.ref.collection('walkiePresence').doc(uid).get()]);
   const time=presence.get('updatedAt')?.toDate()?.getTime();
-  diagnostic.phones.push({role:uid===admin?'admin':'partner',version:member.get('appVersion')||null,publishedRelayConsent:presence.exists?presence.get('relay')===true:null,protocol:presence.get('protocol')||null,gpsAgeSeconds:member.get('locationAt')?Math.round((Date.now()-member.get('locationAt'))/1000):null,accuracyMeters:member.get('acc')||null,paused:member.get('pausedUntil')>Date.now(),updateStatus:member.get('updateStatus')||null,updateTarget:member.get('updateTarget')||null,togetherMode:pair.get('featureFlags')?.mapTogether||'admin',heartbeatAgeSeconds:time?Math.round((Date.now()-time)/1000):null});
+  diagnostic.phones.push({role:uid===admin?'admin':'partner',version:member.get('appVersion')||null,publishedRelayConsent:presence.exists?presence.get('relay')===true:null,protocol:presence.get('protocol')||null,paused:member.get('pausedUntil')>Date.now(),updateStatus:member.get('updateStatus')||null,updateTarget:member.get('updateTarget')||null,togetherMode:pair.get('featureFlags')?.mapTogether||'admin',heartbeatAgeSeconds:time?Math.round((Date.now()-time)/1000):null});
  }
  const calls=await pair.ref.collection('walkieCalls').orderBy('createdAt','desc').limit(8).select('uid','answer','createdAt').get();
  diagnostic.offers=calls.docs.map(d=>({sender:d.get('uid')===admin?'admin':'partner',answered:typeof d.get('answer')==='string',ageSeconds:Math.round((Date.now()-(d.get('createdAt')?.toDate()?.getTime()||0))/1000)}));
