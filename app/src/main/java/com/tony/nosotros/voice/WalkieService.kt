@@ -29,10 +29,12 @@ class WalkieService : Service() {
     private var authListener: FirebaseAuth.AuthStateListener? = null
     private var partner: String? = null
     private var retryAttempt = 0
-    private val retry = Runnable { if (WalkieHub.foregroundOpen && App.instance.prefs.receiveWalkie) prepare() }
+    private val retry = Runnable { if (App.instance.prefs.receiveWalkie) { if (requested) talk() else if (WalkieHub.foregroundOpen) prepare() } }
     private val clock = VoiceClock { SystemClock.elapsedRealtime() }
     private var pendingCalls: com.google.firebase.firestore.QuerySnapshot? = null
     private var destroyed = false
+    private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
+    private val connectivity by lazy { getSystemService(android.net.ConnectivityManager::class.java) }
     private val clockRetry = Runnable { synchronizeClock() }
     private var requested = false
     private var uid = ""
@@ -63,7 +65,12 @@ class WalkieService : Service() {
             connection = WalkieConnection(this, pair, uid) { message, ready ->
                 val available = ready || relay?.ready == true
                 // Connecting is not a release gesture: keep a held press pending until OPEN.
-                if (!available && connection?.active != true) { stopTalking(); audioManager.abandonAudioFocusRequest(focus) }
+                if (!available && connection?.active != true) {
+                    // A transport failure is not the user's release gesture.
+                    val held = requested
+                    stopTalking(); requested = held
+                    audioManager.abandonAudioFocusRequest(focus)
+                }
                 WalkieHub.state.value = WalkieHub.state.value.copy(enabled = true, connected = available,
                     message = if (!ready && relay?.ready == true) "Red lenta · voz comprimida lista" else message)
                 if (ready) {
@@ -72,7 +79,7 @@ class WalkieService : Service() {
                         connection?.end("El audio está ocupado"); return@WalkieConnection
                     }
                     if (requested) startTalking()
-                } else if (!available && WalkieHub.foregroundOpen && retryAttempt < 3 && !message.contains("inactividad")) {
+                } else if (!available && (WalkieHub.foregroundOpen || requested) && retryAttempt < 3 && !message.contains("inactividad")) {
                     handler.removeCallbacks(retry); retryAttempt++
                     handler.postDelayed(retry, 2000L * retryAttempt)
                 }
@@ -96,6 +103,19 @@ class WalkieService : Service() {
                 pendingCalls = snapshot
                 acceptPendingCall()
             }
+        networkCallback = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) { handler.post {
+                if (!destroyed) {
+                    relay?.reconnect()
+                    if (connection?.ready != true) {
+                        val held = requested
+                        connection?.end("Recuperando conexión…")
+                        requested = held
+                        synchronizeClock()
+                    }
+                }
+            } }
+        }.also { runCatching { connectivity.registerDefaultNetworkCallback(it) } }
         synchronizeClock()
         return START_NOT_STICKY
     }
@@ -156,12 +176,14 @@ class WalkieService : Service() {
             focus = { audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED }) { message, ready ->
             if (connection?.ready != true) {
                 WalkieHub.state.value = WalkieHub.state.value.copy(connected = ready, message = message)
-                if (!ready && WalkieHub.state.value.talking) stopTalking() else if (ready && requested) startTalking()
+                if (!ready && WalkieHub.state.value.talking) {
+                    val held = requested; stopTalking(); requested = held
+                } else if (ready && requested) startTalking()
             }
         }.also { it.start() }
     }
     fun reconnect() {
-        retryAttempt = 0; handler.removeCallbacks(retry); stopTalking(); connection?.end("Reconectando…"); refreshRelay()
+        retryAttempt = 0; handler.removeCallbacks(retry); stopTalking(); connection?.end("Reconectando…"); refreshRelay(); relay?.reconnect()
         // The elected warmer only applies to passive preparation, never to a user's reconnect action.
         if (clock.ready) partner?.let { if (connection?.active != true) connection?.dial(it) }
     }
@@ -174,7 +196,9 @@ class WalkieService : Service() {
     }
     fun talk() {
         val current = connection ?: return
+        if (!requested) retryAttempt = 0
         requested = true
+        relay?.reconnect()
         if (!clock.ready) { WalkieHub.state.value = WalkieHub.state.value.copy(message = "Preparando canal privado…"); return }
         if (connection?.ready == true || relay?.ready == true) startTalking()
         else if (!current.active) {
@@ -224,7 +248,9 @@ class WalkieService : Service() {
         runCatching { ServiceCompat.startForeground(this, ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK) }
     }
     override fun onDestroy() {
-        destroyed = true; handler.removeCallbacks(clockRetry); handler.removeCallbacks(retry); stopTalking(); pairListener?.remove(); callsListener?.remove()
+        destroyed = true
+        networkCallback?.let { runCatching { connectivity.unregisterNetworkCallback(it) } }; networkCallback = null
+        handler.removeCallbacks(clockRetry); handler.removeCallbacks(retry); stopTalking(); pairListener?.remove(); callsListener?.remove()
         authListener?.let { FirebaseAuth.getInstance().removeAuthStateListener(it) }
         relay?.close(); relay = null
         connection?.close(); connection = null

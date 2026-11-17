@@ -48,7 +48,11 @@ class RelayDeviceTest {
    withContext(Dispatchers.Main){
     a=WalkieRelay("voice-integration-$round","alice","bob",clock=clockA,database=dbA,received={actual.add(it);arrival.countDown()},focus={true}){message,_->statusA=message}
     b=WalkieRelay("voice-integration-$round","bob","alice",clock=clockB,database=dbB,received={actual.add(it);arrival.countDown()},focus={true}){message,_->statusB=message}
-    a!!.start();b!!.start()
+    a!!.start()
+   }
+   delay(1500) // Late arrival must wake an already waiting peer, not wait for its heartbeat.
+   withContext(Dispatchers.Main) {
+    b!!.start()
    }
    try { withTimeout(20_000){while(a?.ready!=true||b?.ready!=true)delay(50)} }
    catch(e:kotlinx.coroutines.TimeoutCancellationException) {
@@ -64,6 +68,18 @@ class RelayDeviceTest {
    }
    assertTrue("No delivery through authenticated Firestore rules",arrival.await(10,TimeUnit.SECONDS))
    assertTrue(actual.any{it.contentEquals(packetA)});assertTrue(actual.any{it.contentEquals(packetB)})
+   Tasks.await(dbB.disableNetwork(),10,TimeUnit.SECONDS)
+   delay(1000)
+   Tasks.await(dbB.enableNetwork(),10,TimeUnit.SECONDS)
+   withContext(Dispatchers.Main) { a!!.reconnect(); b!!.reconnect() }
+   withTimeout(15_000){while(a?.ready!=true||b?.ready!=true)delay(50)}
+   val recovered=CountDownLatch(1)
+   val watch=dbB.collection("pairs").document("voice-integration-$round").collection("walkiePackets")
+    .whereEqualTo("to","bob").addSnapshotListener { docs,_-> if(docs?.documents?.any{it.getString("uid")=="alice"}==true)recovered.countDown() }
+   try {
+    withContext(Dispatchers.Main) { assertTrue(a!!.enqueue(packetA)); a!!.flush() }
+    assertTrue("Packet missing after network recovery",recovered.await(10,TimeUnit.SECONDS))
+   } finally { watch.remove() }
   } finally {
    withContext(Dispatchers.Main){a?.close();b?.close()}
    Tasks.await(dbA.waitForPendingWrites(),10,TimeUnit.SECONDS)

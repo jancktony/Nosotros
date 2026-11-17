@@ -5,6 +5,8 @@ import android.os.Looper
 import com.google.firebase.firestore.*
 import com.tony.nosotros.data.Repo
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -21,7 +23,9 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
     private val root get() = database.collection("pairs").document(pair)
     private val presence get() = root.collection("walkiePresence")
     private val packets get() = root.collection("walkiePackets")
+    private val refresh = Channel<Unit>(Channel.CONFLATED)
     private var reportedReady = false
+    private var reconnectAt = 0L
     private var peer: ListenerRegistration? = null
     private var incoming: ListenerRegistration? = null
     @Volatile private var ownReady = false
@@ -39,8 +43,11 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
     fun start() {
         scope.launch { while (isActive) { delay(1000); if (ready != reportedReady) report() } }
         peer = presence.document(partner).addSnapshotListener(MetadataChanges.INCLUDE) { d, error ->
+            val wasEnabled = peerEnabled
             peerEnabled = error == null && d?.metadata?.isFromCache == false && d.getBoolean("relay") == true && d.getString("protocol") == VoiceWire.CHANNEL
             peerAt = d?.getTimestamp("updatedAt")?.toDate()?.time ?: 0
+            // A newly arriving receiver must hear our acknowledgement now, not four minutes later.
+            if (peerEnabled && !wasEnabled) refresh.trySend(Unit)
             report()
         }
         incoming = packets.whereEqualTo("to", uid).limit(30).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
@@ -89,9 +96,17 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
                 }
                 waitingAttempts = if (ready) 0 else waitingAttempts + 1
                 // Fast initial recovery; bounded idle traffic when the other phone is unavailable.
-                delay(if (ready) 240_000 else if (waitingAttempts <= 3) 5_000 else 60_000)
+                withTimeoutOrNull(if (ready) 240_000L else if (waitingAttempts <= 3) 2_000L else 15_000L) { refresh.receive() }
             }
         }
+    }
+    /** Re-advertise consent and reconcile server presence after a failed send or network change. */
+    fun reconnect() {
+        if (closed) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - reconnectAt < 1500) return
+        reconnectAt = now
+        refresh.trySend(Unit)
     }
     private fun report() { if (!closed) { reportedReady = ready; status(if (ready) "Red lenta · voz comprimida lista" else "Esperando que ambos activen redes difíciles", ready) } }
     private fun audio(): PushAudio {
@@ -125,12 +140,12 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
             .addOnSuccessListener { inFlight = false }
             .addOnFailureListener {
                 inFlight = false; pending.clear(); ownReady = false
-                if (!closed) status("No se pudo enviar. Revisa la conexión o la cuota gratuita.", false)
+                if (!closed) { status("No se pudo enviar. Reconectando el canal privado…", false); reconnect() }
             }
         scope.launch { delay(15_000); ref.delete(); written.remove(ref) }
     }
     fun talk(stopped: () -> Unit): Boolean {
-        if (!ready) return false
+        if (!ready) { reconnect(); return false }
         return try { audio().start { handler.post { flush(); stopped() } }; true }
         catch (_: Exception) { status("No se pudo usar el micrófono", ready); false }
     }
