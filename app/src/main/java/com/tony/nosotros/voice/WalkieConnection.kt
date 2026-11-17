@@ -25,6 +25,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     private var snapshot: ListenerRegistration? = null
     private var iceListener: ListenerRegistration? = null
     private var timeout: Job? = null
+    private var disconnected: Job? = null
     private val localIce = mutableListOf<IceCandidate>()
     private val remoteIce = mutableListOf<IceCandidate>()
     private val seenIce = mutableSetOf<String>()
@@ -51,9 +52,10 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         opening = true
         val attempt = ++openAttempt
         try {
+            withTimeout(10_000) {
             Repo.ensureSignedIn()
             val peerVersion = Repo.db.collection("pairs").document(pair).collection("members").document(partner).get().await().getString("appVersion").orEmpty()
-            if (!VoiceWire.compatible(peerVersion)) { report("Actualicen ambos teléfonos a 1.10 o posterior."); return@launch }
+            if (!VoiceWire.compatible(peerVersion)) { report("Actualicen ambos teléfonos a 1.10 o posterior."); return@withTimeout }
             val ref = calls.document(); call = ref
             begin(true)
             val offer = sdp { pc!!.createOffer(it, MediaConstraints()) }
@@ -61,6 +63,8 @@ class WalkieConnection(context: Context, private val pair: String, private val u
             ref.set(mapOf("uid" to uid, "to" to partner, "offer" to offer.description,
                 "createdAt" to FieldValue.serverTimestamp())).await()
             published = true; flushLocal(); listen(ref)
+            }
+        } catch (_: TimeoutCancellationException) { end("Se agotó la preparación del canal. Reconectando…")
         } catch (_: CancellationException) {
         } catch (_: Exception) { end("No se pudo conectar. Revisa conexión y permisos del servicio.") }
         finally { if (attempt == openAttempt) opening = false }
@@ -70,6 +74,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         opening = true
         val attempt = ++openAttempt
         try {
+            withTimeout(10_000) {
             Repo.ensureSignedIn()
             require(document.getString("to") == uid)
             call = document.reference
@@ -80,6 +85,8 @@ class WalkieConnection(context: Context, private val pair: String, private val u
             setSdp { pc!!.setLocalDescription(it, answer) }
             document.reference.update("answer", answer.description).await()
             published = true; flushLocal(); listen(document.reference)
+            }
+        } catch (_: TimeoutCancellationException) { end("Se agotó la preparación del canal. Reconectando…")
         } catch (_: CancellationException) {
         } catch (_: Exception) { end("No se pudo aceptar la conexión.") }
         finally { if (attempt == openAttempt) opening = false }
@@ -99,8 +106,21 @@ class WalkieConnection(context: Context, private val pair: String, private val u
                 if (!closed && generation == epoch) attach(data) else data.dispose()
             } }
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) { handler.post {
-                if (!closed && generation == epoch && state == PeerConnection.IceConnectionState.FAILED)
-                    end("La red bloqueó la conexión directa. Puedes enviar una nota de voz.")
+                if (closed || generation != epoch) return@post
+                when (state) {
+                    PeerConnection.IceConnectionState.FAILED -> end("La red bloqueó la conexión directa. Recuperando canal alternativo…")
+                    PeerConnection.IceConnectionState.DISCONNECTED -> {
+                        disconnected?.cancel()
+                        disconnected = scope.launch {
+                            delay(2500)
+                            if (generation == epoch) end("La conexión cambió. Recuperando el canal…")
+                        }
+                    }
+                    PeerConnection.IceConnectionState.CONNECTED, PeerConnection.IceConnectionState.COMPLETED -> {
+                        disconnected?.cancel(); disconnected = null
+                    }
+                    else -> Unit
+                }
             } }
             override fun onSignalingChange(state: PeerConnection.SignalingState) = Unit
             override fun onIceConnectionReceivingChange(receiving: Boolean) = Unit
@@ -201,7 +221,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     fun end(message: String = "Desconectado") {
         ++epoch; ++openAttempt; opening = false
         scope.coroutineContext.cancelChildren()
-        timeout?.cancel(); snapshot?.remove(); iceListener?.remove()
+        timeout?.cancel(); disconnected?.cancel(); disconnected = null; snapshot?.remove(); iceListener?.remove()
         snapshot = null; iceListener = null
         audio?.close(); audio = null
         channel?.unregisterObserver(); channel?.close(); channel?.dispose(); channel = null

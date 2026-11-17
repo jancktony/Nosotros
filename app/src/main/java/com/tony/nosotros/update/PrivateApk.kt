@@ -24,7 +24,7 @@ object PrivateApk {
         size in 1..MAX_SIZE && chunkSize == CHUNK_SIZE &&
             count == ((size + CHUNK_SIZE - 1) / CHUNK_SIZE).toInt() && hash.matches(Regex("[a-f0-9]{64}"))
 
-    suspend fun download(version: String, path: String, target: File) = withContext(Dispatchers.IO) {
+    suspend fun download(version: String, path: String, target: File, onBytes: (Long, Long) -> Unit = { _, _ -> }, onVerify: () -> Unit = {}) = withContext(Dispatchers.IO) {
         require(version.matches(Regex("[0-9]+\\.[0-9]+(\\.[0-9]+)?")))
         require(path == "firestore://releases/$version")
         check(Repo.authorizedSession)
@@ -39,6 +39,7 @@ object PrivateApk {
         var token = user.getIdToken(false).await().token ?: error("Sesión inválida")
         val digest = MessageDigest.getInstance("SHA-256")
         var written = 0L
+        onBytes(0, size)
         target.outputStream().use { output ->
             for (index in 0 until count) {
                 coroutineContext.ensureActive()
@@ -59,7 +60,7 @@ object PrivateApk {
                         check(connection.responseCode == 200) { "Actualización no autorizada o cuota agotada" }
                         val json = connection.inputStream.bufferedReader().use { reader ->
                             val body = StringBuilder(); val buffer = CharArray(8192)
-                            while (true) { val n = reader.read(buffer); if (n < 0) break
+                            while (true) { coroutineContext.ensureActive(); val n = reader.read(buffer); if (n < 0) break
                                 body.append(buffer, 0, n); require(body.length <= 800000) }
                             JSONObject(body.toString())
                         }
@@ -73,8 +74,11 @@ object PrivateApk {
                 val expected = minOf(CHUNK_SIZE.toLong(), size - written).toInt()
                 require(chunk.size == expected)
                 output.write(chunk); digest.update(chunk); written += chunk.size
+                onBytes(written, size)
             }
         }
+        coroutineContext.ensureActive()
+        onVerify()
         require(written == size && digest.digest().joinToString("") { "%02x".format(it) } == hash) { "APK incompleto o alterado" }
     }
 }

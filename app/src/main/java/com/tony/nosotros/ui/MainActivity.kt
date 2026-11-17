@@ -1,7 +1,6 @@
 package com.tony.nosotros.ui
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
@@ -50,7 +49,6 @@ import com.tony.nosotros.tracking.TrackingService
 import com.tony.nosotros.util.Pt
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.LaunchedEffect
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val vm: MainViewModel by viewModels()
@@ -71,7 +69,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         foreground = java.lang.ref.WeakReference(this)
-        consumeUpdateConsent()
+        if (App.firebaseConfigured && com.tony.nosotros.data.Repo.authorizedSession)
+            com.tony.nosotros.update.InstallProgress.restore(applicationContext)
         if (App.firebaseConfigured && com.tony.nosotros.data.Repo.authorizedSession && App.instance.prefs.receiveWalkie &&
             App.instance.prefs.featureEnabled(com.tony.nosotros.data.Feature.WALKIE)) com.tony.nosotros.voice.WalkieHub.enable(this)
     }
@@ -80,20 +79,10 @@ class MainActivity : ComponentActivity() {
         com.tony.nosotros.voice.WalkieHub.release()
         super.onPause()
     }
-    private fun consumeUpdateConsent() {
-        val prefs = App.instance.prefs
-        if (!App.firebaseConfigured || !com.tony.nosotros.data.Repo.authorizedSession) return
-        val intent = com.tony.nosotros.update.UpdateConsent.pending ?: prefs.pendingUpdateConsent?.let {
-            runCatching { android.content.Intent.parseUri(it, android.content.Intent.URI_INTENT_SCHEME) }.getOrNull()
-        } ?: return
-        com.tony.nosotros.update.UpdateConsent.pending = null; prefs.pendingUpdateConsent = null
-        runCatching { startActivity(intent) }.onFailure { prefs.autoUpdateTried = "" }
-    }
     companion object {
         private var foreground: java.lang.ref.WeakReference<MainActivity>? = null
         fun visibleForMicrophone() = foreground?.get()?.lifecycle?.currentState
             ?.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) == true
-        fun showPendingUpdate() { foreground?.get()?.let { activity -> activity.runOnUiThread { activity.consumeUpdateConsent() } } }
     }
 
     private fun applyBars() {
@@ -122,12 +111,13 @@ private fun Root(vm: MainViewModel) {
     if (!hasSession) { AuthScreen(vm, upgrade = false); return }
     if (account == null && !skipped) { AuthScreen(vm, upgrade = true); return }
     val ctx = LocalContext.current
+    LaunchedEffect(Unit) { com.tony.nosotros.update.InstallProgress.restore(ctx.applicationContext) }
+    val installation by com.tony.nosotros.update.InstallProgress.state.collectAsState()
     val phoneRinging by com.tony.nosotros.find.PhoneFinder.ringing.collectAsState()
     if (phoneRinging) androidx.compose.material3.AlertDialog(onDismissRequest = { com.tony.nosotros.find.PhoneFinder.stop() },
         title = { Text("Encontrar teléfono") }, text = { Text("Se solicitó hacer sonar este teléfono desde una de sus cuentas.") },
         confirmButton = { androidx.compose.material3.TextButton(onClick = { com.tony.nosotros.find.PhoneFinder.stop() }) { Text("Detener sonido") } })
     var update by remember { mutableStateOf<com.tony.nosotros.update.Updater.Release?>(null) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val versionPolicy by vm.pairInfo.collectAsState()
     val automaticUpdates = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.AUTO_UPDATES)
     LaunchedEffect(versionPolicy.updateRequestAt) {
@@ -136,24 +126,23 @@ private fun Root(vm: MainViewModel) {
     LaunchedEffect(automaticUpdates, versionPolicy.testVersion, versionPolicy.relVersion) {
         update = if (automaticUpdates && !vm.releaseBusy.value) runCatching { com.tony.nosotros.update.Updater.target(vm.pairId.value) }.getOrNull() else null
     }
-    update?.let { r ->
+    update?.takeIf { installation == null || installation?.terminal == true }?.let { r ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { update = null }, containerColor = C.surface,
             title = { Text("Nueva versión ${r.version}") },
             text = { Text(r.notes.ifBlank { "Hay mejoras disponibles." }) },
             confirmButton = { androidx.compose.material3.TextButton(onClick = {
                 update = null
-                Toast.makeText(ctx, "Descargando… se instalará sola", Toast.LENGTH_LONG).show()
-                scope.launch {
-                    if (!com.tony.nosotros.update.Updater.install(ctx.applicationContext, r))
-                        Toast.makeText(ctx, "No se pudo descargar. Revisa tu internet.", Toast.LENGTH_LONG).show()
-                }
+                com.tony.nosotros.update.Updater.start(ctx.applicationContext, r)
             }) { Text("Actualizar", color = C.me) } },
             dismissButton = { androidx.compose.material3.TextButton(onClick = { update = null }) { Text("Luego", color = C.sub) } },
         )
     }
     val onboarded by vm.onboarded.collectAsState()
-    if (!onboarded) OnboardingScreen(vm) else MainShell(vm)
+    Box(Modifier.fillMaxSize()) {
+        if (!onboarded) OnboardingScreen(vm) else MainShell(vm)
+        UpdateProgressHost()
+    }
 }
 
 /** Contenedor con pestañas: Mapa · Historial · Lugares. */
