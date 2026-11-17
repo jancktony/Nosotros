@@ -43,13 +43,9 @@ fun UpdateControls(pairId: String?) {
             title = { Text("Actualizar a ${release.version}") },
             text = { Text(if (busy) "Descargando y comprobando la actualización…" else release.notes.ifBlank { "Hay una nueva versión disponible." }) },
             confirmButton = { TextButton(enabled = !busy, onClick = {
-                busy = true
-                scope.launch {
-                    val ok = Updater.install(ctx, release)
-                    message = if (ok) "Actualización enviada a Android. Confirma la instalación si te lo pide." else "No se pudo descargar o validar. Puedes volver a intentarlo."
-                    busy = false
-                    available = null
-                }
+                available = null
+                message = null
+                Updater.start(ctx, release)
             }) { Text("Actualizar ahora", color = C.me) } },
             dismissButton = { TextButton(enabled = !busy, onClick = { available = null }) { Text("Luego", color = C.sub) } }
         )

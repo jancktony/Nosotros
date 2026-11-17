@@ -73,13 +73,11 @@ class RelayDeviceTest {
    Tasks.await(dbB.enableNetwork(),10,TimeUnit.SECONDS)
    withContext(Dispatchers.Main) { a!!.reconnect(); b!!.reconnect() }
    withTimeout(15_000){while(a?.ready!=true||b?.ready!=true)delay(50)}
-   val recovered=CountDownLatch(1)
-   val watch=dbB.collection("pairs").document("voice-integration-$round").collection("walkiePackets")
-    .whereEqualTo("to","bob").addSnapshotListener { docs,_-> if(docs?.documents?.any{it.getString("uid")=="alice"}==true)recovered.countDown() }
-   try {
-    withContext(Dispatchers.Main) { assertTrue(a!!.enqueue(packetA)); a!!.flush() }
-    assertTrue("Packet missing after network recovery",recovered.await(10,TimeUnit.SECONDS))
-   } finally { watch.remove() }
+   val before=actual.size
+   val afterRecovery=VoiceWire.packet(1,listOf(byteArrayOf(9,8,7,6)),123)
+   withContext(Dispatchers.Main) { assertTrue(a!!.enqueue(afterRecovery)); a!!.flush() }
+   withTimeout(10_000){while(actual.size<=before)delay(50)}
+   assertTrue("No delivered audio after recovery",actual.any{it.contentEquals(afterRecovery)})
   } finally {
    withContext(Dispatchers.Main){a?.close();b?.close()}
    Tasks.await(dbA.waitForPendingWrites(),10,TimeUnit.SECONDS)

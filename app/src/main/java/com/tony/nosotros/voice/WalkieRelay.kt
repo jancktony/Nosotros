@@ -28,6 +28,7 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
     private var reconnectAt = 0L
     private var peer: ListenerRegistration? = null
     private var incoming: ListenerRegistration? = null
+    private var awaitingAudio = emptyList<DocumentSnapshot>()
     @Volatile private var ownReady = false
     @Volatile private var peerAt = 0L
     @Volatile private var peerEnabled = false
@@ -53,17 +54,8 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
         incoming = packets.whereEqualTo("to", uid).limit(30).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
             if (closed) return@addSnapshotListener
             if (error != null) { status("No se pudo abrir el modo de redes difíciles", false); return@addSnapshotListener }
-            snapshot?.documents?.sortedBy { it.getTimestamp("createdAt")?.toDate()?.time ?: 0 }?.forEach { d ->
-                if (d.metadata.isFromCache || d.metadata.hasPendingWrites() || !seen.add(d.id)) return@forEach
-                while (seen.size > 128) seen.remove(seen.first())
-                val at = d.getTimestamp("createdAt")?.toDate()?.time ?: 0
-                val bytes = d.getBlob("audio")?.toBytes()
-                if (ready && d.getString("uid") == partner && clock.fresh(at, 6000) && bytes != null && focus()) {
-                    VoiceWire.unbundle(bytes)?.forEach { packet -> received?.invoke(packet) ?: audio().receive(packet) }
-                    lastActivity = android.os.SystemClock.elapsedRealtime()
-                }
-                d.reference.delete()
-            }
+            awaitingAudio = snapshot?.documents.orEmpty()
+            receiveAvailable()
         }
         scope.launch {
             var waitingAttempts = 0
@@ -108,7 +100,27 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
         reconnectAt = now
         refresh.trySend(Unit)
     }
-    private fun report() { if (!closed) { reportedReady = ready; status(if (ready) "Red lenta · voz comprimida lista" else "Esperando que ambos activen redes difíciles", ready) } }
+    private fun receiveAvailable() {
+        if (!ready) return // An arrival may precede the presence acknowledgement; do not delete its first words.
+        awaitingAudio.sortedBy { it.getTimestamp("createdAt")?.toDate()?.time ?: 0 }.forEach { d ->
+            if (d.metadata.isFromCache || d.metadata.hasPendingWrites() || !seen.add(d.id)) return@forEach
+            while (seen.size > 128) seen.remove(seen.first())
+            val at = d.getTimestamp("createdAt")?.toDate()?.time ?: 0
+            val bytes = d.getBlob("audio")?.toBytes()
+            if (d.getString("uid") == partner && clock.fresh(at, 6000) && bytes != null && focus()) {
+                VoiceWire.unbundle(bytes)?.forEach { packet -> received?.invoke(packet) ?: audio().receive(packet) }
+                lastActivity = android.os.SystemClock.elapsedRealtime()
+            }
+            d.reference.delete()
+        }
+    }
+    private fun report() {
+        if (!closed) {
+            reportedReady = ready
+            status(if (ready) "Red lenta · voz comprimida lista" else "Preparando canal alternativo · esperando recepción de ambos", ready)
+            receiveAvailable()
+        }
+    }
     private fun audio(): PushAudio {
         engine?.let { return it }
         val audio = PushAudio({ bytes -> enqueue(bytes) }, { lastActivity = android.os.SystemClock.elapsedRealtime() },
@@ -151,7 +163,7 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
     }
     fun stopTalking() { engine?.stop(); flush() }
     fun close() {
-        closed = true; peer?.remove(); incoming?.remove(); scope.cancel()
+        closed = true; peer?.remove(); incoming?.remove(); awaitingAudio = emptyList(); scope.cancel()
         engine?.close(); engine = null; pending.clear()
         written.take(100).forEach { it.delete() }; written.clear()
         presence.document(uid).set(mapOf("relay" to false, "protocol" to VoiceWire.CHANNEL,

@@ -52,7 +52,7 @@ class WalkieService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "stop") { App.instance.prefs.receiveWalkie = false; stopSelf(); return START_NOT_STICKY }
         if (!Repo.authorizedSession || !App.instance.prefs.receiveWalkie) { stopSelf(); return START_NOT_STICKY }
-        if (connection != null) { refreshRelay(); return START_NOT_STICKY }
+        if (connection != null) { refreshRelay(); relay?.reconnect(); return START_STICKY }
         uid = Repo.uid ?: run { stopSelf(); return START_NOT_STICKY }
         val pair = App.instance.prefs.pairId ?: run { stopSelf(); return START_NOT_STICKY }
         pairId = pair
@@ -72,7 +72,7 @@ class WalkieService : Service() {
                     audioManager.abandonAudioFocusRequest(focus)
                 }
                 WalkieHub.state.value = WalkieHub.state.value.copy(enabled = true, connected = available,
-                    message = if (!ready && relay?.ready == true) "Red lenta · voz comprimida lista" else message)
+                    message = if (!ready && relay != null) { if (relay?.ready == true) "Red lenta · voz comprimida lista" else "Preparando canal alternativo · esperando recepción de ambos" } else message)
                 if (ready) {
                     retryAttempt = 0; handler.removeCallbacks(retry)
                     if (audioManager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
@@ -117,7 +117,8 @@ class WalkieService : Service() {
             } }
         }.also { runCatching { connectivity.registerDefaultNetworkCallback(it) } }
         synchronizeClock()
-        return START_NOT_STICKY
+        // Preserve the user’s reception choice if Android reclaims the service process.
+        return START_STICKY
     }
     private fun synchronizeClock() {
         if (destroyed) return

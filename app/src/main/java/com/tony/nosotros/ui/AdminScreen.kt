@@ -67,7 +67,8 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
                 AdminLine("Batería", partner?.battery?.takeIf { it >= 0 }?.let { "$it %" } ?: "—")
                 AdminLine("Ubicación", if (partner?.paused == true) "En pausa" else "Según permisos")
                 val status = when(partner?.updateStatus) {
-                    "downloading" -> "Descargando"; "installing" -> "Instalación enviada a Android"
+                    "downloading" -> "Descargando"; "verifying" -> "Verificando archivo"; "preparing" -> "Preparando instalación"
+                    "cancelled" -> "Descarga cancelada"; "installing" -> "Instalación enviada a Android"
                     "confirmation" -> "Necesita confirmar en el teléfono"; "failed" -> "No se pudo instalar; puedes reintentar"
                     "installed" -> "Instalada"; else -> "Sin solicitud reciente"
                 }
