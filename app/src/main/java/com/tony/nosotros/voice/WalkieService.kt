@@ -183,6 +183,11 @@ class WalkieService : Service() {
             }
         }.also { it.start() }
     }
+    fun resumeReception() {
+        if (destroyed || !App.instance.prefs.receiveWalkie || !Repo.authorizedSession) return
+        refreshRelay()
+        relay?.reconnect()
+    }
     fun reconnect() {
         retryAttempt = 0; handler.removeCallbacks(retry); stopTalking(); connection?.end("Reconectando…"); refreshRelay(); relay?.reconnect()
         // The elected warmer only applies to passive preparation, never to a user's reconnect action.

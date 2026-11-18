@@ -112,6 +112,13 @@ private fun Root(vm: MainViewModel) {
     if (account == null && !skipped) { AuthScreen(vm, upgrade = true); return }
     val ctx = LocalContext.current
     LaunchedEffect(Unit) { com.tony.nosotros.update.InstallProgress.restore(ctx.applicationContext) }
+    val walkieEnabled = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.WALKIE)
+    LaunchedEffect(account, walkieEnabled) {
+        // Authentication can finish after onResume; resume only an already consented reception.
+        if (com.tony.nosotros.data.Repo.authorizedSession && App.instance.prefs.receiveWalkie &&
+            walkieEnabled && MainActivity.visibleForMicrophone())
+            com.tony.nosotros.voice.WalkieHub.enable(ctx)
+    }
     val installation by com.tony.nosotros.update.InstallProgress.state.collectAsState()
     val phoneRinging by com.tony.nosotros.find.PhoneFinder.ringing.collectAsState()
     if (phoneRinging) androidx.compose.material3.AlertDialog(onDismissRequest = { com.tony.nosotros.find.PhoneFinder.stop() },
