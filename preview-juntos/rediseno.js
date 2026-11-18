@@ -10,8 +10,10 @@ document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>page(b.dataset
 document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>page(b.dataset.open));
 $('settings').onclick=()=>page('more');
 $('receive').onclick=()=>{const on=$('receive').getAttribute('aria-pressed')!=='true';$('receive').setAttribute('aria-pressed',String(on));$('receive').textContent=on?'Activada ✓':'Desactivada';$('mic').disabled=!on;$('voice-state').textContent=on?'Demostración · canal listo':'Demostración · recepción desactivada'};
-const mic=$('mic');function stop(){mic.setAttribute('aria-pressed','false');$('voice-state').textContent='Demostración · canal listo'}
+const mic=$('mic');function stop(){mic.setAttribute('aria-pressed','false');$('voice-state').textContent=$('receive').getAttribute('aria-pressed')==='true'?'Demostración · canal listo':'Demostración · recepción desactivada'}
 mic.onpointerdown=e=>{if(mic.disabled)return;mic.setPointerCapture(e.pointerId);mic.setAttribute('aria-pressed','true');$('voice-state').textContent='Simulación de pulsación · no se graba audio'};
 mic.onpointerup=stop;mic.onpointercancel=stop;mic.onlostpointercapture=stop;
 mic.onkeydown=e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();mic.setAttribute('aria-pressed','true');$('voice-state').textContent='Simulación · no se graba audio'}};mic.onkeyup=e=>{if(e.key===' '||e.key==='Enter')stop()};mic.onblur=stop;
 document.querySelectorAll('.mock').forEach(b=>b.onclick=()=>{$('notice').textContent='Solo vista previa: no se envió ninguna solicitud al teléfono.'});
+
+$('glass-level').oninput=e=>document.documentElement.style.setProperty('--glass-alpha',String(1-Number(e.target.value)/100));
