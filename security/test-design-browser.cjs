@@ -10,7 +10,7 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
   res.end(fs.readFileSync(file));
  });
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
- const browser=await chromium.launch({headless:true});
+ const browser=await chromium.launch({headless:true,executablePath:process.env.PREVIEW_BROWSER_BIN,args:["--no-sandbox"]});
  try{
   for(const width of [320,390,430,1024,1440]){
    const page=await browser.newPage({viewport:{width,height:920}});

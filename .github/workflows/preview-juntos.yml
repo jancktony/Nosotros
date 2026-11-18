@@ -21,7 +21,11 @@ jobs:
       - run: node --check preview-juntos/app.js && node --check preview-juntos/install-preview.js && node --check preview-juntos/rediseno.js
       - run: npm install --no-save --package-lock=false jsdom@26 playwright@1.51.1
       - run: node security/test-design-preview.cjs
-      - run: npx playwright install --with-deps chromium
+      - name: Usar Chrome instalado en el equipo de pruebas
+        run: |
+          BROWSER_BIN=$(command -v google-chrome || command -v google-chrome-stable)
+          test -x "$BROWSER_BIN"
+          echo "PREVIEW_BROWSER_BIN=$BROWSER_BIN" >> "$GITHUB_ENV"
       - run: node security/test-design-browser.cjs
       - name: Publicar solo un canal temporal, sin cambiar la app ni la web principal
         env:
