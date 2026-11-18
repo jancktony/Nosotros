@@ -13,10 +13,10 @@ object WalkieHub {
     internal var foregroundOpen = false
     internal var service: WalkieService? = null
     fun enable(context: Context) {
-        if (service != null) return
+        if (service != null) { service?.resumeReception(); return }
         App.instance.prefs.receiveWalkie = true
         runCatching { ContextCompat.startForegroundService(context.applicationContext, Intent(context, WalkieService::class.java)) }
-            .onFailure { App.instance.prefs.receiveWalkie = false; state.value = State(message = "Abre la app para activar la recepción") }
+            .onFailure { state.value = State(message = "Android no permitió iniciar la recepción. Abre la app para reintentar.") }
     }
     fun disable(context: Context) {
         App.instance.prefs.receiveWalkie = false
