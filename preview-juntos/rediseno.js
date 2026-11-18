@@ -19,6 +19,7 @@ edit:'<path d="m4 16 12-12 4 4L8 20H4ZM14 6l4 4"/>',
 route:'<path d="m3 10 18-7-7 18-3-8Z"/>',heart:'<path d="M20 5c-3-3-6-1-8 1-2-2-5-4-8-1-5 5 8 15 8 15S25 10 20 5Z"/>'};
 const icon=n=>'<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">'+(paths[n]||paths.heart)+'</svg>';
 function icons(root=document){root.querySelectorAll('[data-icon]').forEach(e=>{if(!e.querySelector('svg'))e.insertAdjacentHTML('afterbegin',icon(e.dataset.icon))})}
+const demoFeatures={walkie:true,together:true,map3d:true};
 let current='map',map=null,mapReady=false,routeTimer=null,tourTimer=null,toastTimer=null,releaseStage=0;
 const sampleCenter=[-74.823,11.004], sampleRoute=[sampleCenter,[-74.8217,11.0047],[-74.8209,11.0035],[-74.8195,11.0041]];
 const pages=[['map','Mapa','map'],['find','Encontrar','locate'],['history','Historial','history'],['places','Lugares','pin'],['photos','Momentos','photo'],['voice','Voz','mic'],['settings','Ajustes','settings'],['admin','Administración','shield']];
@@ -34,7 +35,7 @@ function sheet(mode){$('person-sheet').classList.toggle('minimized',mode==='hidd
 $('sheet-toggle').onclick=()=>sheet($('sheet-toggle').getAttribute('aria-expanded')==='true'?'collapsed':'expanded');
 $('restore-sheet').onclick=()=>sheet('collapsed');
 $('select-me').onclick=()=>selectPerson(true);$('select-kelin').onclick=()=>selectPerson(false);
-function selectPerson(me){$('person-name').textContent=me?'Jancktony':'Kelin';$('person-avatar').textContent=me?'J':'K';$('person-avatar').className='avatar '+(me?'jan':'kel');$('select-me').classList.toggle('selected',me);$('select-kelin').classList.toggle('selected',!me);sheet('collapsed')}
+function selectPerson(me){$('person-name').textContent=me?'Jancktony':'Kelin';$('person-avatar').textContent=me?'J':'K';$('person-avatar').className='avatar '+(me?'jan':'kel');$('person-sheet').querySelector('.battery').textContent=me?'▰ 78 %':'▰ 82 %';$('person-sheet').querySelector('.activity-line b').textContent=me?'Inicio de One UI':'Instagram';$('person-sheet').querySelector('.app-badge').textContent=me?'UI':'IG';$('select-me').classList.toggle('selected',me);$('select-kelin').classList.toggle('selected',!me);sheet('collapsed')}
 function initMap(){
  if(map||!window.maplibregl){if(!window.maplibregl){$('fallback-pair').hidden=false;$('map-hint').textContent='Fondo de ejemplo · no se pudo cargar el mapa interactivo.';$('map-hint').hidden=false}return}
  try{
@@ -43,7 +44,7 @@ function initMap(){
   map.on('load',()=>{
    mapReady=true;$('fallback-pair').hidden=true;
    const el=document.createElement('div');el.className='pair-marker';el.innerHTML='<div class="hearts" aria-hidden="true">♥ ♡ ♥</div><div class="pair-avatars"><span class="avatar jan">J</span><span class="avatar kel">K</span></div><span class="joined-label">Juntos · ejemplo</span>';
-   new window.maplibregl.Marker({element:el,anchor:'center'}).setLngLat(sampleCenter).addTo(map);
+   new window.maplibregl.Marker({element:el,anchor:'center'}).setLngLat(sampleCenter).addTo(map);applyFeatures();
    const layer=map.getStyle().layers.find(l=>l.type==='fill'&&l['source-layer']==='building');
    if(layer&&!map.getLayer('preview-buildings'))map.addLayer({id:'preview-buildings',type:'fill-extrusion',source:layer.source,'source-layer':'building',minzoom:15,layout:{visibility:'none'},paint:{'fill-extrusion-color':'#6b818a','fill-extrusion-height':['coalesce',['get','render_height'],['get','height'],8],'fill-extrusion-base':['coalesce',['get','render_min_height'],0],'fill-extrusion-opacity':1}},map.getStyle().layers.find(l=>l.type==='symbol')?.id);
   });
@@ -58,7 +59,7 @@ map.fitBounds([[-74.824,11.0028],[-74.8187,11.0052]],{padding:85,duration:600});
 $('route-instruction').textContent=lines[0];$('route-eta').textContent='Recorrido simulado · 3 min';routeTimer=setInterval(()=>{step++;$('route-instruction').textContent=lines[Math.min(step,3)];$('route-eta').textContent=step>=3?'Sin navegación real':'Recorrido simulado · '+(3-step)+' min';if(step>=3){clearInterval(routeTimer);routeTimer=null}},3000)};
 $('end-route').onclick=endRoute;
 $('live-demo').onclick=()=>toast('Demostración: no se solicitó la ubicación real de nadie.');
-function stopMic(){$('mic').setAttribute('aria-pressed','false');$('voice-status').innerHTML='<span class="live-dot"></span> '+($('reception').getAttribute('aria-checked')==='true'?'Canal de ejemplo listo':'Recepción de ejemplo apagada')}
+function stopMic(){$('mic').setAttribute('aria-pressed','false');$('voice-status').innerHTML='<span class="live-dot"></span> '+(!demoFeatures.walkie?'Voz desactivada en esta propuesta':$('reception').getAttribute('aria-checked')==='true'?'Canal de ejemplo listo':'Recepción de ejemplo apagada')}
 function startMic(){if($('mic').disabled)return;$('mic').setAttribute('aria-pressed','true');$('voice-status').innerHTML='<span class="live-dot"></span> Simulación · no se graba audio'}
 $('mic').onpointerdown=e=>{if($('mic').disabled)return;$('mic').setPointerCapture?.(e.pointerId);startMic()};
 ['pointerup','pointercancel','lostpointercapture','blur'].forEach(n=>$('mic').addEventListener(n,stopMic));
@@ -91,7 +92,15 @@ $('settings-detail').onchange=e=>{if(e.target.id==='appearance'){document.docume
 function editProfile(){modal('<h2>Tu nombre</h2><p>Solo cambia el nombre en esta demostración.</p><label>Nombre de ejemplo<input id="demo-name" maxlength="40" autocomplete="off"></label><button id="save-demo-name" class="primary" style="margin-top:15px">Guardar en la propuesta</button>');$('demo-name').value=$('profile-name').textContent;$('save-demo-name').onclick=()=>{const v=$('demo-name').value.trim();if(v)$('profile-name').textContent=v;$('detail-dialog').close();toast('Nombre de ejemplo actualizado.')}};
 $('edit-profile').onclick=editProfile;
 $('settings-detail').onclick=e=>{const b=e.target.closest('.setting-action');if(!b)return;if(b.dataset.action==='edit')editProfile();else if(b.dataset.action==='widget')modal('<div class="glass days"><small>Widget de ejemplo</small><b>1343 <span>días juntos</span></b><span>Juntos · no es una lectura real</span></div>');else modal('<h2>Tu control, siempre.</h2><p>Las preferencias reales se cambian en la aplicación instalada. Esta propuesta no solicita permisos ni modifica notificaciones del teléfono.</p>')};
-$('feature-toggles').innerHTML=[['Walkie-talkie','Acceso de ejemplo'],['Juntos animado','Corazones y perfiles unidos'],['Mapa 3D','Vista de ejemplo']].map(([a,b])=>row(a,b,'on')).join('');
+function applyFeatures(){
+ $('reception').disabled=!demoFeatures.walkie;
+ $('mic').disabled=!demoFeatures.walkie||$('reception').getAttribute('aria-checked')!=='true';
+ stopMic();
+ $('toggle-3d').disabled=!demoFeatures.map3d;
+ if(!demoFeatures.map3d){$('toggle-3d').setAttribute('aria-pressed','false');$('toggle-3d').textContent='3D';if(mapReady){if(map.getLayer('preview-buildings'))map.setLayoutProperty('preview-buildings','visibility','none');map.easeTo({pitch:0,duration:300})}}
+ document.querySelectorAll('.hearts').forEach(e=>e.hidden=!demoFeatures.together);
+}
+$('feature-toggles').innerHTML=[['walkie','Walkie-talkie','Acceso de ejemplo'],['together','Juntos animado','Corazones y perfiles unidos'],['map3d','Mapa 3D','Vista de ejemplo']].map(([f,a,b])=>'<div data-feature="'+f+'">'+row(a,b,'on')+'</div>').join('');
 $('release-next').onclick=()=>{releaseStage=(releaseStage+1)%4;const labels=['Simular instalar solo para mí','Simular aprobar prueba','Simular liberar a Kelin','Reiniciar demostración'];const states=['1.15.6 · candidata de demostración','Prueba de ejemplo instalada solo para el dueño','Prueba de ejemplo aprobada · lista para liberar','Liberación simulada completada'];$('release-next').textContent=labels[releaseStage];$('release-status').textContent=states[releaseStage];['test','review','release'].forEach((s,i)=>$('step-'+s).classList.toggle('active',i===Math.min(releaseStage,2)));$('release-help').textContent='No se instaló, aprobó ni liberó ninguna versión real.';toast('Paso simulado. La Administración real no se modificó.')};
 function stopTour(){clearInterval(tourTimer);tourTimer=null;$('tour').textContent='▷ Recorrido automático';stopMic()}
 $('tour').onclick=()=>{if(tourTimer){stopTour();return}let step=0;const actions=[()=>{page('map');selectPerson(false);sheet('expanded')},()=>{sheet('hidden');toast('La ficha se recoge al mover el mapa.')},()=>{page('voice');startMic()},()=>{stopMic();page('photos')},()=>{page('settings');settingCategory('Ubicación')},()=>{page('admin')},()=>{page('map');sheet('collapsed');stopTour()}];actions[0]();$('tour').textContent='Ⅱ Detener recorrido';tourTimer=setInterval(()=>{step++;actions[Math.min(step,actions.length-1)]()},3500)};

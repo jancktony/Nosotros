@@ -30,7 +30,17 @@ try {
  click('[data-go="admin"]');click('#release-next');assert.match(d.getElementById('release-status').textContent,/solo para el dueño/);
  click('#release-next');assert.match(d.getElementById('release-status').textContent,/aprobada/);
  click('#release-next');assert.match(d.getElementById('release-status').textContent,/simulada/);
- click('[data-go="map"]');click('#sheet-toggle');assert.equal(d.querySelector('.sheet-details').hidden,false);
+ click('[data-feature="walkie"] .switch');click('[data-go="voice"]');
+ assert.equal(d.getElementById('mic').disabled,true);
+ assert.match(d.getElementById('voice-status').textContent,/desactivada/);
+ click('[data-go="admin"]');click('[data-feature="walkie"] .switch');click('[data-go="voice"]');
+ assert.equal(d.getElementById('mic').disabled,false);
+ click('[data-go="admin"]');click('[data-feature="map3d"] .switch');
+ assert.equal(d.getElementById('toggle-3d').disabled,true);
+ click('[data-feature="map3d"] .switch');
+ click('[data-go="map"]');click('#select-me');assert.equal(d.querySelector('.activity-line b').textContent,'Inicio de One UI');
+ click('#select-kelin');assert.equal(d.querySelector('.activity-line b').textContent,'Instagram');
+ click('#sheet-toggle');assert.equal(d.querySelector('.sheet-details').hidden,false);
  click('#mobile');assert.ok(d.body.classList.contains('compact'));click('#wide');assert.ok(!d.body.classList.contains('compact'));
  console.log('Private gate and interactive navigation, voice, places, history, gallery, profile and simulated release checks passed.');
 } finally { w.close(); }
