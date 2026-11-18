@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22', cache: npm}
       - run: npm ci --no-audit --no-fund
-      - run: node --check preview-juntos/app.js && node --check preview-juntos/install-preview.js
+      - run: node --check preview-juntos/app.js && node --check preview-juntos/install-preview.js && node --check preview-juntos/rediseno.js
       - name: Publicar solo un canal temporal, sin cambiar la app ni la web principal
         env:
           GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
