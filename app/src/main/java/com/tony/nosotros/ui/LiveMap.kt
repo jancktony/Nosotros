@@ -102,6 +102,7 @@ fun LiveMap(
         MapLibre.getInstance(ctx)
         MapView(ctx).apply { onCreate(null) }
     }
+    var cameraMoving by remember { mutableStateOf(false) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var style by remember { mutableStateOf<Style?>(null) }
     val currentPublicPlaces by rememberUpdatedState(publicPlaces)
@@ -173,9 +174,11 @@ fun LiveMap(
                 mapTap?.invoke(); false
             }
             m.addOnCameraMoveStartedListener { reason ->
+                cameraMoving = true
                 if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) gesture?.invoke()
             }
             m.addOnCameraIdleListener {
+                cameraMoving = false
                 val t = m.cameraPosition.target ?: return@addOnCameraIdleListener
                 center?.invoke(t.latitude, t.longitude)
             }
@@ -228,17 +231,22 @@ fun LiveMap(
         }
     }
 
-    LaunchedEffect(style, people, places, routes, showPhotos, together) {
+    LaunchedEffect(style, routes) {
         val s = style ?: return@LaunchedEffect
-        updateData(ctx, s, palette, if (showPhotos) people else people.map { it.copy(avatar = "") }, places, routes, together)
+        updateRoutes(s, routes)
+    }
+
+    LaunchedEffect(style, people, places, showPhotos, together) {
+        val s = style ?: return@LaunchedEffect
+        updateData(ctx, s, palette, if (showPhotos) people else people.map { it.copy(avatar = "") }, places, together)
     }
 
     // Pulso animado alrededor de quien se está moviendo
     val anyMoving = !together && people.any { it.inMotion }
-    LaunchedEffect(style, anyMoving) {
+    LaunchedEffect(style, anyMoving, resumed, cameraMoving, tilt3d) {
         val halo = style?.getLayer("people-halo") ?: return@LaunchedEffect
         val isMoving = Expression.eq(Expression.get("moving"), Expression.literal(true))
-        if (!anyMoving) {
+        if (!anyMoving || !resumed || cameraMoving) {
             halo.setProperties(PropertyFactory.circleRadius(32f), PropertyFactory.circleOpacity(0.22f))
             return@LaunchedEffect
         }
@@ -250,13 +258,13 @@ fun LiveMap(
                 PropertyFactory.circleOpacity(Expression.switchCase(isMoving, Expression.literal(0.45f * (1f - ph)), Expression.literal(0.22f))),
             )
             t++
-            kotlinx.coroutines.delay(70)
+            kotlinx.coroutines.delay(if (tilt3d) 120L else 70L)
         }
     }
 
 
     // Screen-space particles stay above the portraits at every bearing and map tilt.
-    LaunchedEffect(style, together, resumed) {
+    LaunchedEffect(style, together, resumed, cameraMoving, tilt3d) {
         val halo = style?.getLayer("together-halo") ?: return@LaunchedEffect
         val hearts = (0 until TogetherMotion.HEARTS).map { style?.getLayer("together-heart-$it") ?: return@LaunchedEffect }
         fun particles(elapsed: Long, animated: Boolean) {
@@ -272,7 +280,7 @@ fun LiveMap(
         }
         still()
         val power=ctx.getSystemService(android.os.PowerManager::class.java)
-        if (!together || !resumed || power?.isPowerSaveMode == true || !android.animation.ValueAnimator.areAnimatorsEnabled())
+        if (!together || !resumed || cameraMoving || power?.isPowerSaveMode == true || !android.animation.ValueAnimator.areAnimatorsEnabled())
             return@LaunchedEffect
         var lastPowerCheck=0L
         while (true) {
@@ -286,7 +294,7 @@ fun LiveMap(
             halo.setProperties(PropertyFactory.circleRadius(68f+12f*wave),
                 PropertyFactory.circleOpacity(.12f+.10f*wave))
             particles(elapsed,true)
-            kotlinx.coroutines.delay(33)
+            kotlinx.coroutines.delay(if (tilt3d) 100L else 50L)
         }
     }
 
@@ -353,12 +361,12 @@ private fun setupBuildings(s: Style, palette: Palette) {
     val sourceLayer = footprint?.sourceLayer ?: "building"
     val buildings = FillExtrusionLayer("nosotros-buildings-3d", sourceId).apply {
         this.sourceLayer = sourceLayer
-        minZoom = 14f
+        minZoom = 15f
         setProperties(
             PropertyFactory.fillExtrusionHeight(Expression.coalesce(Expression.get("render_height"), Expression.get("height"), Expression.literal(8))),
             PropertyFactory.fillExtrusionBase(Expression.coalesce(Expression.get("render_min_height"), Expression.get("min_height"), Expression.literal(0))),
             PropertyFactory.fillExtrusionColor(if (palette.dark) "#536579" else "#D6AFC2"),
-            PropertyFactory.fillExtrusionOpacity(0.85f),
+            PropertyFactory.fillExtrusionOpacity(1f),
             PropertyFactory.visibility(Property.NONE),
         )
     }
@@ -446,9 +454,7 @@ internal fun togetherHeartLayer(index: Int): SymbolLayer {
         PropertyFactory.iconTranslate(arrayOf(f.x,f.y)), PropertyFactory.iconSize(f.scale))
 }
 
-private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPerson>, places: List<Place>, routes: List<MapRoute>, together: Boolean = false) {
-    val joined = together && people.size == 2
-    val pairCenter = if (joined) com.tony.nosotros.util.PairProximity.center(people[0].lat,people[0].lng,people[1].lat,people[1].lng) else null
+private fun updateRoutes(s: Style, routes: List<MapRoute>) {
     (s.getSource("routes") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(
         routes.filter { it.points.size >= 2 }.map { r ->
             Feature.fromGeometry(LineString.fromLngLats(r.points.map { Point.fromLngLat(it.lng, it.lat) })).apply {
@@ -456,6 +462,12 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
             }
         }
     ))
+}
+
+private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPerson>, places: List<Place>, together: Boolean = false) {
+    val joined = together && people.size == 2
+    val pairCenter = if (joined) com.tony.nosotros.util.PairProximity.center(people[0].lat,people[0].lng,people[1].lat,people[1].lng) else null
+
 
     (s.getSource("places") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(
         places.filter { !it.suggested && it.name.isNotBlank() }.map { p ->

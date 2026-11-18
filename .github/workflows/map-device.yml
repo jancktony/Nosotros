@@ -1,7 +1,7 @@
 name: Verificar mapa y actualización en Android
 on:
   push:
-    branches: [feature/recuperacion-walkie-1.15.5, feature/actividad-ficha-1.15.4, feature/juntos-animacion-1.15.3, feature/correcciones-mapa-1.15.2]
+    branches: [feature/recepcion-retencion-1.15.6, feature/recuperacion-walkie-1.15.5, feature/actividad-ficha-1.15.4, feature/juntos-animacion-1.15.3, feature/correcciones-mapa-1.15.2]
     paths: ['app/**', '.github/workflows/map-device.yml']
 permissions:
   contents: read
