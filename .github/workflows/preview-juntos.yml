@@ -4,6 +4,9 @@ on:
     branches: [preview/instalacion-visible]
     paths: ['preview-juntos/**', '.github/workflows/preview-juntos.yml']
   workflow_dispatch:
+concurrency:
+  group: private-design-preview
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
