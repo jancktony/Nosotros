@@ -21,3 +21,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node security/diagnose-walkie-private.cjs
+
+# Refresh requested after repeated connection failure, 2026-11-18.
