@@ -2,7 +2,7 @@ name: Vista previa privada del proceso de actualización
 on:
   push:
     branches: [preview/instalacion-visible]
-    paths: ['preview-juntos/**', 'security/test-design-preview.cjs', '.github/workflows/preview-juntos.yml']
+    paths: ['preview-juntos/**', 'security/test-design-preview.cjs', 'security/test-design-browser.cjs', '.github/workflows/preview-juntos.yml']
   workflow_dispatch:
 concurrency:
   group: private-design-preview
@@ -19,8 +19,10 @@ jobs:
         with: {node-version: '22', cache: npm}
       - run: npm ci --no-audit --no-fund
       - run: node --check preview-juntos/app.js && node --check preview-juntos/install-preview.js && node --check preview-juntos/rediseno.js
-      - run: npm install --no-save --package-lock=false jsdom@26
+      - run: npm install --no-save --package-lock=false jsdom@26 playwright@1.51.1
       - run: node security/test-design-preview.cjs
+      - run: npx playwright install --with-deps chromium
+      - run: node security/test-design-browser.cjs
       - name: Publicar solo un canal temporal, sin cambiar la app ni la web principal
         env:
           GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
