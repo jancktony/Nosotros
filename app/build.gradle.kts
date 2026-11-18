@@ -37,8 +37,8 @@ android {
         minSdk = 29
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
-        versionCode = 28
-        versionName = "1.15.6"
+        versionCode = 29
+        versionName = "1.15.7"
         buildConfigField("String", "GH_REPO", "\"${(project.findProperty("ghRepo") as String?) ?: ""}\"")
         ndk { abiFilters += if (project.hasProperty("codecTest")) listOf("x86_64") else listOf("arm64-v8a", "armeabi-v7a") }
         buildConfigField("String", "FB_API_KEY", "\"${fb.apiKey}\"")
@@ -93,6 +93,7 @@ dependencies {
 
     implementation("org.maplibre.gl:android-sdk:2026.11.2-globe")
     implementation("io.github.webrtc-sdk:android:150.7871.04")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation(composeBom)

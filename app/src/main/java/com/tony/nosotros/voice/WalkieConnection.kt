@@ -38,7 +38,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     private var epoch = 0
     private var opening = false
     private var openAttempt = 0
-    val ready get() = audio != null
+    val ready get() = !closed && channel?.state() == DataChannel.State.OPEN
     val active get() = pc != null || opening
     val currentCallId get() = call?.id
 
@@ -134,7 +134,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         if (outgoing) attach(pc!!.createDataChannel(VoiceWire.CHANNEL, DataChannel.Init().apply {
             ordered = false; maxRetransmits = 0
         }))
-        timeout = scope.launch { delay(12000); if (audio == null) end("La conexión directa no está disponible. Activen el modo de redes difíciles en ambos teléfonos.") }
+        timeout = scope.launch { delay(12000); if (!ready) end("La conexión directa no está disponible. Activen el modo de redes difíciles en ambos teléfonos.") }
     }
     private fun attach(data: DataChannel) {
         if (data.label() != VoiceWire.CHANNEL) {
@@ -145,20 +145,20 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         fun changed() { handler.post {
             if (closed || generation != epoch) return@post
             when (data.state()) {
-                DataChannel.State.OPEN -> if (audio == null) {
-                    runCatching { audio = PushAudio({ bytes ->
-                        data.state() == DataChannel.State.OPEN && data.bufferedAmount() < 2048 &&
-                            data.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(bytes), true))
-                    }, { lastActivity = android.os.SystemClock.elapsedRealtime() },
-                        { handler.post { end("No se pudo reproducir el audio. Revisa el volumen multimedia.") } }) }.onSuccess {
-                        timeout?.cancel(); report("Directo · voz comprimida · mantén pulsado", true)
-                        lastActivity = android.os.SystemClock.elapsedRealtime()
-                        timeout = scope.launch {
-                            while (true) { delay(1000)
-                                if (android.os.SystemClock.elapsedRealtime() - lastActivity >= 60000) { end("Canal cerrado por inactividad"); break }
+                DataChannel.State.OPEN -> {
+                    timeout?.cancel()
+                    lastActivity = android.os.SystemClock.elapsedRealtime()
+                    report("Canal listo · voz comprimida", true)
+                    reportSelectedPath(generation)
+                    // Keep ICE/DataChannel prepared; suspend audio hardware while idle.
+                    timeout = scope.launch {
+                        while (true) {
+                            delay(15_000)
+                            if (android.os.SystemClock.elapsedRealtime() - lastActivity >= 60_000) {
+                                audio?.close(); audio = null
                             }
                         }
-                    }.onFailure { end("No se pudo abrir el audio.") }
+                    }
                 }
                 DataChannel.State.CLOSED -> end("Conexión terminada")
                 else -> Unit
@@ -167,9 +167,47 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         data.registerObserver(object : DataChannel.Observer {
             override fun onBufferedAmountChange(previousAmount: Long) = Unit
             override fun onStateChange() { changed() }
-            override fun onMessage(buffer: DataChannel.Buffer) { audio?.receive(buffer) }
+            override fun onMessage(buffer: DataChannel.Buffer) {
+                if (!buffer.binary || buffer.data.remaining() !in 11..399) return
+                val packet = ByteArray(buffer.data.remaining()).also { buffer.data.get(it) }
+                handler.post {
+                    if (!closed && generation == epoch && ready) {
+                        lastActivity = android.os.SystemClock.elapsedRealtime()
+                        playback()?.receive(packet)
+                    }
+                }
+            }
         })
         changed()
+    }
+    private fun playback(): PushAudio? {
+        audio?.let { return it }
+        val data = channel ?: return null
+        if (!ready) return null
+        return runCatching {
+            PushAudio({ bytes ->
+                data.state() == DataChannel.State.OPEN && data.bufferedAmount() < 2048 &&
+                    data.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(bytes), true))
+            }, { lastActivity = android.os.SystemClock.elapsedRealtime() },
+                { handler.post { end("No se pudo abrir el audio. Revisa el volumen multimedia.") } })
+                .also { audio = it }
+        }.getOrElse { end("No se pudo abrir el audio."); null }
+    }
+    private fun reportSelectedPath(generation: Int) {
+        pc?.getStats { report ->
+            val entries = report.statsMap
+            val selectedId = entries.values.firstOrNull { it.type == "transport" }
+                ?.members?.get("selectedCandidatePairId") as? String
+            val pairStats = selectedId?.let { entries[it] } ?: entries.values.firstOrNull {
+                it.type == "candidate-pair" && it.members["state"] == "succeeded" && it.members["nominated"] == true
+            }
+            val ids = listOf(pairStats?.members?.get("localCandidateId"), pairStats?.members?.get("remoteCandidateId"))
+            val candidates = ids.filterIsInstance<String>().mapNotNull { entries[it] }
+            if (candidates.isEmpty()) return@getStats
+            val relayed = candidates.any { it.members["candidateType"] == "relay" }
+            handler.post { if (!closed && generation == epoch && ready)
+                report(if (relayed) "Canal listo · respaldo TURN" else "Canal directo listo", true) }
+        }
     }
     private fun listen(ref: DocumentReference) {
         val generation = epoch
@@ -214,8 +252,8 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     }
     fun talk(stopped: () -> Unit): Boolean {
         lastActivity = android.os.SystemClock.elapsedRealtime()
-        return try { audio?.start { handler.post(stopped) } ?: error("Canal desconectado"); true }
-        catch (_: Exception) { report("No se pudo usar el micrófono", audio != null); stopped(); false }
+        return try { playback()?.start { handler.post(stopped) } ?: error("Canal desconectado"); true }
+        catch (_: Exception) { stopped(); report("No se pudo usar el micrófono", ready); false }
     }
     fun stopTalking() { audio?.stop() }
     fun end(message: String = "Desconectado") {

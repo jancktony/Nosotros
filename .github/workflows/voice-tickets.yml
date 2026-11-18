@@ -1,0 +1,19 @@
+name: Renovar sesiones privadas de voz
+on:
+  schedule:
+    - cron: '12 0,6,12,18 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  renew:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - run: node security/voice-tickets.cjs tickets
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

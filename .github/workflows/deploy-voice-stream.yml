@@ -1,0 +1,54 @@
+name: Activar respaldo de voz privado del dueño
+on:
+  push:
+    branches: [feature/canal-interno-1.15.7]
+    paths: ['voice-relay/activate.txt']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comprobar acceso a la cuenta gratuita del dueño
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - name: Exigir pruebas de esta revisión
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for WORKFLOW in security.yml voice-stream.yml; do
+            CHECK=""
+            for attempt in $(seq 1 60); do
+              CHECK=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW/runs?head_sha=$GITHUB_SHA&per_page=10" --jq '.workflow_runs | map(select(.head_sha == env.GITHUB_SHA and .conclusion == "success")) | first | .id // empty')
+              [ -n "$CHECK" ] && break
+              sleep 10
+            done
+            test -n "$CHECK"
+          done
+      - run: npm ci --no-audit --no-fund
+      - run: npm install --prefix voice-relay --no-audit --no-fund
+      - name: Preparar solo la clave pública del servidor
+        run: node security/voice-tickets.cjs prepare "$RUNNER_TEMP/voice-public.json"
+      - name: Desplegar el código privado sin activar planes de pago
+        working-directory: voice-relay
+        run: |
+          VOICE_PUBLIC_JWK=$(node -e 'process.stdout.write(JSON.stringify(require(process.argv[1])))' "$RUNNER_TEMP/voice-public.json")
+          npx wrangler deploy --var "SIGNING_JWK:$VOICE_PUBLIC_JWK"
+      - name: Aplicar las reglas verificadas
+        env:
+          ONLY_RULES: '1'
+        run: node security/configure-firebase.cjs
+      - name: Verificar servidor y habilitar las sesiones privadas
+        run: node security/voice-tickets.cjs activate

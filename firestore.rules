@@ -150,6 +150,10 @@ service cloud.firestore {
         let mode = data.get('featureFlags', {}).get(key, 'off');
         return mode == 'all' || (mode == 'admin' && data.admin == uid);
       }
+      match /voiceTickets/{uid} {
+        allow get: if member(id) && request.auth.uid == uid && feature(id, 'walkie', 'off');
+        allow list, create, update, delete: if false;
+      }
       match /appPresence/{uid} {
         allow read: if member(id) && (request.auth.uid == uid || targetFeature('appPresence', uid));
         allow delete: if member(id) && request.auth.uid == uid;

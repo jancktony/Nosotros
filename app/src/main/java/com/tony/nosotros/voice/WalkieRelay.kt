@@ -117,7 +117,7 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
     private fun report() {
         if (!closed) {
             reportedReady = ready
-            status(if (ready) "Red lenta · voz comprimida lista" else "Preparando canal alternativo · esperando recepción de ambos", ready)
+            status(if (ready) "Canal alternativo listo" else "Preparando canal alternativo · esperando recepción de ambos", ready)
             receiveAvailable()
         }
     }
@@ -158,8 +158,9 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
     }
     fun talk(stopped: () -> Unit): Boolean {
         if (!ready) { reconnect(); return false }
+        lastActivity = android.os.SystemClock.elapsedRealtime()
         return try { audio().start { handler.post { flush(); stopped() } }; true }
-        catch (_: Exception) { status("No se pudo usar el micrófono", ready); false }
+        catch (_: Exception) { stopped(); status("No se pudo usar el micrófono", ready); false }
     }
     fun stopTalking() { engine?.stop(); flush() }
     fun close() {

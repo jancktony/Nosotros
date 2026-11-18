@@ -1,0 +1,20 @@
+name: Verificar canal privado persistente
+on:
+  push:
+    branches: [feature/canal-interno-1.15.7]
+    paths: ['voice-relay/**', '.github/workflows/voice-stream.yml']
+permissions:
+  contents: read
+jobs:
+  server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: voice-relay
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-audit --no-fund
+      - run: npm test
