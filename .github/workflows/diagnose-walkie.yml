@@ -23,3 +23,5 @@ jobs:
         run: node security/diagnose-walkie-private.cjs
 
 # Refresh requested after repeated connection failure, 2026-11-18.
+
+# Recheck transport before further repair 2026-11-18T21:58:14.855Z
