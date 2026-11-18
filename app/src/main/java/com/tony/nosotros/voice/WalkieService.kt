@@ -21,6 +21,10 @@ import com.tony.nosotros.ui.MainActivity
 class WalkieService : Service() {
     private var connection: WalkieConnection? = null
     private var relay: WalkieRelay? = null
+    private var stream: SocketVoiceRelay? = null
+    private enum class Path { DIRECT, STREAM, FRAGMENTS }
+    private var activePath: Path? = null
+    private var microphoneEpoch = 0
     private var pairId = ""
     private var relayPermitted = false
     private var relayPartner: String? = null
@@ -52,7 +56,7 @@ class WalkieService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == "stop") { App.instance.prefs.receiveWalkie = false; stopSelf(); return START_NOT_STICKY }
         if (!Repo.authorizedSession || !App.instance.prefs.receiveWalkie) { stopSelf(); return START_NOT_STICKY }
-        if (connection != null) { refreshRelay(); relay?.reconnect(); return START_STICKY }
+        if (WalkieHub.service === this) { resumeReception(); return START_STICKY }
         uid = Repo.uid ?: run { stopSelf(); return START_NOT_STICKY }
         val pair = App.instance.prefs.pairId ?: run { stopSelf(); return START_NOT_STICKY }
         pairId = pair
@@ -62,30 +66,12 @@ class WalkieService : Service() {
         WalkieHub.service = this
         WalkieHub.state.value = WalkieHub.State(enabled = true, message = "En espera · pulsa para hablar")
         try {
-            connection = WalkieConnection(this, pair, uid) { message, ready ->
-                val available = ready || relay?.ready == true
-                // Connecting is not a release gesture: keep a held press pending until OPEN.
-                if (!available && connection?.active != true) {
-                    // A transport failure is not the user's release gesture.
-                    val held = requested
-                    stopTalking(); requested = held
-                    audioManager.abandonAudioFocusRequest(focus)
-                }
-                WalkieHub.state.value = WalkieHub.state.value.copy(enabled = true, connected = available,
-                    message = if (!ready && relay != null) { if (relay?.ready == true) "Red lenta · voz comprimida lista" else "Preparando canal alternativo · esperando recepción de ambos" } else message)
-                if (ready) {
-                    retryAttempt = 0; handler.removeCallbacks(retry)
-                    if (audioManager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                        connection?.end("El audio está ocupado"); return@WalkieConnection
-                    }
-                    if (requested) startTalking()
-                } else if (!available && (WalkieHub.foregroundOpen || requested) && retryAttempt < 3 && !message.contains("inactividad")) {
-                    handler.removeCallbacks(retry); retryAttempt++
-                    handler.postDelayed(retry, 2000L * retryAttempt)
-                }
-                if (available && requested) startTalking()
-            }
-        } catch (_: Exception) { WalkieHub.state.value = WalkieHub.State(message = "No se pudo abrir el walkie"); stopSelf(); return START_NOT_STICKY }
+            connection = WalkieConnection(this, pair, uid) { message, _ -> channelChanged(message) }
+        } catch (_: Exception) {
+            channelChanged("Preparando el canal privado…")
+        } catch (_: LinkageError) {
+            channelChanged("Preparando el canal privado…")
+        }
         authListener = FirebaseAuth.AuthStateListener { auth -> if (auth.currentUser?.uid != uid || !Repo.authorizedSession) stopSelf() }
             .also { FirebaseAuth.getInstance().addAuthStateListener(it) }
         pairListener = Repo.db.collection("pairs").document(pair).addSnapshotListener { snapshot, error ->
@@ -106,7 +92,7 @@ class WalkieService : Service() {
         networkCallback = object : android.net.ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: android.net.Network) { handler.post {
                 if (!destroyed) {
-                    relay?.reconnect()
+                    relay?.reconnect(); stream?.reconnect()
                     if (connection?.ready != true) {
                         val held = requested
                         connection?.end("Recuperando conexión…")
@@ -160,36 +146,67 @@ class WalkieService : Service() {
         current.accept(incoming)
 
     }
+    private fun ready(path: Path): Boolean = when (path) {
+        Path.DIRECT -> connection?.ready == true
+        Path.STREAM -> stream?.ready == true
+        Path.FRAGMENTS -> relay?.ready == true
+    }
+    private fun choosePath(): Path? {
+        activePath?.takeIf { ready(it) }?.let { return it }
+        return listOf(Path.DIRECT, Path.STREAM, Path.FRAGMENTS).firstOrNull { ready(it) }
+    }
+    private fun channelChanged(message: String) {
+        if (destroyed) return
+        if (activePath?.let { !ready(it) } == true) haltAudio()
+        val selected = choosePath()
+        val available = selected != null
+        val text = if (message.startsWith("No se pudo")) message else when (selected) {
+            Path.DIRECT -> "Canal directo listo"
+            Path.STREAM -> "Canal privado listo"
+            Path.FRAGMENTS -> "Canal alternativo listo"
+            null -> message
+        }
+        WalkieHub.state.value = WalkieHub.state.value.copy(enabled = true, connected = available, message = text)
+        if (available) {
+            retryAttempt = 0; handler.removeCallbacks(retry)
+            if (requested) startTalking()
+        } else if ((WalkieHub.foregroundOpen || requested) && connection?.active != true && retryAttempt < 3) {
+            handler.removeCallbacks(retry); retryAttempt++
+            handler.postDelayed(retry, 1500L * retryAttempt)
+        }
+    }
     fun refreshRelay() {
         val enabled = relayPermitted && App.instance.prefs.allowVoiceRelay && partner != null
         if (!enabled) {
-            if (relay != null) {
-                stopTalking(); relay?.close(); relay = null; relayPartner = null
-                val direct = connection?.ready == true
-                WalkieHub.state.value = WalkieHub.state.value.copy(connected = direct,
-                    message = if (direct) "Canal directo listo" else "En espera · pulsa para hablar")
+            if (relay != null || stream != null) {
+                stopTalking(); relay?.close(); stream?.close()
+                relay = null; stream = null; relayPartner = null
+                channelChanged("En espera · pulsa para hablar")
             }
             return
         }
-        if (relay != null && relayPartner == partner) return
-        relay?.close(); relayPartner = partner
+        if (relay != null && stream != null && relayPartner == partner) {
+            if (stream?.ready != true) stream?.reconnect()
+            return
+        }
+        relay?.close(); stream?.close(); relayPartner = partner
         relay = WalkieRelay(pairId, uid, partner!!, clock = clock,
-            focus = { audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED }) { message, ready ->
-            if (connection?.ready != true) {
-                WalkieHub.state.value = WalkieHub.state.value.copy(connected = ready, message = message)
-                if (!ready && WalkieHub.state.value.talking) {
-                    val held = requested; stopTalking(); requested = held
-                } else if (ready && requested) startTalking()
-            }
+            focus = { audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED }) { message, _ ->
+            channelChanged(message)
+        }.also { it.start() }
+        stream = SocketVoiceRelay(pairId, uid, clock,
+            focus = { audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED }) { message, _ ->
+            channelChanged(message)
         }.also { it.start() }
     }
     fun resumeReception() {
         if (destroyed || !App.instance.prefs.receiveWalkie || !Repo.authorizedSession) return
         refreshRelay()
         relay?.reconnect()
+        if (stream?.ready != true) stream?.reconnect()
     }
     fun reconnect() {
-        retryAttempt = 0; handler.removeCallbacks(retry); stopTalking(); connection?.end("Reconectando…"); refreshRelay(); relay?.reconnect()
+        retryAttempt = 0; handler.removeCallbacks(retry); stopTalking(); connection?.end("Reconectando…"); refreshRelay(); relay?.reconnect(); stream?.reconnect()
         // The elected warmer only applies to passive preparation, never to a user's reconnect action.
         if (clock.ready) partner?.let { if (connection?.active != true) connection?.dial(it) }
     }
@@ -201,13 +218,13 @@ class WalkieService : Service() {
         if (!current.active && uid < to) current.dial(to)
     }
     fun talk() {
-        val current = connection ?: return
         if (!requested) retryAttempt = 0
         requested = true
         relay?.reconnect()
+        if (choosePath() != null) { startTalking(); return }
         if (!clock.ready) { WalkieHub.state.value = WalkieHub.state.value.copy(message = "Preparando canal privado…"); return }
-        if (connection?.ready == true || relay?.ready == true) startTalking()
-        else if (!current.active) {
+        val current = connection ?: return
+        if (!current.active) {
             val to = partner ?: run { WalkieHub.state.value = WalkieHub.state.value.copy(message = "Cargando el canal…"); return }
             current.dial(to)
             // The mic starts only if the finger is still pressed when the channel becomes ready.
@@ -216,6 +233,7 @@ class WalkieService : Service() {
     }
     private fun startTalking() {
         if (!requested || WalkieHub.state.value.talking) return
+        val selected = choosePath() ?: return
         if (!MainActivity.visibleForMicrophone() || androidx.core.content.ContextCompat.checkSelfPermission(
                 this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requested = false
@@ -233,20 +251,30 @@ class WalkieService : Service() {
         if (audioManager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             stopTalking(); return
         }
+        val token = ++microphoneEpoch
+        activePath = selected
         val stopped = {
+            if (token == microphoneEpoch) {
             releaseMicrophoneType()
+            activePath = null
             requested = false
             WalkieHub.state.value = WalkieHub.state.value.copy(talking = false,
                 message = if (WalkieHub.state.value.connected) "Canal listo · mantén pulsado" else "En espera")
+            }
         }
-        val started = if (connection?.ready == true) connection?.talk(stopped) == true else relay?.talk(stopped) == true
-        if (!started) releaseMicrophoneType()
+        val started = when (selected) {
+            Path.DIRECT -> connection?.talk(stopped) == true
+            Path.STREAM -> stream?.talk(stopped) == true
+            Path.FRAGMENTS -> relay?.talk(stopped) == true
+        }
+        if (!started) { activePath = null; requested = false; releaseMicrophoneType() }
         WalkieHub.state.value = WalkieHub.state.value.copy(talking = started,
             message = if (started) "Hablando · voz de bajo consumo" else "Aún no hay canal. Espera la señal antes de hablar.")
     }
-    fun stopTalking() {
-        requested = false
-        connection?.stopTalking(); relay?.stopTalking(); releaseMicrophoneType()
+    fun stopTalking() { requested = false; haltAudio() }
+    private fun haltAudio() {
+        ++microphoneEpoch; activePath = null
+        connection?.stopTalking(); relay?.stopTalking(); stream?.stopTalking(); releaseMicrophoneType()
         WalkieHub.state.value = WalkieHub.state.value.copy(talking = false,
             message = if (WalkieHub.state.value.connected) "Canal listo · mantén pulsado" else WalkieHub.state.value.message)
     }
@@ -259,6 +287,7 @@ class WalkieService : Service() {
         handler.removeCallbacks(clockRetry); handler.removeCallbacks(retry); stopTalking(); pairListener?.remove(); callsListener?.remove()
         authListener?.let { FirebaseAuth.getInstance().removeAuthStateListener(it) }
         relay?.close(); relay = null
+        stream?.close(); stream = null
         connection?.close(); connection = null
         audioManager.abandonAudioFocusRequest(focus)
         WalkieHub.service = null

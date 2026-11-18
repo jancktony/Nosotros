@@ -299,3 +299,18 @@ test('Juntos solo puede ser activado, probado o retirado por el administrador', 
   await assertFails(updateDoc(p(bob()),{featureFlags:{mapTogether:'all'}}));
   await assertFails(updateDoc(p(alice()),{featureFlags:{mapTogether:'yes'}}));
 });
+
+test('tickets de voz privados: solo el destinatario y nunca escritura desde la app', async () => {
+  await env.withSecurityRulesDisabled(async ctx => {
+    await updateDoc(p(ctx),{featureFlags:{walkie:'all'},voiceStream:{enabled:true,key:'fixture-key'}});
+    await setDoc(p(ctx,'pairs/p/voiceTickets/alice'),{token:'fixture-ticket'});
+  });
+  await assertSucceeds(getDoc(p(alice(),'pairs/p/voiceTickets/alice')));
+  await assertFails(getDoc(p(bob(),'pairs/p/voiceTickets/alice')));
+  await assertFails(getDoc(p(stranger(),'pairs/p/voiceTickets/alice')));
+  await assertFails(getDocs(collection(alice().firestore(),'pairs/p/voiceTickets')));
+  await assertFails(setDoc(p(alice(),'pairs/p/voiceTickets/alice'),{token:'forged'}));
+  await assertFails(updateDoc(p(alice()),{voiceStream:{enabled:true,key:'changed'}}));
+  await assertFails(getDoc(p(alice(),'voiceSecrets/signing')));
+  await assertFails(getDoc(p(bob(),'voiceSecrets/signing')));
+});
