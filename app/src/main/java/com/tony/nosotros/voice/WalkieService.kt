@@ -269,8 +269,8 @@ class WalkieService : Service() {
         val open = PendingIntent.getActivity(this, 91, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val stop = PendingIntent.getService(this, 92, Intent(this, WalkieService::class.java).setAction("stop"), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return NotificationCompat.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle("Nosotros activo").setContentText("Funciones en segundo plano activas")
-            .setContentIntent(open).setOngoing(true).setSilent(true).setShowWhen(false)
+            .setContentTitle("Recepción de voz activada").setContentText("Toca para abrir Nosotros")
+            .setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true).setSilent(true).setShowWhen(false)
             .setPriority(NotificationCompat.PRIORITY_LOW).setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .addAction(0, "Desactivar", stop).build()
     }
