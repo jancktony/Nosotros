@@ -49,7 +49,7 @@ fun PlacesScreen(vm: MainViewModel, onAdd: () -> Unit, onEdit: (Place) -> Unit) 
     var search by remember { mutableStateOf("") }
     val partnerName = partner?.name?.ifBlank { null } ?: "Tu pareja"
 
-    Box(Modifier.fillMaxSize().background(C.bg)) {
+    Box(Modifier.fillMaxSize().experienceBackground()) {
         LazyColumn(
             Modifier.fillMaxSize().statusBarsPadding(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),

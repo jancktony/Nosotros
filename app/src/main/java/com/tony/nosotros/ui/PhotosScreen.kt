@@ -106,10 +106,10 @@ fun PhotosScreen(vm: MainViewModel) {
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { if (it != null) picked = it }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { if (it) picked = cameraUri }
     val month = remember { java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale("es")) }
-    Box(Modifier.fillMaxSize().background(C.bg)) {
+    Box(Modifier.fillMaxSize().experienceBackground()) {
         androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
-            columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(104.dp), modifier = Modifier.fillMaxSize().statusBarsPadding(),
-            contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(140.dp), modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
                     SettingsHero("Sus recuerdos", "${photos.size} momentos compartidos · solo ustedes", "EL ÁLBUM DE USTEDES")
@@ -126,7 +126,7 @@ fun PhotosScreen(vm: MainViewModel) {
                 items(group.size, key = { group[it].id }) { index ->
                     val photo = group[index]
                     val image = remember(photo.id) { BitmapFactory.decodeByteArray(photo.thumb,0,photo.thumb.size) }
-                    Box(Modifier.aspectRatio(.88f).clip(RoundedCornerShape(15.dp)).background(C.surface2).clickable { viewing = photo.id }) {
+                    Box(Modifier.aspectRatio(.88f).clip(RoundedCornerShape(20.dp)).background(C.surface2).clickable { viewing = photo.id }) {
                         image?.let { Image(it.asImageBitmap(),photo.caption.ifBlank { "Foto compartida" }, Modifier.fillMaxSize(),contentScale=ContentScale.Crop) }
                         if (photo.caption.isNotBlank()) Text(photo.caption, color=Color.White,fontSize=10.sp,maxLines=2,
                             modifier=Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha=.4f)).padding(9.dp))

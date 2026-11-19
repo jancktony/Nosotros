@@ -136,7 +136,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
         val listener = if (saved) voice.listen({ notes = it }, { message = "No se pudieron cargar las notas de voz" }) else null
         onDispose { listener?.remove(); voice.close(); recording = false; playJob?.cancel(); playing = null }
     }
-    BoxWithConstraints(Modifier.fillMaxSize().background(C.bg), contentAlignment = Alignment.TopCenter) {
+    BoxWithConstraints(Modifier.fillMaxSize().experienceBackground(), contentAlignment = Alignment.TopCenter) {
         val compact = maxHeight < 650.dp
         val tiny = maxHeight < 460.dp
         Column(Modifier.widthIn(max = 600.dp).fillMaxWidth()
@@ -146,20 +146,20 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(if(tiny) 2.dp else 8.dp)) {
             if (!tiny) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Walkie-talkie", color = C.text, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-                    if (!compact) Text("Una voz más cerca de $partner", color = C.sub, fontSize = 13.sp)
+                    Text("Su voz", color = C.text, fontSize = 29.sp, fontWeight = FontWeight.Bold)
+                    if (!compact) Text("Walkie-talkie · cerca de $partner", color = C.sub, fontSize = 13.sp)
                 }
                 Box(Modifier.clip(CircleShape).background(C.me.copy(alpha = .12f)).padding(horizontal = 12.dp, vertical = 7.dp)) {
                     Text("PRIVADO", color = C.me, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                 }
             }
-            if (direct && saved) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.surface).padding(5.dp)) {
+            if (direct && saved) Row(Modifier.fillMaxWidth().glassPanel(22.dp).padding(5.dp)) {
                 if (direct) RadioTab("En directo", tab == 0, Modifier.weight(1f), compact = tiny) { WalkieHub.release(); voice.close(); recording = false; playing = null; tab = 0; WalkieHub.prepare() }
                 if (saved) RadioTab("Notas de voz", tab == 1, Modifier.weight(1f), compact = tiny) { openMic = false; WalkieHub.release(); tab = 1 }
             }
             message?.let { Text(it, color = C.me, fontSize = 13.sp) }
             if (tab == 0 && direct) {
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.surface)
+                Row(Modifier.fillMaxWidth().glassPanel(22.dp)
                     .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Recepción", Modifier.weight(1f), color = C.text, fontWeight = FontWeight.SemiBold)
                     Switch(radio.enabled, { receive(it) })
@@ -216,7 +216,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                     color = C.text, fontSize = 23.sp, fontWeight = FontWeight.Bold)
                 if (!tiny) Text(if (openMic) "Apaga el micrófono abierto para terminar" else if (radio.talking) "Suelta para terminar" else if (!radio.enabled) "Primero activa la recepción" else radio.message,
                     color = C.sub, fontSize = 13.sp)
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.surface).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().glassPanel(22.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Micrófono abierto", Modifier.weight(1f), color = C.text, fontSize = 14.sp)
                     Switch(openMic, { enabled ->
                         if (!enabled) { openMic = false; WalkieHub.release() }
@@ -239,7 +239,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                 if (playing != null) TextButton(onClick = { playJob?.cancel(); voice.stopPlayback(); playing = null }) { Text("Detener reproducción") }
                 if (notes.isEmpty()) Text("Aquí aparecerán sus notas de voz", color = C.sub, modifier = Modifier.padding(16.dp))
                 notes.forEach { note ->
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.surface).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().glassPanel(22.dp).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         TextButton(enabled = !recording && !sending && !radio.talking, onClick = {
                             if (!focusNotes()) return@TextButton
                             playJob?.cancel(); playing = note.id

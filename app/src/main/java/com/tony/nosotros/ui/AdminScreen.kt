@@ -44,7 +44,7 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
     var notes by remember { mutableStateOf("") }
     val name = partner?.name?.ifBlank { null } ?: "tu pareja"
     LaunchedEffect(Unit) { releases = runCatching { Updater.releases() }.getOrDefault(emptyList()) }
-    Column(Modifier.fillMaxSize().background(C.bg).statusBarsPadding().verticalScroll(rememberScrollState())
+    Column(Modifier.fillMaxSize().experienceBackground().statusBarsPadding().verticalScroll(rememberScrollState())
         .padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Ic.Left, "Volver", tint = C.text) }

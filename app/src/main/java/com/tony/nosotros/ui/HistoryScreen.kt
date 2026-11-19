@@ -61,7 +61,7 @@ fun HistoryScreen(vm: MainViewModel) {
     val whoTrips = trips.filter { it.uid == who }
     val totalKm = whoTrips.sumOf { it.distanceM }
 
-    LazyColumn(Modifier.fillMaxSize().background(C.bg).statusBarsPadding(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().experienceBackground().statusBarsPadding(), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
         item { Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SettingsHero("Su recorrido", "Un día a la vez, sus lugares y sus momentos.", "LO QUE VIVIERON")
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -83,7 +83,7 @@ fun HistoryScreen(vm: MainViewModel) {
         }
             if (items.isEmpty()) item { SettingsHero("Un día tranquilo", "Aquí aparecerán sus recorridos y visitas cuando haya movimientos.", "SU HISTORIA") }
             items(items, key = { if (it is TimelineItem.T) "t" + it.t.id else "v" + (it as TimelineItem.V).v.id }) { item ->
-                Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 12.dp).glassPanel(22.dp).padding(14.dp)) {
                     TimelineRow(item, accent, onClick = if (item is TimelineItem.T) ({ openTrip = item.t }) else null)
                     if (item is TimelineItem.V) {
                         val visit = item.v
@@ -115,7 +115,7 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
 @Composable
 private fun TripDialog(t: Trip, accent: androidx.compose.ui.graphics.Color, onMode: (Mode) -> Unit, onClose: () -> Unit) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(Modifier.fillMaxSize().background(C.bg)) {
+        Column(Modifier.fillMaxSize().experienceBackground()) {
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 val pts = Geo.decode(t.path)
                 LiveMap(Modifier.fillMaxSize(), people = emptyList(),

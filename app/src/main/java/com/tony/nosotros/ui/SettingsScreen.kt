@@ -109,7 +109,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
     val paused = me?.paused == true
 
     Column(
-        Modifier.fillMaxSize().background(C.bg).statusBarsPadding().verticalScroll(rememberScrollState())
+        Modifier.fillMaxSize().experienceBackground().statusBarsPadding().verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -245,15 +245,14 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                 Divider()
                 Toggle("Cuando sale de un lugar", nLeave) { nLeave = it; p.notifyLeave = it }
                 Divider()
-                Divider()
                 if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.LOCK_DETAILS)) Toggle("Mostrar lugar y acción en pantalla de bloqueo", lockDetails) { lockDetails = it; p.lockDetails = it }
                 Text("Los avisos muestran llegó o salió y el lugar. Samsung también debe permitir mostrar el contenido de las notificaciones.", color = C.sub, fontSize = 13.sp)
-                ActionButton("Ocultar aviso fijo", C.sub) {
+                ActionButton("Visibilidad del aviso de segundo plano", C.sub) {
                     ctx.startActivity(Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
                         .putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName)
                         .putExtra(Settings.EXTRA_CHANNEL_ID, com.tony.nosotros.App.CH_TRACKING))
                 }
-                Text("Oculta solo la categoría de segundo plano para conservar llegadas y salidas. Android puede mantener el indicador en Aplicaciones activas.", color = C.sub, fontSize = 12.sp)
+                Text("En la pantalla de Android puedes ocultar esta categoría y conservar los avisos de llegadas y salidas. El indicador de servicio activo depende del sistema.", color = C.sub, fontSize = 12.sp)
                 ActionButton("Abrir ajustes de notificaciones", C.sub) {
                     ctx.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, ctx.packageName))
                 }
@@ -428,7 +427,7 @@ private fun pinWidget(ctx: Context, cls: Class<*>) {
 @Composable
 fun Section(icon: ImageVector, title: String, content: @Composable () -> Unit) {
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(C.surface).padding(20.dp),
+        Modifier.fillMaxWidth().glassPanel(24.dp).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(15.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

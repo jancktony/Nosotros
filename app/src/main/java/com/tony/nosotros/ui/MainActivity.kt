@@ -7,12 +7,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.foundation.border
+
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.widthIn
+
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.sp
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,15 +20,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.draw.clip
+
+
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
+
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -195,17 +190,14 @@ private fun MainShell(vm: MainViewModel) {
         containerColor = C.bg,
         bottomBar = {
             Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
-                NavigationBar(containerColor = C.surface.copy(alpha = .88f), tonalElevation = 0.dp,
-                    windowInsets = WindowInsets(0,0,0,0), modifier = Modifier.widthIn(max = 480.dp).fillMaxWidth().height(72.dp)
-                        .clip(RoundedCornerShape(28.dp)).border(1.dp, C.line.copy(alpha = .6f), RoundedCornerShape(28.dp))) {
-                    val colors = NavigationBarItemDefaults.colors(selectedIconColor = C.me, selectedTextColor = C.me,
-                        indicatorColor = C.me.copy(alpha = .16f), unselectedIconColor = C.sub, unselectedTextColor = C.sub)
-                    val voiceAvailable = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.WALKIE) || LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.VOICE_NOTES)
-                    listOf(Triple(0, "Mapa", Ic.Map), Triple(5, "Encontrar", Ic.Locate), Triple(4, "Voz", Ic.Mic), Triple(6, "Más", Ic.More)).forEach { (id, label, icon) ->
-                        if (id != 4 || voiceAvailable) NavigationBarItem(tab == id, { tab = id }, { Icon(icon, null) },
-                            label = { Text(label, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }, colors = colors)
-                    }
-                }
+                val voiceAvailable = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.WALKIE) ||
+                    LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.VOICE_NOTES)
+                FloatingDock(tab, buildList {
+                    add(DockItem(0, "Mapa", Ic.Map))
+                    add(DockItem(5, "Encontrar", Ic.Locate))
+                    if (voiceAvailable) add(DockItem(4, "Voz", Ic.Mic))
+                    add(DockItem(6, "Más", Ic.More))
+                }) { tab = it }
             }
         },
     ) { pad ->
@@ -237,7 +229,7 @@ private fun MainShell(vm: MainViewModel) {
 @Composable
 private fun FirebaseMissing() {
     Column(
-        Modifier.fillMaxSize().background(C.bg).statusBarsPadding().padding(24.dp),
+        Modifier.fillMaxSize().experienceBackground().statusBarsPadding().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Falta configurar Firebase", style = MaterialTheme.typography.headlineMedium)

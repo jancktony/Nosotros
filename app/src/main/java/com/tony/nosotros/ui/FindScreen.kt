@@ -20,7 +20,7 @@ import java.util.UUID
 
 @Composable
 fun MoreScreen(onSettings: () -> Unit, onScreen: (Int) -> Unit) {
-    Column(Modifier.fillMaxSize().background(C.bg).statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp)) {
+    Column(Modifier.fillMaxSize().experienceBackground().statusBarsPadding().verticalScroll(rememberScrollState()).padding(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Más", Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium)
             IconButton(onClick = onSettings) { Icon(Ic.Gear, "Ajustes", tint = C.text) }
@@ -40,7 +40,7 @@ fun FindScreen(vm: MainViewModel, onSettings: () -> Unit, onDirections: (Member)
     val member = if (own) me else partner
     val scope = rememberCoroutineScope()
     val canRing = member?.let { it.findPhoneEnabled && FeatureAccess(info.featureFlags, info.admin == it.uid).enabled(Feature.FIND_PHONE) } == true
-    Column(Modifier.fillMaxSize().background(C.bg).statusBarsPadding()) {
+    Column(Modifier.fillMaxSize().experienceBackground().statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Encontrar", Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium)
             IconButton(onClick = onSettings) { Icon(Ic.Gear, "Ajustes", tint = C.text) }
@@ -50,7 +50,7 @@ fun FindScreen(vm: MainViewModel, onSettings: () -> Unit, onDirections: (Member)
             LiveMap(Modifier.fillMaxSize(), people, fitKey = member?.uid,
                 focus = member?.takeIf { it.hasLocation }?.let { listOf(Pt(it.lat,it.lng)) })
         }
-        Column(Modifier.fillMaxWidth().heightIn(max = 330.dp).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().heightIn(max = 330.dp).verticalScroll(rememberScrollState()).glassPanel(28.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             val partnerName = partner?.name?.ifBlank { null } ?: "Pareja"
             PanelTabs(listOf(partnerName, "Yo"), if (own) "Yo" else partnerName) { own = it == "Yo"; message = null }
             Text(member?.name?.ifBlank { null } ?: "Esperando el teléfono", style = MaterialTheme.typography.titleLarge)

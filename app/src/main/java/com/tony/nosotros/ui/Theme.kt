@@ -38,7 +38,7 @@ object Palettes {
         me = Color(0xFFA1E4CF), meInk = Color(0xFF04211D),
         partner = Color(0xFFEFC4D3), partnerInk = Color(0xFF3B0A24),
         ok = Color(0xFF86EFAC), warn = Color(0xFFFCD34D), danger = Color(0xFFFCA5A5),
-        glass = Color(0xF0141B24),
+        glass = Color(0xDC14232C),
         mapStyle = "https://tiles.openfreemap.org/styles/dark",
     )
     val Pink = Palette(
@@ -48,12 +48,12 @@ object Palettes {
         me = Color(0xFFA95476), meInk = Color(0xFFFFFFFF),
         partner = Color(0xFF0F766E), partnerInk = Color(0xFFFFFFFF),
         ok = Color(0xFF15803D), warn = Color(0xFFB45309), danger = Color(0xFFB91C1C),
-        glass = Color(0xF5FFFFFF),
+        glass = Color(0xE8FFFFFF),
         mapStyle = "https://tiles.openfreemap.org/styles/liberty",
     )
     val Light = Pink.copy(id = "light", bg = Color(0xFFF5F4F0), surface = Color.White, surface2 = Color(0xFFEBECE6),
         line = Color(0xFFE4E7DE), text = Color(0xFF223B33), sub = Color(0xFF728177), me = Color(0xFF376F5A),
-        meInk = Color.White, partner = Color(0xFFAB6880), partnerInk = Color.White, glass = Color(0xF5FFFFFF))
+        meInk = Color.White, partner = Color(0xFFAB6880), partnerInk = Color.White, glass = Color(0xE8FFFFFF))
     fun of(id: String?) = when (id) { "pink" -> Pink; "light" -> Light; else -> Night }
 }
 
