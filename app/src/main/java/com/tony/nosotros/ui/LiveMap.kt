@@ -236,9 +236,10 @@ fun LiveMap(
         updateRoutes(s, routes)
     }
 
+    val imageCache = remember(style) { MapImageCache() }
     LaunchedEffect(style, people, places, showPhotos, together) {
         val s = style ?: return@LaunchedEffect
-        updateData(ctx, s, palette, if (showPhotos) people else people.map { it.copy(avatar = "") }, places, together)
+        updateData(ctx, s, palette, if (showPhotos) people else people.map { it.copy(avatar = "") }, places, together, imageCache)
     }
 
     // Pulso animado alrededor de quien se está moviendo
@@ -464,7 +465,12 @@ private fun updateRoutes(s: Style, routes: List<MapRoute>) {
     ))
 }
 
-private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPerson>, places: List<Place>, together: Boolean = false) {
+private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPerson>, places: List<Place>, together: Boolean = false, images: MapImageCache) {
+    val visibleImages = mutableSetOf<String>()
+    fun image(id: String, create: () -> Bitmap) {
+        visibleImages.add(id)
+        if (images.touch(id)) s.addImage(id, create())
+    }
     val joined = together && people.size == 2
     val pairCenter = if (joined) com.tony.nosotros.util.PairProximity.center(people[0].lat,people[0].lng,people[1].lat,people[1].lng) else null
 
@@ -472,7 +478,7 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
     (s.getSource("places") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(
         places.filter { !it.suggested && it.name.isNotBlank() }.map { p ->
             val id = "pl_${pal.id}_${p.name}"
-            if (s.getImage(id) == null) s.addImage(id, labelBitmap(ctx, pal, p.name))
+            image(id) { labelBitmap(ctx, pal, p.name) }
             Feature.fromGeometry(Point.fromLngLat(p.lng, p.lat)).apply {
                 addStringProperty("icon", id)
                 addStringProperty("pid", p.id)
@@ -488,7 +494,7 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
     (s.getSource("people") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(
         (if (joined) emptyList() else people).map { p ->
             val id = "av_${pal.id}_${p.uid}_${p.mode}_${p.paused}_${p.initial}_${p.color}_${p.avatar.hashCode()}_${if (p.inMotion) p.speed else 0}"
-            if (s.getImage(id) == null) s.addImage(id, avatarBitmap(ctx, pal, p))
+            image(id) { avatarBitmap(ctx, pal, p) }
             Feature.fromGeometry(Point.fromLngLat(p.lng, p.lat)).apply {
                 addStringProperty("icon", id)
                 addStringProperty("uid", p.uid)
@@ -499,12 +505,13 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
     ))
     val pairFeatures = if (joined) {
         val key = "tg_" + people.map { listOf(it.uid, it.initial, it.avatar, it.color, it.ink) }.hashCode()
-        if (s.getImage(key) == null) s.addImage(key, togetherBitmap(ctx, people))
+        image(key) { togetherBitmap(ctx, people) }
         if (s.getImage("together-heart") == null) s.addImage("together-heart", togetherHeartBitmap(ctx))
         val center = com.tony.nosotros.util.PairProximity.center(people[0].lat, people[0].lng, people[1].lat, people[1].lng)
         listOf(Feature.fromGeometry(Point.fromLngLat(center.lng, center.lat)).apply { addStringProperty("icon", key) })
     } else emptyList()
     (s.getSource("together") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(pairFeatures))
+    images.retireUnused(visibleImages).forEach { s.removeImage(it) }
 }
 
 /** Avatar: quieto = inicial + insignia; en movimiento = vehículo grande + velocidad debajo. */

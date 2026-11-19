@@ -8,11 +8,13 @@ const ago=t=>{if(!t)return 'Sin señal';const m=Math.max(0,Math.floor((Date.now(
 const FEATURES=[['mapTogether','Juntos · perfiles y corazones animados','admin'],['findPhone','Encontrar y hacer sonar teléfonos','off'],['appPresence','Compartir aplicación en uso (voluntario)','off'],['sleepStatus','Descanso estimado (voluntario)','off'],['mapPlaces','Nombres de universidades y lugares','off'],['mapGlobe','Globo terrestre experimental','off'],['walkieRelay','Walkie en redes difíciles (opcional)','off'],['walkie','Walkie-talkie en directo','off'],['voiceNotes','Notas de voz','off'],['map3d','Mapa inclinado y edificios','all'],['profilePhoto','Fotos de perfil','all'],['compactWidgets','Widgets compactos','all'],['placeAlerts','Avisos de llegada y salida','all'],['manualUpdates','Buscar actualizaciones','all'],['autoUpdates','Instalación de versiones aprobadas','all'],['lockDetails','Detalles en pantalla de bloqueo','all']];
 let webTab='phones',commandUnsub=[],commandKey='',drafts={},photoViewer=null;
 let db,auth,uid=null,pairId=null,map,unsub=[],activityUnsub=[],activityKey='',selected=null,renderedSelection=null,notice='';
+let renderedTab=null,renderedAdmin=null,mapFeatures='';
+const markers=new Map();
 const S={pair:null,members:[],places:[],photos:[],releases:[],reviews:{},activity:{},commands:{}};
 const isAdmin=()=>uid&&S.pair?.admin===uid;
 const canLocate=m=>m&&Number.isFinite(m.lat)&&Number.isFinite(m.lng)&&(m.lat!==0||m.lng!==0)&&m.lat>=-90&&m.lat<=90&&m.lng>=-180&&m.lng<=180;
 const paused=m=>(m?.pausedUntil||0)>Date.now();
-function clear(){commandUnsub.forEach(fn=>fn());commandUnsub=[];commandKey='';webTab='phones';drafts={};photoViewer=null;activityUnsub.forEach(fn=>fn());activityUnsub=[];activityKey='';unsub.forEach(fn=>fn());unsub=[];map?.remove();map=null;uid=null;pairId=null;selected=null;Object.assign(S,{pair:null,members:[],places:[],photos:[],releases:[],reviews:{},activity:{},commands:{}})}
+function clear(){commandUnsub.forEach(fn=>fn());commandUnsub=[];commandKey='';webTab='phones';drafts={};photoViewer=null;activityUnsub.forEach(fn=>fn());activityUnsub=[];activityKey='';unsub.forEach(fn=>fn());unsub=[];destroyMap();renderedTab=null;renderedAdmin=null;uid=null;pairId=null;selected=null;renderedSelection=null;Object.assign(S,{pair:null,members:[],places:[],photos:[],releases:[],reviews:{},activity:{},commands:{}})}
 function errorMessage(e){return e?.code==='auth/invalid-credential'||e?.code==='auth/wrong-password'||e?.code==='auth/user-not-found'?'Correo o contraseña incorrectos.':e?.code==='auth/too-many-requests'?'Espera un momento antes de intentarlo otra vez.':e?.code==='permission-denied'?'Esta cuenta no tiene acceso a este panel.':e?.message&&(e.message.startsWith('Verifica')||['Elige','Escribe','Primero'].some(x=>e.message.startsWith(x)))?e.message:'No se pudo completar. Revisa la conexión y vuelve a intentarlo.'}
 function login(message=''){
  clear();app.innerHTML=`<div class="center"><form class="card" id="login" style="max-width:420px;width:100%"><span class="eyebrow">SOLO USTEDES DOS</span><h1>Nosotros<span style="color:var(--me)">.</span></h1><p class="sub">Entra con el mismo correo de la app para encontrar tu teléfono y ver sus datos.</p><p><label for="login-email">Tu correo</label><input id="login-email" name="email" type="email" autocomplete="username" placeholder="Tu correo" required></p><p><label for="login-password">Tu contraseña</label><input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required></p><button type="submit">Entrar</button> <button type="button" data-act="forgot">Olvidé mi contraseña</button><p id="login-error" role="alert">${esc(message)}</p><p class="sub">Creado por Jancktony Murgas</p></form></div>`;
@@ -103,7 +105,7 @@ function person(member){
  if(!member)return '<p class="sub">Esperando la primera señal</p>';
  const available=canLocate(member),isPaused=paused(member),own=member.id===uid;
  return `<h2>${esc(member.name|| (own?'Mi teléfono':'Teléfono de mi pareja'))}</h2><p class="sub">${own?'Tu cuenta':'Cuenta de tu pareja'} · ${esc(member.appVersion||'Sin versión informada')}</p>
- <div class="row"><span class="grow sub">Última ubicación</span><b>${ago(member.updatedAt)}</b></div>
+ <div class="row"><span class="grow sub">Última ubicación</span><b>${ago(member.locationAt)}</b></div>
  <p class="sub">Actualización: ${esc(({downloading:'Descargando',installing:'Instalación enviada a Android',confirmation:'Pendiente de confirmar en el teléfono',installed:'Instalada',failed:'No se pudo instalar'})[member.updateStatus]||'Sin solicitud reciente')} ${esc(member.updateTarget||'')}</p>
  <div class="row"><span class="grow sub">Batería</span>${member.battery>=0?`${member.battery}%${member.charging?' · Cargando':''}`:'Sin datos'}</div>
  <p>${isPaused?'Ubicación pausada':esc(member.placeName||'Ubicación disponible según la última señal')}</p>
@@ -126,37 +128,70 @@ function adminPanel(){
  <button data-act="force" data-id="${esc(release.id)}" ${installed&&review.state==='approved'?'':'disabled'}>Forzar actualización</button>
  <button data-act="release" data-id="${esc(release.id)}" ${installed&&review.state==='approved'&&!live?'':'disabled'}>${live?'Liberada':'Liberar para mi pareja'}</button></div></div>`}).join('')||'<p class="sub">Todavía no hay candidatas privadas disponibles.</p>'}</section>
  <section class="card"><h2>Funciones</h2>${FEATURES.map(([key,title,fallback])=>{const mode=S.pair.featureFlags?.[key]||fallback;return `<div class="row"><span class="grow">${esc(title)}</span>${[['off','Desactivada'],['admin','Solo yo'],['all','Ambos']].map(([value,label])=>`<button data-act="feature" data-id="${key}" data-mode="${value}" ${mode===value?'disabled':''}>${mode===value?'✓ ':''}${label}</button>`).join('')}</div>`}).join('')}</section>
- <section class="card"><h2>Mi marca de creador</h2><input id="creator-brand" maxlength="60" value="${esc(S.pair.creatorBrand||'Jancktony Murgas')}" aria-label="Tu marca"><p><button data-act="brand">Guardar mi marca</button></p></section>`;
+ <section class="card"><h2>Mi marca de creador</h2><input id="creator-brand" maxlength="60" value="${esc(drafts['creator-brand']??S.pair.creatorBrand??'Jancktony Murgas')}" aria-label="Tu marca"><p><button data-act="brand">Guardar mi marca</button></p></section>`;
 }
 function render(){
  if(!S.pair||!uid)return;
  const live=S.members.filter(m=>S.pair.members.includes(m.id));
  const me=live.find(m=>m.id===uid),other=live.find(m=>m.id!==uid);
- const savedCamera=map&&selected===renderedSelection&&map.getCenter?{center:map.getCenter(),zoom:map.getZoom(),bearing:map.getBearing(),pitch:map.getPitch()}:null;
- map?.remove();map=null;renderedSelection=selected;
+ if(webTab==='phones'&&renderedTab==='phones'&&renderedAdmin===isAdmin()&&document.getElementById('map')){
+  document.getElementById('phone-cards').innerHTML=`<article class="card">${person(me)}</article><article class="card">${person(other)}</article>`;
+  document.getElementById('places-list').innerHTML=placesHTML();
+  document.getElementById('creator-name').textContent=S.pair.creatorBrand||'Jancktony Murgas';
+  const banner=document.getElementById('web-notice');banner.hidden=!notice;banner.textContent=notice;
+  drawMap(live);return;
+ }
+ const active=document.activeElement;
+ const editing=active?.id&&active.matches('input')?{id:active.id,start:active.selectionStart,end:active.selectionEnd}:null;
+ destroyMap();renderedTab=webTab;renderedAdmin=isAdmin();
  const nav=[['phones','Teléfonos'],['photos','Galería'],['settings','Ajustes'],...(isAdmin()?[['admin','Administración']]:[])];
  if(webTab==='admin'&&!isAdmin())webTab='phones';
- app.innerHTML=`<header class="topbar"><div><span class="wordmark">nosotros<span>✦</span></span><p class="sub">Creado por ${esc(S.pair.creatorBrand||'Jancktony Murgas')}</p></div><div class="toolbar"><span class="private-badge">ACCESO PRIVADO</span><button data-act="logout">Cerrar sesión</button></div></header>
+ app.innerHTML=`<header class="topbar"><div><span class="wordmark">nosotros<span>✦</span></span><p class="sub">Creado por <span id="creator-name">${esc(S.pair.creatorBrand||'Jancktony Murgas')}</span></p></div><div class="toolbar"><span class="private-badge">ACCESO PRIVADO</span><button data-act="logout">Cerrar sesión</button></div></header>
  <nav class="web-nav" aria-label="Panel privado">${nav.map(([value,title])=>`<button data-act="web-tab" data-mode="${value}" class="${webTab===value?'active':''}">${title}</button>`).join('')}</nav>
  <div class="page-title"><span class="eyebrow">TU ESPACIO, DONDE ESTÉS</span><h1>${({phones:'Tus teléfonos',photos:'Sus recuerdos',settings:'A tu manera',admin:'Tú decides'})[webTab]}</h1><p class="sub">${webTab==='phones'?'Última señal, ubicación y herramientas para encontrarlos.':'Un espacio privado para ustedes dos.'}</p></div>
- ${notice?`<p class="card status" role="status">${esc(notice)}</p>`:''}
- ${webTab==='phones'?`<section class="grid"><article class="card">${person(me)}</article><article class="card">${person(other)}</article></section><section class="card"><h2>Encontrar el teléfono</h2><p class="sub">Última ubicación recibida. Un teléfono apagado o sin internet puede no responder. Hacer sonar respeta su volumen y No molestar.</p><div id="map"></div></section><section class="card"><h2>Sus lugares</h2>${S.places.filter(p=>!p.suggested&&p.name).map(p=>`<div class="row"><span class="grow">${esc(p.name)}</span><span class="sub">${Math.round(p.radius||100)} m</span></div>`).join('')||'<p class="sub">Todavía no hay lugares.</p>'}</section>`:''}
+ <p id="web-notice" class="card status" role="status" ${notice?'':'hidden'}>${esc(notice)}</p>
+ ${webTab==='phones'?`<section id="phone-cards" class="grid"><article class="card">${person(me)}</article><article class="card">${person(other)}</article></section><section class="card"><h2>Encontrar el teléfono</h2><p class="sub">Última ubicación recibida. Un teléfono apagado o sin internet puede no responder. Hacer sonar respeta su volumen y No molestar.</p><div id="map"></div></section><section class="card"><h2>Sus lugares</h2><div id="places-list">${placesHTML()}</div></section>`:''}
  ${webTab==='photos'?photosPanel():''}${webTab==='settings'?settingsPanel(me):''}${webTab==='admin'?adminPanel():''}${viewer()}`;
+ if(editing){const input=document.getElementById(editing.id);input?.focus({preventScroll:true});
+  if(input&&editing.start!==null)try{input.setSelectionRange(editing.start,editing.end)}catch{}
+ }
  if(photoViewer)document.getElementById('photo-viewer')?.showModal?.();
  if(webTab!=='phones')return;
- const located=live.filter(canLocate);if(!located.length){document.getElementById('map').innerHTML='<p class="sub">No hay una ubicación recibida todavía.</p>';return}
+ drawMap(live);
+}
+function placesHTML(){return S.places.filter(p=>!p.suggested&&p.name).map(p=>`<div class="row"><span class="grow">${esc(p.name)}</span><span class="sub">${Math.round(p.radius||100)} m</span></div>`).join('')||'<p class="sub">Todavía no hay lugares.</p>'}
+function destroyMap(){for(const marker of markers.values())marker.remove();markers.clear();map?.remove();map=null;mapFeatures=''}
+function drawMap(live){
+ const located=live.filter(canLocate);if(!located.length){destroyMap();document.getElementById('map').innerHTML='<p class="sub">No hay una ubicación recibida todavía.</p>';return}
  const focus=located.find(m=>m.id===selected)||located[0];
+ const features=JSON.stringify([enabled('mapGlobe'),enabled('mapPlaces')]);
+ const savedCamera=map&&selected===renderedSelection?{center:map.getCenter(),zoom:map.getZoom(),bearing:map.getBearing(),pitch:map.getPitch()}:null;
  try{
+  if(map&&features!==mapFeatures)destroyMap();
+  const created=!map;
+  if(created){mapFeatures=features;
+  document.getElementById('map').textContent='';
   map=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/dark',center:[focus.lng,focus.lat],zoom:selected?16:12,...(savedCamera||{})});
+  const current=map;
   map.on?.('style.load',()=>{
+   if(map!==current)return;
    if(enabled('mapGlobe'))map.setProjection({type:'globe'});
    if(enabled('mapPlaces'))map.addLayer({id:'universities',type:'symbol',source:'openmaptiles','source-layer':'poi',minzoom:12,
     filter:['match',['get','class'],['college','university','school'],true,false],layout:{'text-field':['coalesce',['get','name:es'],['get','name']],'text-font':['Noto Sans Regular'],'text-size':13,'text-max-width':12},paint:{'text-color':'#ffffff','text-halo-color':'#162133','text-halo-width':1.5}});
   });
+  }
   const bounds=new maplibregl.LngLatBounds();
-  for(const member of located){new maplibregl.Marker({color:member.id===uid?'#5eead4':'#f9a8d4'}).setLngLat([member.lng,member.lat]).addTo(map);bounds.extend([member.lng,member.lat])}
-  if(!savedCamera&&!selected&&located.length>1)map.fitBounds(bounds,{padding:55,maxZoom:15,animate:false});
- }catch{document.getElementById('map').textContent='No se pudo cargar el mapa. Revisa la conexión.'}
+  const ids=new Set(located.map(m=>m.id));
+  for(const [id,marker] of markers)if(!ids.has(id)){marker.remove();markers.delete(id)}
+  for(const member of located){
+   if(!markers.has(member.id))markers.set(member.id,new maplibregl.Marker({color:member.id===uid?'#5eead4':'#f9a8d4'}).setLngLat([member.lng,member.lat]).addTo(map));
+   else markers.get(member.id).setLngLat([member.lng,member.lat]);
+   bounds.extend([member.lng,member.lat]);
+  }
+  if(created&&!savedCamera&&!selected&&located.length>1)map.fitBounds(bounds,{padding:55,maxZoom:15,animate:false});
+  if(!created&&selected!==renderedSelection&&selected)map.easeTo({center:[focus.lng,focus.lat],zoom:16});
+  renderedSelection=selected;
+ }catch{destroyMap();document.getElementById('map').textContent='No se pudo cargar el mapa. Revisa la conexión.'}
 }
 app.addEventListener('click',async event=>{
  const button=event.target.closest('[data-act]');if(!button)return;
@@ -209,7 +244,7 @@ app.addEventListener('click',async event=>{
    if(!isAdmin())throw Error('Solo el administrador puede hacer esto');
    if(action==='feature')await updateDoc(p,{[`featureFlags.${id}`]:button.dataset.mode});
    if(action==='brand'){
-    const brand=app.querySelector('#creator-brand').value.trim();if(brand.length<2)throw Error('Escribe tu marca');await updateDoc(p,{creatorBrand:brand});notice='Marca guardada';
+    const brand=app.querySelector('#creator-brand').value.trim();if(brand.length<2)throw Error('Escribe tu marca');await updateDoc(p,{creatorBrand:brand});delete drafts['creator-brand'];notice='Marca guardada';
    }
    if(['test','corrections','approve','release','force'].includes(action)&&!release)throw Error('Candidata no disponible');
    if(action==='test'){await updateDoc(p,{testVersion:release.version});notice='Prueba seleccionada solo para tu teléfono. Abre la app o espera a que tenga Wi-Fi; puede requerir confirmación de Android.'}
@@ -241,5 +276,5 @@ else{
 setInterval(()=>{if(uid&&S.pair&&Object.keys(S.activity).length)render()},30000);
 
 function meVersion(){return S.members.find(m=>m.id===uid)?.appVersion}
-app.addEventListener('input',event=>{if(['profile-name','anniversary-date'].includes(event.target.id))drafts[event.target.id]=event.target.value});
+app.addEventListener('input',event=>{if(['profile-name','anniversary-date','creator-brand'].includes(event.target.id))drafts[event.target.id]=event.target.value});
 try{document.body.dataset.theme=localStorage.getItem('nosotros-web-theme')||'night'}catch{}

@@ -158,8 +158,9 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
     }
     fun talk(stopped: () -> Unit): Boolean {
         if (!ready) { reconnect(); return false }
+        lastActivity = android.os.SystemClock.elapsedRealtime()
         return try { audio().start { handler.post { flush(); stopped() } }; true }
-        catch (_: Exception) { status("No se pudo usar el micrófono", ready); false }
+        catch (_: Exception) { stopped(); status("No se pudo usar el micrófono", ready); false }
     }
     fun stopTalking() { engine?.stop(); flush() }
     fun close() {

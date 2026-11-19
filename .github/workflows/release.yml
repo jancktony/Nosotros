@@ -1,7 +1,7 @@
 name: Publicar versión Android
 on:
   push:
-    branches: [feature/experiencia-1.15.8, feature/recepcion-retencion-1.15.6, feature/recuperacion-walkie-1.15.5, feature/actividad-ficha-1.15.4, feature/juntos-animacion-1.15.3, feature/correcciones-mapa-1.15.2, feature/juntos-animado-1.15, main, feature/pruebas-web-walkie, feature/voz-estable-juntos-1.14]
+    branches: [feature/calidad-1.15.9, feature/experiencia-1.15.8, feature/recepcion-retencion-1.15.6, feature/recuperacion-walkie-1.15.5, feature/actividad-ficha-1.15.4, feature/juntos-animacion-1.15.3, feature/correcciones-mapa-1.15.2, feature/juntos-animado-1.15, main, feature/pruebas-web-walkie, feature/voz-estable-juntos-1.14]
   workflow_dispatch:
     inputs:
       ui_run_id:
@@ -11,7 +11,7 @@ on:
         default: ''
 concurrency:
   group: android-candidates
-  cancel-in-progress: ${{ github.ref_name == 'feature/experiencia-1.15.8' }}
+  cancel-in-progress: ${{ github.ref_name == 'feature/experiencia-1.15.8' || github.ref_name == 'feature/calidad-1.15.9' }}
 permissions:
   contents: write
   actions: read
@@ -54,7 +54,7 @@ jobs:
           TEST_SHA=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$UI_RUN" --jq '.head_sha')
           test "$TEST_SHA" = "$GITHUB_SHA"
           gh run watch "$UI_RUN" --repo "$GITHUB_REPOSITORY" --interval 15 --exit-status
-      - if: steps.v.outputs.skip != '1' && (github.ref_name == 'feature/voz-estable-juntos-1.14' || github.ref_name == 'feature/recuperacion-walkie-1.15.5' || github.ref_name == 'feature/recepcion-retencion-1.15.6')
+      - if: steps.v.outputs.skip != '1' && (github.ref_name == 'feature/calidad-1.15.9' || github.ref_name == 'feature/voz-estable-juntos-1.14' || github.ref_name == 'feature/recuperacion-walkie-1.15.5' || github.ref_name == 'feature/recepcion-retencion-1.15.6')
         name: Exigir pruebas de voz de esta misma revisión
         timeout-minutes: 25
         env:
@@ -85,7 +85,7 @@ jobs:
             done
             test -n "$RUN"
           done
-      - if: steps.v.outputs.skip != '1' && (github.ref_name == 'feature/experiencia-1.15.8' || github.ref_name == 'feature/correcciones-mapa-1.15.2' || github.ref_name == 'feature/juntos-animacion-1.15.3' || github.ref_name == 'feature/actividad-ficha-1.15.4' || github.ref_name == 'feature/recuperacion-walkie-1.15.5')
+      - if: steps.v.outputs.skip != '1' && (github.ref_name == 'feature/calidad-1.15.9' || github.ref_name == 'feature/experiencia-1.15.8' || github.ref_name == 'feature/correcciones-mapa-1.15.2' || github.ref_name == 'feature/juntos-animacion-1.15.3' || github.ref_name == 'feature/actividad-ficha-1.15.4' || github.ref_name == 'feature/recuperacion-walkie-1.15.5')
         name: Exigir pruebas de interfaz y seguridad de esta misma revisión
         timeout-minutes: 20
         env:

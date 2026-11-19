@@ -186,7 +186,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                     dismissButton = { TextButton(onClick = { confirmRelay = false }) { Text("Cancelar") } })
 
                         Text("Voz comprimida de bajo consumo. Ambos necesitan una versión compatible y recepción activada. Revisa el volumen multimedia.", color = C.sub, fontSize = 13.sp)
-                        Text("Sin límite de 30 s en directo. El canal descansa tras 1 minuto sin voz; se vuelve a conectar cuando lo necesitas.", color = C.sub, fontSize = 12.sp)
+                        Text("Sin límite de 30 s en directo. El audio descansa tras 1 minuto sin voz y el canal conectado queda preparado mientras la recepción siga activa.", color = C.sub, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = {
                         val tone = android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 70)

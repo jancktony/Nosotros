@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '21' }
       - run: npm ci --no-audit --no-fund
+      - run: node --test web/tests/*.test.cjs
       - run: npm test
       - run: node --check web/app.js
       - name: Aplicar reglas verificadas
