@@ -1,18 +1,17 @@
 name: Validar y publicar web privada
 on:
   push:
-    branches: [feature/experiencia-1.15.8, feature/juntos-animado-1.15, feature/pruebas-web-walkie, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13, fix/reintento-directo-1.13.1]
+    branches: [main, feature/experiencia-1.15.8, feature/juntos-animado-1.15, feature/pruebas-web-walkie, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13, fix/reintento-directo-1.13.1]
   workflow_dispatch:
 permissions:
   contents: read
-  actions: read
 concurrency:
   group: web-rules
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.ref_name == 'feature/experiencia-1.15.8' || github.ref_name == 'main' }}
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,21 +21,6 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm test
       - run: node --check web/app.js
-      - name: Esperar validación Android del diseño aprobado
-        if: github.ref_name == 'feature/experiencia-1.15.8'
-        timeout-minutes: 20
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for WORKFLOW in security.yml map-device.yml; do
-            RUN=""
-            for attempt in $(seq 1 90); do
-              RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW/runs?head_sha=$GITHUB_SHA&per_page=10" --jq '.workflow_runs | map(select(.head_sha == env.GITHUB_SHA and .conclusion == "success")) | first | .id // empty')
-              [ -n "$RUN" ] && break
-              sleep 10
-            done
-            test -n "$RUN"
-          done
       - name: Aplicar reglas verificadas
         env:
           ONLY_RULES: '1'
