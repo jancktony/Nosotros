@@ -1,7 +1,7 @@
 name: Verificar mapa y actualización en Android
 on:
   push:
-    branches: [feature/recepcion-retencion-1.15.6, feature/recuperacion-walkie-1.15.5, feature/actividad-ficha-1.15.4, feature/juntos-animacion-1.15.3, feature/correcciones-mapa-1.15.2]
+    branches: [feature/experiencia-1.15.8, feature/recepcion-retencion-1.15.6, feature/recuperacion-walkie-1.15.5, feature/actividad-ficha-1.15.4, feature/juntos-animacion-1.15.3, feature/correcciones-mapa-1.15.2]
     paths: ['app/**', '.github/workflows/map-device.yml']
 permissions:
   contents: read
@@ -21,7 +21,7 @@ jobs:
           arch: x86_64
           target: default
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest -PcodecTest=1 -Pandroid.testInstrumentationRunnerArguments.class=com.tony.nosotros.ui.MapPanelDeviceTest,com.tony.nosotros.ui.TogetherAnimationDeviceTest,com.tony.nosotros.ui.InstallProgressDeviceTest
+          script: ./gradlew connectedDebugAndroidTest -PcodecTest=1 -Pandroid.testInstrumentationRunnerArguments.class=com.tony.nosotros.ui.ExperienceDesignDeviceTest,com.tony.nosotros.ui.MapPanelDeviceTest,com.tony.nosotros.ui.TogetherAnimationDeviceTest,com.tony.nosotros.ui.InstallProgressDeviceTest
       - uses: actions/upload-artifact@v4
         if: always()
         with:

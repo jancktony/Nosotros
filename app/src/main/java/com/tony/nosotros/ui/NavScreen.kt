@@ -144,7 +144,7 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
         }
     }
     val nextIndex = r?.let { RouteProgress.nextStep(it.steps.map { step -> step.distanceM },along) } ?: 0
-    BoxWithConstraints(Modifier.fillMaxSize().background(C.bg)) {
+    BoxWithConstraints(Modifier.fillMaxSize().experienceBackground()) {
         val short = maxHeight < 500.dp
         LiveMap(
             modifier = Modifier.fillMaxSize(),

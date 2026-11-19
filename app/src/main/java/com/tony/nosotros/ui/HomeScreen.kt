@@ -176,9 +176,9 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
     BottomSheetScaffold(
         scaffoldState = sheet,
         sheetPeekHeight = peekHeader + bottomInset,
-        sheetContainerColor = C.surface,
+        sheetContainerColor = C.glass,
         sheetContentColor = C.text,
-        sheetShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+        sheetShape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
         sheetDragHandle = {
             Box(Modifier.padding(top = 10.dp, bottom = 6.dp).size(40.dp, 4.dp).clip(CircleShape).background(C.sub.copy(alpha = 0.5f)))
         },
@@ -470,7 +470,7 @@ internal fun PartnerSheet(
 @Composable
 private fun MiniStat(label: String, value: String, accent: Color, modifier: Modifier) {
     Column(
-        modifier.padding(vertical = 6.dp),
+        modifier.glassPanel(20.dp).padding(14.dp),
     ) {
         Text(label, fontSize = 12.sp, color = C.sub)
         Spacer(Modifier.height(4.dp))
@@ -485,7 +485,7 @@ fun TogetherCard(since: Long) {
     val s = Together.span(since)
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.partner.copy(alpha = 0.12f))
-            .border(1.dp, C.partner.copy(alpha = 0.45f), RoundedCornerShape(18.dp)).padding(16.dp),
+            .border(1.dp, C.partner.copy(alpha = 0.18f), RoundedCornerShape(18.dp)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

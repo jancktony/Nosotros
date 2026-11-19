@@ -25,12 +25,12 @@ object WebPanel {
 
 @Composable
 fun SettingsHero(title: String, subtitle: String, badge: String = "NOSOTROS", trailing: @Composable (() -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp))
-        .background(Brush.linearGradient(listOf(C.me.copy(alpha = .16f), C.surface, C.partner.copy(alpha = .09f))))
+    Row(Modifier.fillMaxWidth().glassPanel(28.dp)
+        .background(Brush.linearGradient(listOf(C.me.copy(alpha = .07f), Color.Transparent, C.partner.copy(alpha = .04f))))
         .padding(22.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(badge, color = C.me, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-            Text(title, color = C.text, fontSize = 27.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = C.text, fontSize = 26.sp, fontWeight = FontWeight.Bold)
             Text(subtitle, color = C.sub, fontSize = 13.sp)
         }
         trailing?.invoke()
@@ -39,7 +39,7 @@ fun SettingsHero(title: String, subtitle: String, badge: String = "NOSOTROS", tr
 
 @Composable
 fun SettingsLink(icon: ImageVector, title: String, subtitle: String, accent: Color = C.me, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(C.surface).clickable(onClick = onClick)
+    Row(Modifier.fillMaxWidth().glassPanel(22.dp).clickable(onClick = onClick)
         .padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = accent, modifier = Modifier.size(21.dp))
@@ -57,9 +57,9 @@ fun SettingsLink(icon: ImageVector, title: String, subtitle: String, accent: Col
 fun PanelTabs(tabs: List<String>, selected: String, onSelect: (String) -> Unit) {
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         tabs.forEach { title ->
-            Box(Modifier.clip(RoundedCornerShape(14.dp)).background(if (selected == title) C.me else C.surface)
+            Box(Modifier.clip(RoundedCornerShape(14.dp)).background(if (selected == title) C.me.copy(alpha = .16f) else C.surface.copy(alpha = .60f))
                 .clickable { onSelect(title) }.padding(horizontal = 16.dp, vertical = 11.dp)) {
-                Text(title, color = if (selected == title) C.meInk else C.sub, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(title, color = if (selected == title) C.me else C.sub, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             }
         }
     }
@@ -67,7 +67,7 @@ fun PanelTabs(tabs: List<String>, selected: String, onSelect: (String) -> Unit) 
 
 @Composable
 fun FeatureModes(selected: String, enabled: Boolean = true, onSelect: (String) -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.surface2).padding(4.dp)) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(C.surface2.copy(alpha = .55f)).padding(4.dp)) {
         listOf("off" to "Apagada", "admin" to "Solo yo", "all" to "Ambos").forEach { (mode, title) ->
             Box(Modifier.weight(1f).clip(RoundedCornerShape(11.dp))
                 .background(if (selected == mode) C.me else Color.Transparent)
@@ -90,7 +90,7 @@ fun HelpDisclosure(title: String, text: String) {
 
 @Composable
 fun WidgetPreview(title: String, value: String, color: Color, modifier: Modifier = Modifier) {
-    Column(modifier.clip(RoundedCornerShape(22.dp)).background(Brush.verticalGradient(listOf(color.copy(alpha = .17f), C.surface2)))
+    Column(modifier.clip(RoundedCornerShape(22.dp)).background(Brush.verticalGradient(listOf(color.copy(alpha = .13f), C.surface2.copy(alpha = .65f))))
         .padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("NOSOTROS", color = color, fontSize = 9.sp, letterSpacing = 1.sp)
         Text(value, color = C.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
