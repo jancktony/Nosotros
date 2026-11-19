@@ -7,7 +7,6 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.*
-import kotlinx.coroutines.tasks.await
 import org.junit.Assert.*
 import org.junit.Test
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -33,6 +32,8 @@ class DirectIdleDeviceTest {
         val (appB, dbB) = backend("direct-bob", "kelinherrera130323@gmail.com")
         var a: WalkieConnection? = null; var b: WalkieConnection? = null
         var statusA = ""; var statusB = ""
+        var incomingListener: com.google.firebase.firestore.ListenerRegistration? = null
+        val offerReady = CompletableDeferred<com.google.firebase.firestore.DocumentSnapshot>()
         val now = AtomicLong(10_000)
         val actual = ConcurrentLinkedQueue<ByteArray>()
         val pair = "voice-integration-0"
@@ -40,17 +41,18 @@ class DirectIdleDeviceTest {
             withContext(Dispatchers.Main) {
                 a = WalkieConnection(context,pair,"alice",database=dbA,ensureSession={},now={now.get()},received={actual.add(it)}) { message,_ -> statusA=message }
                 b = WalkieConnection(context,pair,"bob",database=dbB,ensureSession={},now={now.get()},received={actual.add(it)}) { message,_ -> statusB=message }
+                // Match the production listener instead of repeatedly opening one-shot query streams.
+                incomingListener = dbB.collection("pairs").document(pair).collection("walkieCalls")
+                    .whereEqualTo("to", "bob").addSnapshotListener { snapshot, error ->
+                        if (!offerReady.isCompleted) {
+                            if (error != null) offerReady.completeExceptionally(error)
+                            else snapshot?.documents?.firstOrNull { it.getString("answer") == null }
+                                ?.let { offerReady.complete(it) }
+                        }
+                    }
                 a!!.dial("bob")
             }
-            val incoming = withTimeout(15_000) {
-                while (true) {
-                    val calls = dbB.collection("pairs").document(pair).collection("walkieCalls").get().await()
-                    val offer = calls.documents.firstOrNull { it.getString("to")=="bob" && it.getString("answer")==null }
-                    if (offer != null) return@withTimeout offer
-                    delay(50)
-                }
-                @Suppress("UNREACHABLE_CODE") error("No incoming call")
-            }
+            val incoming = withTimeout(15_000) { offerReady.await() }
             withContext(Dispatchers.Main) { b!!.accept(incoming) }
             withTimeout(20_000) { while (!withContext(Dispatchers.Main) { a!!.ready && b!!.ready }) delay(50) }
             val callId = withContext(Dispatchers.Main) {
@@ -70,7 +72,7 @@ class DirectIdleDeviceTest {
             withTimeout(5000) { while (actual.size < 2) delay(25) }
             assertTrue(actual.any { it.contentEquals(fromA) }); assertTrue(actual.any { it.contentEquals(fromB) })
         } finally {
-            withContext(Dispatchers.Main) { a?.close(); b?.close() }
+            withContext(Dispatchers.Main) { incomingListener?.remove(); a?.close(); b?.close() }
             Tasks.await(dbA.waitForPendingWrites(),10,TimeUnit.SECONDS)
             Tasks.await(dbB.waitForPendingWrites(),10,TimeUnit.SECONDS)
             Tasks.await(dbA.terminate(),10,TimeUnit.SECONDS); Tasks.await(dbB.terminate(),10,TimeUnit.SECONDS)
