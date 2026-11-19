@@ -1,0 +1,50 @@
+{
+  "skill_name": "tech-audit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Analiza el proyecto en C:\\Users\\xavie\\Desktop\\dev\\work\\claude\\putchi\\workers\\src y dime qué deuda técnica, malas prácticas y problemas de arquitectura tiene. Quiero saber qué arreglar antes de escalar a más restaurantes.",
+      "expected_output": "Reporte técnico priorizado con secciones Crítico/Alto/Medio/Bajo, scorecard, ubicaciones exactas (archivo:línea), explicación del impacto, y plan de acción. Debe encontrar al menos: worker files sin graceful shutdown (order-fsm no tiene SIGTERM), dead variables en daily-report.agent.ts (endUTC, prevNext), falta de tests para servicios, o similares problemas reales del proyecto.",
+      "files": [],
+      "expectations": [
+        "El reporte tiene un scorecard con puntuaciones numéricas por categoría",
+        "Cada problema incluye una ruta de archivo específica",
+        "El reporte tiene sección de Resumen ejecutivo",
+        "El reporte tiene sección de Lo que está bien (aspectos positivos)",
+        "El reporte tiene un Plan de acción con orden de prioridad",
+        "Los problemas están categorizados (Crítico / Alto / Medio / Bajo)",
+        "El reporte menciona al menos un problema de SOLID o arquitectura concreto",
+        "El reporte menciona al menos un problema de deuda técnica concreto"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Tengo este archivo Python que escribí hace 6 meses y siento que está mal pero no sé exactamente qué. Revísalo y dime todos los problemas que tiene desde el punto de vista de principios SOLID, patrones de diseño y arquitectura:\n\n```python\n# order_processor.py\nimport smtplib\nimport psycopg2\nimport requests\nimport json\nfrom datetime import datetime\n\nDB_HOST = 'localhost'\nDB_USER = 'admin'\nDB_PASS = 'secret123'\nSMTP_SERVER = 'smtp.gmail.com'\nSMTP_PORT = 587\nSMTP_USER = 'orders@myshop.com'\nSMTP_PASS = 'emailpassword'\nPAYMENT_API = 'https://api.payment.com/v1'\nPAYMENT_KEY = 'pk_live_abc123xyz'\n\ndef process_order(order_data):\n    # Connect to database\n    conn = psycopg2.connect(host=DB_HOST, user=DB_USER, password=DB_PASS, database='orders')\n    cur = conn.cursor()\n    \n    # Validate order\n    if not order_data.get('customer_id'):\n        return {'error': 'missing customer'}\n    if not order_data.get('items'):\n        return {'error': 'no items'}\n    if order_data.get('total') <= 0:\n        return {'error': 'invalid total'}\n    \n    # Check inventory\n    for item in order_data['items']:\n        cur.execute('SELECT stock FROM products WHERE id = %s', (item['product_id'],))\n        row = cur.fetchone()\n        if not row or row[0] < item['quantity']:\n            return {'error': f'insufficient stock for {item[\"product_id\"]}'}\n    \n    # Charge payment\n    response = requests.post(\n        f'{PAYMENT_API}/charge',\n        headers={'Authorization': f'Bearer {PAYMENT_KEY}'},\n        json={'amount': order_data['total'], 'currency': 'USD', 'customer': order_data['customer_id']}\n    )\n    if response.status_code != 200:\n        return {'error': 'payment failed'}\n    \n    payment_data = response.json()\n    \n    # Save order to DB\n    cur.execute(\n        'INSERT INTO orders (customer_id, total, status, payment_id, created_at) VALUES (%s, %s, %s, %s, %s) RETURNING id',\n        (order_data['customer_id'], order_data['total'], 'pending', payment_data['id'], datetime.now())\n    )\n    order_id = cur.fetchone()[0]\n    \n    for item in order_data['items']:\n        cur.execute(\n            'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (%s, %s, %s, %s)',\n            (order_id, item['product_id'], item['quantity'], item['price'])\n        )\n        cur.execute('UPDATE products SET stock = stock - %s WHERE id = %s', (item['quantity'], item['product_id']))\n    \n    conn.commit()\n    \n    # Send confirmation email\n    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)\n    server.starttls()\n    server.login(SMTP_USER, SMTP_PASS)\n    message = f'Subject: Order Confirmed\\n\\nYour order #{order_id} has been confirmed. Total: ${order_data[\"total\"]}'\n    \n    cur.execute('SELECT email FROM customers WHERE id = %s', (order_data['customer_id'],))\n    customer_email = cur.fetchone()[0]\n    server.sendmail(SMTP_USER, customer_email, message)\n    server.quit()\n    \n    # Update inventory report\n    with open('inventory_log.txt', 'a') as f:\n        for item in order_data['items']:\n            f.write(f'{datetime.now()} - Sold {item[\"quantity\"]} of product {item[\"product_id\"]}\\n')\n    \n    cur.close()\n    conn.close()\n    \n    return {'success': True, 'order_id': order_id, 'payment_id': payment_data['id']}\n```",
+      "expected_output": "Análisis detallado que identifique: violación grave de SRP (la función hace 7 cosas distintas), credenciales hardcodeadas como problema de seguridad crítico, ausencia de transacciones de DB (cobró pero si falla al guardar hay inconsistencia), sin manejo de errores de red/DB, sin rollback del pago si falla la DB, acoplamiento directo a psycopg2/smtplib/requests (viola DIP), sin tests posibles por falta de inyección de dependencias. El reporte debe ser priorizado y tener plan de acción.",
+      "files": [],
+      "expectations": [
+        "Identifica violación de SRP — la función process_order hace demasiadas cosas",
+        "Identifica credenciales hardcodeadas como problema crítico de seguridad",
+        "Identifica ausencia de transacciones de base de datos (pago se cobra pero DB puede fallar)",
+        "Identifica el problema de Dependency Inversion (acoplamiento directo a psycopg2, smtplib, requests)",
+        "Identifica ausencia de manejo de errores en conexión DB y red",
+        "El reporte usa el formato priorizado (Crítico/Alto/Medio/Bajo)",
+        "Incluye sugerencias concretas de cómo refactorizar"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Revisa el backend de este proyecto NestJS en C:\\Users\\xavie\\Desktop\\dev\\work\\claude\\putchi\\backend\\src y dime si tiene problemas de arquitectura, SOLID, o deuda técnica. Soy el CTO y tengo que decidir si el código está listo para onboardear a 3 desarrolladores más.",
+      "expected_output": "Reporte ejecutivo orientado a decisión de onboarding: evalúa consistencia de patrones, separación de capas, testabilidad, convenciones, documentación. Debe mencionar aspectos como: si los módulos NestJS están bien separados, si hay lógica de negocio en controllers, si los services están bien testeados, patrones inconsistentes, etc.",
+      "files": [],
+      "expectations": [
+        "El reporte tiene perspectiva de onboarding/mantenibilidad, no solo de bugs",
+        "Evalúa si hay consistencia de patrones entre módulos",
+        "Menciona el estado de los tests (presencia, cobertura, calidad)",
+        "Identifica al menos un problema concreto con archivo específico",
+        "Incluye sección de aspectos positivos",
+        "El resumen ejecutivo responde directamente si el código está listo para nuevos devs"
+      ]
+    }
+  ]
+}
