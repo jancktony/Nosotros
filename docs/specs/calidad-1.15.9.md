@@ -1,6 +1,6 @@
 # Calidad 1.15.9
 
-Estado: alcance autorizado por Jancktony al pedir aplicar las skills y lanzar una versión. Fecha: 2026-11-19.
+Estado: implementada, comprobada automáticamente y publicada como candidata del administrador. Alcance autorizado por Jancktony al pedir aplicar las skills y lanzar una versión. La prueba física y liberación a Kelin siguen bajo su control. Fecha: 2026-11-19.
 
 ## Problema y evidencia inicial
 - WalkieConnection liga disponibilidad a AudioTrack y cierra toda la conexión tras 60 s de silencio. El siguiente mensaje vuelve a negociar aunque la red no cambió.

@@ -31,7 +31,9 @@ Las guías de maqueta, animaciones o refactor se mantienen disponibles; esta rev
 - Reglas Firestore/Storage locales: 26 pruebas pasan, sin abrir accesos.
 - Detector mecánico Impeccable para los archivos visuales cambiados: sin hallazgos. No sustituye una revisión renderizada en un Samsung.
 - Prueba del historial de imágenes: 2.000 cambios de velocidad con imágenes activas protegidas; se verifica en la suite Android/JVM de CI.
-- CI requerido antes del catálogo: compilación y unitarias, reglas, codec/gestos/WebRTC/relay y canal directo después de inactividad, mapa/animación/instalación.
+- CI aprobado de la revisión `2c4c1161dc899dbc6f75666805377482697816a1`: compilación/unitarias y seguridad [44576805006](https://github.com/jancktony/Nosotros/actions/runs/44576805006); 7 pruebas nativas de voz [44576793277](https://github.com/jancktony/Nosotros/actions/runs/44576793277); 8 pruebas de mapa, animación e instalación [44576792802](https://github.com/jancktony/Nosotros/actions/runs/44576792802).
+- La primera prueba de señalización abría consultas de un solo uso cada 50 ms y falló con un error interno de Firestore en el emulador. Se reemplazó ese sondeo por el listener permanente que usa producción; esa revisión pasó la prueba de canal preparado y entrega en ambos sentidos. No se omite la prueba fallida ni se considera que un reintento solo demuestre una corrección del SDK.
+- Chromium real, con MapLibre/WebGL (SwiftShader): anchos 320, 390, 430, 768 y 1440; conserva una instancia y canvas, zoom 17, sin desbordamiento horizontal y con borrador/foco/selección al actualizar. Autenticación y estilo de mapa se simulan localmente; no demuestra conectividad real con Firebase, cobertura de mapas ni rendimiento GPU de Samsung. Resultado: `calidad-1.15.9-browser.json`. Reproducción con Playwright y Chromium instalados: `node tools/qa/browser-quality.cjs` (opcional `NOSOTROS_CHROMIUM` para la ruta del ejecutable).
 - La compilación local de Android no llegó a comenzar: la descarga de Gradle fue rechazada en este entorno. La validación Android se realiza en GitHub Actions; no se considera ese intento local una compilación aprobada.
 
 ## Seguridad y datos
@@ -56,4 +58,11 @@ El identificador compartido de aviso por ubicación y voz se mantiene para no a�
 El servidor persistente de #20 continúa pendiente de alojamiento. Una red que bloquee la vía directa puede seguir necesitando otro transporte; no se promete llamada inmediata universal. El cambio de inactividad requiere ambos clientes actualizados. Las pruebas físicas entre ambos Samsung y redes Wi-Fi/datos quedan para el dueño.
 
 ## Veredicto
-Implementación preparada para validación Android de CI; candidata bloqueada por sus workflows hasta que esa revisión apruebe. No aprobar automáticamente la prueba del dueño ni liberar a Kelin. Plan siguiente: terminar CI, verificar APK privado, actualizar web y registrar los resultados reales.
+Pruebas automáticas de la implementación aprobadas; no representan la aprobación de Jancktony ni liberan la versión a Kelin. La candidata y la web se consideran publicadas únicamente cuando sus workflows terminan y el catálogo confirma la integridad del APK. El resultado de publicación se añade debajo al completarse.
+
+## Publicación verificada
+
+- APK 1.15.9: 74.245.375 bytes en 142 fragmentos, integridad confirmada por el publicador privado. [Workflow 44576792807](https://github.com/jancktony/Nosotros/actions/runs/44576792807).
+- Web privada: despliegue confirmado en https://nosotros-1e43a.web.app, con 5 regresiones web y 26 pruebas de reglas aprobadas. [Workflow 44578068307](https://github.com/jancktony/Nosotros/actions/runs/44578068307).
+- PR de implementación: #23. Fuente comprobada: `2c4c1161dc899dbc6f75666805377482697816a1`; integración en main: `7f3f8b12a3b4246427d5dadb4ce4e1d3ffd1aea6`.
+- No se cambió la versión de prueba o liberada de la pareja. El dueño instala desde Administración → Versiones → Instalar solo para mí, prueba y decide cuándo aprobar/liberar.

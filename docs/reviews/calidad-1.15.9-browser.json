@@ -1,0 +1,46 @@
+{
+  "engine": "Chromium + real MapLibre/WebGL (SwiftShader)",
+  "fixture": "synthetic accounts and minimal local map style; no production authentication, tiles or phone access",
+  "results": [
+    {
+      "width": 320,
+      "instances": 1,
+      "zoom": 17,
+      "canvas": true,
+      "overflow": false,
+      "draft": true
+    },
+    {
+      "width": 390,
+      "instances": 1,
+      "zoom": 17,
+      "canvas": true,
+      "overflow": false,
+      "draft": true
+    },
+    {
+      "width": 430,
+      "instances": 1,
+      "zoom": 17,
+      "canvas": true,
+      "overflow": false,
+      "draft": true
+    },
+    {
+      "width": 768,
+      "instances": 1,
+      "zoom": 17,
+      "canvas": true,
+      "overflow": false,
+      "draft": true
+    },
+    {
+      "width": 1440,
+      "instances": 1,
+      "zoom": 17,
+      "canvas": true,
+      "overflow": false,
+      "draft": true
+    }
+  ]
+}
