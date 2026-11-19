@@ -1,0 +1,7 @@
+Mejoras aplicadas con las skills del proyecto:
+• Walkie: conserva el canal directo establecido tras el silencio y libera el audio inactivo; protege pulsaciones rápidas y la recuperación del transporte.
+• Mapa Android: limita las imágenes antiguas para evitar acumular memoria durante el viaje.
+• Web: mantiene el mapa y tu encuadre durante las actualizaciones; conserva borradores y muestra la edad real del GPS.
+• Avisos: evita reactivar voz al cerrar su servicio y refleja la pausa de ubicación.
+Para conservar la conexión después de un minuto, ambos teléfonos deben usar esta versión cuando decidas liberarla. El servidor persistente aún no está activo y la conexión directa depende de la red.
+Candidata solo para el administrador; no liberada automáticamente a Kelin.

@@ -587,7 +587,7 @@ class TrackingService : Service() {
     private fun buildNotification(): Notification {
         return NotificationCompat.Builder(this, App.CH_TRACKING)
             .setSmallIcon(R.drawable.ic_stat)
-            .setContentTitle("Ubicación compartida")
+            .setContentTitle(if (isPaused()) "Ubicación en pausa" else "Ubicación compartida")
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setContentText("Toca para abrir Nosotros")
             .setShowWhen(false)
@@ -606,7 +606,7 @@ class TrackingService : Service() {
         )
     }
 
-    private fun updateNotification() {
+    internal fun updateNotification() {
         runCatching { getSystemService(NotificationManager::class.java).notify(NOTIF_ID, buildNotification()) }
     }
 

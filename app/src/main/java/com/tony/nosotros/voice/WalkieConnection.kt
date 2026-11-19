@@ -13,11 +13,16 @@ import kotlin.coroutines.resumeWithException
 
 /** Signaling is private to the pair; live audio never passes through Firestore. */
 class WalkieConnection(context: Context, private val pair: String, private val uid: String,
+    private val database: FirebaseFirestore = Repo.db,
+    private val ensureSession: suspend () -> Unit = { Repo.ensureSignedIn(); Unit },
+    private val now: () -> Long = { android.os.SystemClock.elapsedRealtime() },
+    private val received: ((ByteArray) -> Unit)? = null,
+    private val focus: () -> Boolean = { true },
     private val status: (String, Boolean) -> Unit) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val handler = Handler(Looper.getMainLooper())
     private val factory: PeerConnectionFactory
-    private val calls get() = Repo.db.collection("pairs").document(pair).collection("walkieCalls")
+    private val calls get() = database.collection("pairs").document(pair).collection("walkieCalls")
     private var pc: PeerConnection? = null
     private var channel: DataChannel? = null
     @Volatile private var audio: PushAudio? = null
@@ -38,7 +43,9 @@ class WalkieConnection(context: Context, private val pair: String, private val u
     private var epoch = 0
     private var opening = false
     private var openAttempt = 0
-    val ready get() = audio != null
+    val ready get() = !closed && channel?.state() == DataChannel.State.OPEN &&
+        pc?.iceConnectionState() in listOf(PeerConnection.IceConnectionState.CONNECTED, PeerConnection.IceConnectionState.COMPLETED)
+    internal val hasAudioResources get() = audio != null
     val active get() = pc != null || opening
     val currentCallId get() = call?.id
 
@@ -53,8 +60,8 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         val attempt = ++openAttempt
         try {
             withTimeout(10_000) {
-            Repo.ensureSignedIn()
-            val peerVersion = Repo.db.collection("pairs").document(pair).collection("members").document(partner).get().await().getString("appVersion").orEmpty()
+            ensureSession()
+            val peerVersion = database.collection("pairs").document(pair).collection("members").document(partner).get().await().getString("appVersion").orEmpty()
             if (!VoiceWire.compatible(peerVersion)) { report("Actualicen ambos teléfonos a 1.10 o posterior."); return@withTimeout }
             val ref = calls.document(); call = ref
             begin(true)
@@ -75,7 +82,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         val attempt = ++openAttempt
         try {
             withTimeout(10_000) {
-            Repo.ensureSignedIn()
+            ensureSession()
             require(document.getString("to") == uid)
             call = document.reference
             begin(false)
@@ -110,6 +117,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
                 when (state) {
                     PeerConnection.IceConnectionState.FAILED -> end("La red bloqueó la conexión directa. Recuperando canal alternativo…")
                     PeerConnection.IceConnectionState.DISCONNECTED -> {
+                        report("Recuperando conexión…")
                         disconnected?.cancel()
                         disconnected = scope.launch {
                             delay(2500)
@@ -118,6 +126,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
                     }
                     PeerConnection.IceConnectionState.CONNECTED, PeerConnection.IceConnectionState.COMPLETED -> {
                         disconnected?.cancel(); disconnected = null
+                        if (ready) report("Canal directo listo", true)
                     }
                     else -> Unit
                 }
@@ -134,7 +143,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         if (outgoing) attach(pc!!.createDataChannel(VoiceWire.CHANNEL, DataChannel.Init().apply {
             ordered = false; maxRetransmits = 0
         }))
-        timeout = scope.launch { delay(12000); if (audio == null) end("La conexión directa no está disponible. Activen el modo de redes difíciles en ambos teléfonos.") }
+        timeout = scope.launch { delay(12000); if (!ready) end("La conexión directa no está disponible. Activen el modo de redes difíciles en ambos teléfonos.") }
     }
     private fun attach(data: DataChannel) {
         if (data.label() != VoiceWire.CHANNEL) {
@@ -145,20 +154,13 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         fun changed() { handler.post {
             if (closed || generation != epoch) return@post
             when (data.state()) {
-                DataChannel.State.OPEN -> if (audio == null) {
-                    runCatching { audio = PushAudio({ bytes ->
-                        data.state() == DataChannel.State.OPEN && data.bufferedAmount() < 2048 &&
-                            data.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(bytes), true))
-                    }, { lastActivity = android.os.SystemClock.elapsedRealtime() },
-                        { handler.post { end("No se pudo reproducir el audio. Revisa el volumen multimedia.") } }) }.onSuccess {
-                        timeout?.cancel(); report("Directo · voz comprimida · mantén pulsado", true)
-                        lastActivity = android.os.SystemClock.elapsedRealtime()
-                        timeout = scope.launch {
-                            while (true) { delay(1000)
-                                if (android.os.SystemClock.elapsedRealtime() - lastActivity >= 60000) { end("Canal cerrado por inactividad"); break }
-                            }
-                        }
-                    }.onFailure { end("No se pudo abrir el audio.") }
+                DataChannel.State.OPEN -> {
+                    timeout?.cancel()
+                    lastActivity = now()
+                    timeout = scope.launch {
+                        while (isActive) { delay(15_000); releaseIdleAudio() }
+                    }
+                    report("Canal directo listo", ready)
                 }
                 DataChannel.State.CLOSED -> end("Conexión terminada")
                 else -> Unit
@@ -167,7 +169,18 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         data.registerObserver(object : DataChannel.Observer {
             override fun onBufferedAmountChange(previousAmount: Long) = Unit
             override fun onStateChange() { changed() }
-            override fun onMessage(buffer: DataChannel.Buffer) { audio?.receive(buffer) }
+            override fun onMessage(buffer: DataChannel.Buffer) {
+                // WebRTC owns the native buffer only for this callback.
+                if (!buffer.binary || buffer.data.remaining() !in 11..399) return
+                val packet = ByteArray(buffer.data.remaining()).also { buffer.data.get(it) }
+                handler.post {
+                    if (!closed && generation == epoch && ready && VoiceWire.frames(packet) != null && focus()) {
+                        lastActivity = now()
+                        if (received != null) received.invoke(packet)
+                        else runCatching { audio().receive(packet) }.onFailure { end("No se pudo abrir el audio") }
+                    }
+                }
+            }
         })
         changed()
     }
@@ -212,10 +225,24 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         }
         localIce.clear()
     }
+    internal fun sendPacket(packet: ByteArray): Boolean {
+        val data = channel ?: return false
+        return ready && VoiceWire.frames(packet) != null && data.bufferedAmount() < 2048 &&
+            data.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(packet), true))
+    }
+    private fun audio(): PushAudio {
+        audio?.let { return it }
+        return PushAudio(::sendPacket, { lastActivity = now() },
+            { handler.post { end("No se pudo reproducir el audio. Revisa el volumen multimedia.") } })
+            .also { audio = it; lastActivity = now() }
+    }
+    internal fun releaseIdleAudio() {
+        if (now() - lastActivity >= 60_000) { audio?.close(); audio = null }
+    }
     fun talk(stopped: () -> Unit): Boolean {
-        lastActivity = android.os.SystemClock.elapsedRealtime()
-        return try { audio?.start { handler.post(stopped) } ?: error("Canal desconectado"); true }
-        catch (_: Exception) { report("No se pudo usar el micrófono", audio != null); stopped(); false }
+        lastActivity = now()
+        return try { check(ready); audio().start { handler.post(stopped) }; true }
+        catch (_: Exception) { stopped(); report("No se pudo usar el micrófono", ready); false }
     }
     fun stopTalking() { audio?.stop() }
     fun end(message: String = "Desconectado") {
@@ -228,7 +255,7 @@ class WalkieConnection(context: Context, private val pair: String, private val u
         pc?.close(); pc?.dispose(); pc = null
         val old = call; call = null
         if (old != null) {
-            val batch = Repo.db.batch()
+            val batch = database.batch()
             cleanupCandidates.take(400).forEach { batch.delete(it) }
             batch.delete(old); batch.commit()
         }

@@ -36,6 +36,8 @@ class WalkieService : Service() {
     private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
     private val connectivity by lazy { getSystemService(android.net.ConnectivityManager::class.java) }
     private val clockRetry = Runnable { synchronizeClock() }
+    private var transmittingDirect = false
+    private var microphoneEpoch = 0L
     private var requested = false
     private var uid = ""
     private val handler = Handler(Looper.getMainLooper())
@@ -62,8 +64,13 @@ class WalkieService : Service() {
         WalkieHub.service = this
         WalkieHub.state.value = WalkieHub.State(enabled = true, message = "En espera · pulsa para hablar")
         try {
-            connection = WalkieConnection(this, pair, uid) { message, ready ->
+            connection = WalkieConnection(this, pair, uid,
+                focus = { audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED }) { message, ready ->
+                if (destroyed) return@WalkieConnection
                 val available = ready || relay?.ready == true
+                if (!ready && transmittingDirect && WalkieHub.state.value.talking) {
+                    val held = requested; stopTalking(); requested = held
+                }
                 // Connecting is not a release gesture: keep a held press pending until OPEN.
                 if (!available && connection?.active != true) {
                     // A transport failure is not the user's release gesture.
@@ -75,9 +82,6 @@ class WalkieService : Service() {
                     message = if (!ready && relay != null) { if (relay?.ready == true) "Red lenta · voz comprimida lista" else "Preparando canal alternativo · esperando recepción de ambos" } else message)
                 if (ready) {
                     retryAttempt = 0; handler.removeCallbacks(retry)
-                    if (audioManager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                        connection?.end("El audio está ocupado"); return@WalkieConnection
-                    }
                     if (requested) startTalking()
                 } else if (!available && (WalkieHub.foregroundOpen || requested) && retryAttempt < 3 && !message.contains("inactividad")) {
                     handler.removeCallbacks(retry); retryAttempt++
@@ -156,7 +160,6 @@ class WalkieService : Service() {
             current.end()
             requested = held
         }
-        if (audioManager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return
         current.accept(incoming)
 
     }
@@ -175,12 +178,15 @@ class WalkieService : Service() {
         relay?.close(); relayPartner = partner
         relay = WalkieRelay(pairId, uid, partner!!, clock = clock,
             focus = { audioManager.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED }) { message, ready ->
+            if (!ready && !transmittingDirect && WalkieHub.state.value.talking) {
+                val held = requested; stopTalking(); requested = held
+            }
             if (connection?.ready != true) {
                 WalkieHub.state.value = WalkieHub.state.value.copy(connected = ready, message = message)
                 if (!ready && WalkieHub.state.value.talking) {
                     val held = requested; stopTalking(); requested = held
                 } else if (ready && requested) startTalking()
-            }
+            } else if (requested) startTalking()
         }.also { it.start() }
     }
     fun resumeReception() {
@@ -233,24 +239,29 @@ class WalkieService : Service() {
         if (audioManager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
             stopTalking(); return
         }
-        val stopped = {
+        val epoch = ++microphoneEpoch
+        val stopped = stopped@{
+            if (epoch != microphoneEpoch || destroyed) return@stopped
             releaseMicrophoneType()
             requested = false
             WalkieHub.state.value = WalkieHub.state.value.copy(talking = false,
                 message = if (WalkieHub.state.value.connected) "Canal listo · mantén pulsado" else "En espera")
         }
-        val started = if (connection?.ready == true) connection?.talk(stopped) == true else relay?.talk(stopped) == true
+        transmittingDirect = connection?.ready == true
+        val started = if (transmittingDirect) connection?.talk(stopped) == true else relay?.talk(stopped) == true
         if (!started) releaseMicrophoneType()
-        WalkieHub.state.value = WalkieHub.state.value.copy(talking = started,
-            message = if (started) "Hablando · voz de bajo consumo" else "Aún no hay canal. Espera la señal antes de hablar.")
+        if (started) WalkieHub.state.value = WalkieHub.state.value.copy(talking = true,
+            message = "Hablando · voz de bajo consumo")
     }
     fun stopTalking() {
+        ++microphoneEpoch
         requested = false
         connection?.stopTalking(); relay?.stopTalking(); releaseMicrophoneType()
         WalkieHub.state.value = WalkieHub.state.value.copy(talking = false,
             message = if (WalkieHub.state.value.connected) "Canal listo · mantén pulsado" else WalkieHub.state.value.message)
     }
     private fun releaseMicrophoneType() {
+        if (destroyed) return
         runCatching { ServiceCompat.startForeground(this, ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK) }
     }
     override fun onDestroy() {
@@ -263,6 +274,7 @@ class WalkieService : Service() {
         audioManager.abandonAudioFocusRequest(focus)
         WalkieHub.service = null
         WalkieHub.state.value = WalkieHub.State()
+        com.tony.nosotros.tracking.TrackingService.running?.updateNotification()
         super.onDestroy()
     }
     private fun notification(): Notification {
