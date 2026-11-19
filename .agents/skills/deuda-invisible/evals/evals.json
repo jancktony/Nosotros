@@ -1,0 +1,50 @@
+{
+  "skill_name": "deuda-invisible",
+  "evals": [
+    {
+      "id": 0,
+      "name": "senales-de-ranking-muertas",
+      "prompt": "revisa el módulo de matching y las notificaciones: quiero saber si las señales que usamos para ordenar sirven de algo de verdad, y si hay algo construido que no llegue a ninguna pantalla",
+      "expected_output": "Informe priorizado que detecta (a) tasa_respuesta_pct como métrica que pesa 30% del score y no tiene escritor, clasificada P1, y (b) ultima_sesion_at/ultima_respuesta_at escritas en el mismo update de app/api/ofertas/route.ts como una sola señal con peso inflado. Cada hallazgo con ruta:línea y comando de comprobación.",
+      "files": [],
+      "assertions": [
+        "Identifica tasa_respuesta_pct como métrica sin escritor y cita lib/matching/soft-score.ts con línea",
+        "Clasifica la métrica muerta del scoring como P0 o P1, no como cosmético",
+        "Detecta que ultima_sesion_at y ultima_respuesta_at se escriben en el mismo update (categoría 5)",
+        "Todos los hallazgos incluyen ruta:línea",
+        "Cada hallazgo incluye un 'cómo se comprueba' reproducible (comando o pasos)",
+        "El informe sigue la plantilla de la skill (Resumen / Hallazgos / Deuda ya declarada / Cobertura)",
+        "No escribe ningún archivo .md de informe en el repo"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "columnas-que-nadie-toca",
+      "prompt": "tengo la sensación de que hay un montón de columnas en supabase que guardamos y no mostramos en ningún sitio. haz un barrido del esquema y dime cuáles y si alguna de esas la prometemos en algún texto o pantalla",
+      "expected_output": "Barrido de columnas clasificadas en se-escribe / se-lee / ninguna. Detecta users.phone (UNIQUE + índice, sin formulario que la escriba) y conecta con la promesa de app/(app)/negocio/reservas/page.tsx que pinta un tel: y con la política de privacidad. Detecta vista_at e ignorada_motivo. Distingue las columnas declaradas como futuro/dataset y no las reporta como hallazgo sin matizar.",
+      "files": [],
+      "assertions": [
+        "Detecta users.phone como entrada muerta y cita el esquema con línea",
+        "Conecta users.phone con la pantalla o el texto legal que promete ese dato",
+        "Distingue negocios.phone (sí se escribe) de users.phone (no) sin confundirlas",
+        "Detecta vista_at y/o ignorada_motivo en solicitud_negocio",
+        "Marca aparte o degrada lo que está declarado como fase futura / dataset en vez de reportarlo como hallazgo pleno",
+        "Prioriza por daño real y no por número de columnas encontradas"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "comentarios-y-estados-sin-salida",
+      "prompt": "antes de la demo quiero saber si hay pantallas que prometan algo y no cumplan, y si algún usuario puede quedarse atascado sin salida en algún estado. mira sobre todo el flujo del negocio (onboarding, estado, panel) y los comentarios que afirman garantías",
+      "expected_output": "Detecta el bucle rejected → CTA 'Corregir documentos' → /negocio/onboarding → redirect de vuelta a /negocio/estado (app/(app)/negocio/onboarding/page.tsx:34-35) como estado terminal por accidente, clasificado alto. Verifica comentarios que afirman garantías contra el código. No reporta como hallazgo la deuda que ya está documentada con porqué y cuándo.",
+      "files": [],
+      "assertions": [
+        "Detecta el bucle cerrado del negocio rejected con ruta:línea del redirect",
+        "Trata al menos un comentario con garantía como afirmación falsable y dice si se cumple o no",
+        "Excluye o degrada explícitamente la deuda deliberada documentada (p.ej. la nota de verificado:true)",
+        "Menciona en Cobertura qué zonas no revisó",
+        "No inventa hallazgos: todo lo reportado es verificable en el repo"
+      ]
+    }
+  ]
+}

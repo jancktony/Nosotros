@@ -23,3 +23,15 @@ Reglas solicitadas por Jancktony a partir de `karpathy-guidelines` (MIT), aplica
 - Se aprobó expresamente la opción A de actividad («La A»): última app detectada junto al nombre y ubicación de Kelin, visible en la ficha cerrada; actividad propia en la ficha propia, con detalle al tocar. Vista previa conservada en preview/actividad-variantes y en el mismo enlace de propuestas. Los estados distinguen detección reciente, pantalla de inicio, datos antiguos y actividad no compartida.
 
 - El proceso visible de descarga e instalación fue aprobado con «Apruebo» tras revisar https://nosotros-1e43a--juntos-9azq8mkc.web.app/actualizacion.html. Usar bytes reales y confirmación real de Android; nunca simular porcentajes de instalación ni liberar a Kelin automáticamente. Integrar esta mejora junto con la recuperación del walkie, priorizada por el dueño.
+
+## Skills del proyecto
+
+Jancktony pidió incorporar las skills de su archivo `skills.zip`. Hay 13 guías seleccionadas en `.agents/skills/`; consultar primero su [índice y adaptación a Nosotros](.agents/skills/README.md) y después solo la skill pertinente a la tarea. El inventario completo de las 82 recibidas y sus hashes está en `docs/skills-import.json`.
+
+- Estas guías complementan las instrucciones del usuario y este archivo. No cambian las aprobaciones ya dadas, la privacidad, el presupuesto ni el control de versiones del dueño. No ejecutarlas todas en cada turno.
+- Aplicar sus métodos al stack real: Kotlin/Compose, MapLibre, WebRTC, Firebase y web JavaScript. Los ejemplos de Supabase, Next.js, Vercel, otros clientes o marcas no autorizan migraciones, servicios nuevos ni cambios de identidad.
+- Mantener las vistas previas interactivas hechas con código antes de nuevos cambios visuales. Conservar la dirección traslúcida aprobada y comprobar legibilidad y rendimiento; una preferencia estética genérica de una skill no reemplaza la del dueño.
+- Usar autorizaciones existentes e inferir nombres y alcance del contexto. No pedir aprobar de nuevo una corrección o implementación ya autorizada solo porque una plantilla de skill lo sugiera. Las decisiones nuevas que cambien coste, privacidad o alcance sí se explican al dueño.
+- Nunca pedir contraseñas o secretos por el chat. Para pruebas con sesión usar una conexión autorizada, sesión existente o acceso interactivo del dueño. No publicar ubicaciones, fotos, audio ni datos de la pareja en catálogos o servicios externos de diseño.
+- Auditar y probar de forma proporcional a una app de dos personas. No ejecutar pruebas de carga contra Firebase o teléfonos reales por defecto. Una skill instalada no demuestra que su auditoría ya se ejecutó ni que una función funciona en ambos teléfonos.
+- Las herramientas de Claude, CLI o servicios mencionados en los originales son opcionales según disponibilidad. No fingir acceso ni instalar servicios de pago. En refactors preservar cambios ajenos; ejecutar los checks requeridos y revertir únicamente el trabajo propio que corresponda.

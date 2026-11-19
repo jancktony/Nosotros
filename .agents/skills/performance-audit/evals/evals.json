@@ -1,0 +1,97 @@
+{
+  "skill_name": "performance-audit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Haz un performance audit completo de mi aplicación NestJS. El backend tiene endpoints de órdenes, catálogo y clientes. Quiero saber si hay cuellos de botella y también generar scripts de k6 para simular 500 usuarios simultáneos haciendo pedidos.",
+      "expected_output": "Performance report with PERF-NNN numbered findings anchored to specific code patterns, plus ready-to-run k6 scripts (smoke + load + stress) with stages and thresholds",
+      "files": [],
+      "assertions": [
+        {
+          "id": "has-numbered-findings",
+          "text": "The report contains at least one finding numbered PERF-001 (or similar PERF-NNN pattern)"
+        },
+        {
+          "id": "k6-uses-stages",
+          "text": "The k6 scripts use stages array (ramp-up/peak/ramp-down) rather than a flat VU count"
+        },
+        {
+          "id": "k6-has-thresholds",
+          "text": "The k6 scripts define explicit thresholds (http_req_duration p95, http_req_failed rate)"
+        },
+        {
+          "id": "multiple-test-types",
+          "text": "At least two k6 test types are provided (e.g., smoke + load, or load + stress)"
+        },
+        {
+          "id": "report-has-structure",
+          "text": "The report includes an Executive Summary section and a priority action plan"
+        },
+        {
+          "id": "findings-have-code",
+          "text": "At least one finding includes both an Evidence code block and a Fix code block"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Genera un load test con k6 para mi API de checkout. Necesito ver cómo aguanta la app cuando hay 1000 personas comprando al mismo tiempo durante Black Friday. El endpoint es POST /api/v1/orders y requiere autenticación por cookie.",
+      "expected_output": "k6 spike test script with cookie-auth setup(), realistic Black Friday burst pattern, 1000 VU peak, thresholds, and annotated stages",
+      "files": [],
+      "assertions": [
+        {
+          "id": "spike-pattern",
+          "text": "The k6 script includes a spike pattern: a sudden large jump in VUs (not a slow linear ramp), representing a Black Friday burst"
+        },
+        {
+          "id": "cookie-auth-setup",
+          "text": "The script includes a setup() or similar mechanism to handle cookie-based authentication before the load test runs"
+        },
+        {
+          "id": "correct-endpoint",
+          "text": "The script targets POST /api/v1/orders (the endpoint specified by the user)"
+        },
+        {
+          "id": "reaches-1000-vus",
+          "text": "The peak VU count in the stages reaches or approaches 1000 users"
+        },
+        {
+          "id": "has-thresholds",
+          "text": "The script defines pass/fail thresholds (http_req_duration and/or http_req_failed)"
+        },
+        {
+          "id": "has-stage-comments",
+          "text": "The stages are annotated with comments explaining what each stage represents"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Tengo este servicio de TypeScript que está tardando 3-4 segundos en responder cuando hay más de 50 usuarios. Analiza qué está pasando y dame las correcciones concretas con código.\n\nasync getOrdersWithDetails(tenantId: string) {\n  const orders = await this.orderRepo.find({ where: { tenantId } });\n  for (const order of orders) {\n    order.customer = await this.customerRepo.findOne({ where: { id: order.customerId } });\n    order.items = await this.itemRepo.find({ where: { orderId: order.id } });\n  }\n  return orders;\n}",
+      "expected_output": "Identifies N+1 query problem, quantifies impact with math, provides fixed TypeScript code using relations/JOIN, includes verification approach",
+      "files": [],
+      "assertions": [
+        {
+          "id": "identifies-n-plus-one",
+          "text": "The response correctly identifies the N+1 query problem (the loop making individual DB calls per order)"
+        },
+        {
+          "id": "quantifies-impact",
+          "text": "The response quantifies the impact with concrete math — e.g., 'N orders generates N+1 DB queries' with specific numbers"
+        },
+        {
+          "id": "fix-uses-relations-or-join",
+          "text": "The fixed code eliminates the loop-per-row pattern by using relations/eager loading, a JOIN, or a batched query"
+        },
+        {
+          "id": "fix-is-compilable",
+          "text": "The fixed TypeScript code is syntactically correct and follows TypeORM or Supabase patterns (not pseudocode)"
+        },
+        {
+          "id": "includes-verification",
+          "text": "The response includes a way to verify the fix — either a k6 script, a query count log, or EXPLAIN ANALYZE suggestion"
+        }
+      ]
+    }
+  ]
+}
