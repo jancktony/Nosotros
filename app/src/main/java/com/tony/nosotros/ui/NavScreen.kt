@@ -129,8 +129,8 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
     val r = route
 
     val now by vm.tick.collectAsState()
-    val fresh = localFix?.let { now-it.time in 0..15_000 && it.accuracy<=80 } ?: me?.let { !it.paused && it.updatedAt > 0 && now-it.updatedAt in 0..60_000 && it.acc <= 80 } == true
-    LaunchedEffect(me?.updatedAt, localFix?.time, navigating, route) {
+    val fresh = localFix?.let { com.tony.nosotros.util.NavigationFix.fresh(it.time,it.accuracy,false,now,15_000) } ?: me?.let { it.hasLocation && com.tony.nosotros.util.NavigationFix.fresh(it.locationAt,it.acc,it.paused,now,60_000) } == true
+    LaunchedEffect(me?.locationAt, localFix?.time, fresh, navigating, route) {
         val current = route ?: return@LaunchedEffect
         val point = myPt ?: return@LaunchedEffect
         if(!navigating || !fresh)return@LaunchedEffect
