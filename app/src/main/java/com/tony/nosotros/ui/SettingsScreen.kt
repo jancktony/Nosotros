@@ -456,7 +456,7 @@ fun Section(icon: ImageVector, title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ThemeTile(label: String, pal: Palette, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+internal fun ThemeTile(label: String, pal: Palette, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Column(
         modifier.clip(RoundedCornerShape(16.dp)).background(pal.bg)
             .border(if (selected) 2.5.dp else 1.dp, if (selected) C.me else C.line, RoundedCornerShape(16.dp))

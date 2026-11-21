@@ -223,14 +223,15 @@ app.addEventListener('click',async event=>{
   catch(e){form.querySelector('#login-error').textContent=errorMessage(e)}return;
  }
  if(!uid||!pairId)return;
+  if(action==='theme'){
+   const mode=button.dataset.mode;document.body.dataset.theme=mode;try{localStorage.setItem('nosotros-web-theme',mode)}catch{}return;
+  }
+
  button.disabled=true;
  try{
   const p=doc(db,'pairs',pairId),release=S.releases.find(r=>r.id===id);
   if(action==='logout'){await signOut(auth);return}
   if(action==='web-tab'){webTab=button.dataset.mode;notice='';render();return}
-  if(action==='theme'){
-   const mode=button.dataset.mode;document.body.dataset.theme=mode;try{localStorage.setItem('nosotros-web-theme',mode)}catch{}return;
-  }
   if(action==='save-profile'){
    const name=app.querySelector('#profile-name').value.trim();if(!name||name.length>40)throw Error('Escribe un nombre de hasta 40 caracteres.');
    await updateDoc(doc(p,'members',uid),{name});delete drafts['profile-name'];notice='Nombre guardado. Se sincroniza con tu teléfono desde Nosotros 1.11.';render();return;

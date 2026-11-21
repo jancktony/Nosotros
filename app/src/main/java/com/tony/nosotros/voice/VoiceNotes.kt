@@ -14,11 +14,11 @@ import com.tony.nosotros.data.Repo
 import java.io.File
 import kotlinx.coroutines.tasks.await
 
-class VoiceNotes(private val context: Context, private val pairId: String) {
+class VoiceNotes(private val context: Context, private val pairId: String, private val actor: () -> String = { requireNotNull(Repo.uid) }) {
     data class Note(val id: String, val uid: String, val duration: Long, val received: Boolean = false)
     data class Draft(val id: String, val duration: Long)
     private val draftDirectory: File get() {
-        val uid = requireNotNull(Repo.uid)
+        val uid = actor()
         val key = java.security.MessageDigest.getInstance("SHA-256").digest("$pairId:$uid".toByteArray()).joinToString("") { "%02x".format(it) }
         return File(context.filesDir, "voice-drafts/$key").apply { mkdirs() }
     }
@@ -26,7 +26,7 @@ class VoiceNotes(private val context: Context, private val pairId: String) {
         Draft(it.nameWithoutExtension.substringBefore('_'), it.nameWithoutExtension.substringAfter('_').toLong())
     }
     private fun draftFile(draft: Draft): File {
-        require(draft.id.matches(Regex("[a-f0-9-]+")) && draft.duration in 300..30000)
+        require(draft.id.matches(Regex("[a-f0-9-]+")) && draft.duration in 300L..30000L)
         return File(draftDirectory,"${draft.id}_${draft.duration}.m4a")
     }
     fun discard(draft: Draft) { draftFile(draft).delete() }
