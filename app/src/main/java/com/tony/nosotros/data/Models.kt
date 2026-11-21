@@ -38,6 +38,7 @@ data class Member(
     val updateStatus: String = "",
     val updateTarget: String = "",
     val locationAt: Long = 0L,
+    val shareBatteryAlerts: Boolean = false,
 ) {
     val hasLocation get() = updatedAt > 0 && (lat != 0.0 || lng != 0.0)
     val paused get() = pausedUntil > System.currentTimeMillis()
@@ -64,6 +65,7 @@ data class Member(
             findPhoneEnabled = d.getBoolean("findPhoneEnabled") ?: false,
             updateStatus = d.getString("updateStatus").orEmpty(), updateTarget = d.getString("updateTarget").orEmpty(),
             locationAt = d.getLong("locationAt") ?: 0L,
+            shareBatteryAlerts = d.getBoolean("shareBatteryAlerts") ?: false,
         )
     }
 }

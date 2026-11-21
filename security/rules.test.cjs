@@ -299,3 +299,36 @@ test('Juntos solo puede ser activado, probado o retirado por el administrador', 
   await assertFails(updateDoc(p(bob()),{featureFlags:{mapTogether:'all'}}));
   await assertFails(updateDoc(p(alice()),{featureFlags:{mapTogether:'yes'}}));
 });
+
+test('shared trips are opt-in per owner and administrator rollout controls access',async()=>{
+ const journey={name:'Universidad',lat:11.0,lng:-74.8,etaAt:Date.now()+600000,expiresAt:Date.now()+3600000,state:'active',updatedAt:serverTimestamp()};
+ await assertSucceeds(setDoc(p(alice(),'pairs/p/journeys/alice'),journey));
+ await assertFails(getDoc(p(bob(),'pairs/p/journeys/alice')));
+ await assertFails(setDoc(p(alice(),'pairs/p/journeys/bob'),journey));
+ await assertSucceeds(updateDoc(p(alice()),{featureFlags:{sharedTrips:'all',batteryAlerts:'all',photoFavorites:'all'}}));
+ await assertSucceeds(getDoc(p(bob(),'pairs/p/journeys/alice')));
+ await assertSucceeds(setDoc(p(bob(),'pairs/p/journeys/bob'),journey));
+ await assertFails(deleteDoc(p(alice(),'pairs/p/journeys/bob')));
+ await assertFails(updateDoc(p(bob(),'pairs/p/journeys/alice'),{state:'arrived',updatedAt:serverTimestamp()}));
+ await assertSucceeds(deleteDoc(p(bob(),'pairs/p/journeys/bob')));
+ await assertSucceeds(deleteDoc(p(alice(),'pairs/p/journeys/alice')));
+});
+test('shared trips reject unbounded retention and invalid coordinates',async()=>{
+ const base={name:'Casa',lat:11,lng:-74,etaAt:Date.now()+10000,expiresAt:Date.now()+3600000,state:'active',updatedAt:serverTimestamp()};
+ await assertFails(setDoc(p(alice(),'pairs/p/journeys/alice'),{...base,expiresAt:Date.now()+90000000}));
+ await assertFails(setDoc(p(alice(),'pairs/p/journeys/alice'),{...base,lat:91}));
+ await assertFails(setDoc(p(alice(),'pairs/p/journeys/alice'),{...base,uid:'bob'}));
+});
+test('only the receiver can acknowledge voice and cannot replace audio',async()=>{
+ await assertSucceeds(updateDoc(p(alice()),{featureFlags:{voiceNotes:'all'}}));
+ await assertSucceeds(setDoc(p(alice(),'pairs/p/voiceNotes/n'),{uid:'alice',audio:Bytes.fromUint8Array(new Uint8Array([1,2])),durationMs:500,createdAt:serverTimestamp()}));
+ await assertFails(updateDoc(p(alice(),'pairs/p/voiceNotes/n'),{receivedBy:'bob',receivedAt:serverTimestamp()}));
+ await assertFails(updateDoc(p(bob(),'pairs/p/voiceNotes/n'),{receivedBy:'alice',receivedAt:serverTimestamp()}));
+ await assertFails(updateDoc(p(bob(),'pairs/p/voiceNotes/n'),{receivedBy:'bob',receivedAt:serverTimestamp(),audio:Bytes.fromUint8Array(new Uint8Array([9]))}));
+ await assertSucceeds(updateDoc(p(bob(),'pairs/p/voiceNotes/n'),{receivedBy:'bob',receivedAt:serverTimestamp()}));
+});
+test('battery alert consent belongs to each phone owner',async()=>{
+ await assertSucceeds(updateDoc(p(alice(),'pairs/p/members/alice'),{shareBatteryAlerts:true}));
+ await assertFails(updateDoc(p(bob(),'pairs/p/members/alice'),{shareBatteryAlerts:false}));
+ await assertFails(updateDoc(p(alice(),'pairs/p/members/alice'),{shareBatteryAlerts:'yes'}));
+});

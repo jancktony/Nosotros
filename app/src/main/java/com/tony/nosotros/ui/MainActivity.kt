@@ -205,7 +205,7 @@ private fun MainShell(vm: MainViewModel) {
             when (tab) {
                 0 -> HomeScreen(vm, bottomInset = pad.calculateBottomPadding(), onSettings = { settings = true }, onNavigate = { navDestination = null; nav = true },
                     onAddPlace = { lat, lng -> editing = Place(lat = lat, lng = lng) },
-                    onEditPlace = { editing = it })
+                    onEditPlace = { editing = it }, onNavigatePlace = {navDestination = com.tony.nosotros.data.Routing.Hit(it.name,it.lat,it.lng);nav=true})
                 1 -> HistoryScreen(vm)
                 3 -> PhotosScreen(vm)
                 4 -> VoiceScreen(vm)

@@ -92,6 +92,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
     val p = vm.prefs
     var name by remember { mutableStateOf(p.myName) }
     var vehicle by remember { mutableStateOf(p.vehicle) }
+    var shareBatteryAlerts by remember { mutableStateOf(p.shareBatteryAlerts) }
     var nArrive by remember { mutableStateOf(p.notifyArrive) }
     var nLeave by remember { mutableStateOf(p.notifyLeave) }
     var nPause by remember { mutableStateOf(p.notifyPause) }
@@ -148,14 +149,27 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
 
         if (category == "Actividad") PresenceSettings(vm)
 
+        if(category == "Avisos" && LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.BATTERY_ALERTS)) {
+            Section(Ic.Battery,"Batería · aviso dentro de Nosotros") {
+                Toggle("Compartir mi aviso de batería baja",shareBatteryAlerts){
+                    shareBatteryAlerts=it;p.shareBatteryAlerts=it
+                    vm.pairId.value?.let { pair -> com.tony.nosotros.data.Repo.updateMe(pair,mapOf("shareBatteryAlerts" to it)) }
+                    vm.refreshTracking()
+                }
+                Text("Voluntario. No añade notificaciones a la barra del teléfono.",color=C.sub,fontSize=13.sp)
+            }
+        }
         // ---------- Apariencia ----------
         if (category == "General") {
             Section(Ic.Palette, "Apariencia") {
                 Text("Tema", color = C.sub, fontSize = 14.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ThemeTile("Noche", Palettes.Night, theme == "night", Modifier.weight(1f)) { vm.setTheme("night") }
-                    ThemeTile("Claro", Palettes.Light, theme == "light", Modifier.weight(1f)) { vm.setTheme("light") }
-                    ThemeTile("Rosa", Palettes.Pink, theme == "pink", Modifier.weight(1f)) { vm.setTheme("pink") }
+                Text("Rosa original es el predeterminado. El tema se guarda solo en este teléfono.", color = C.sub, fontSize = 13.sp)
+                Palettes.choices.chunked(2).forEach { choices ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        choices.forEach { (label, palette) ->
+                            ThemeTile(label, palette, theme == palette.id, Modifier.weight(1f)) { vm.setTheme(palette.id) }
+                        }
+                    }
                 }
             }
         }

@@ -232,6 +232,14 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
                 }
                 IconButton(onClick = { navigating=false; arrived=false; along=0.0; dest = null; route = null }) { Icon(Ic.Close, "Quitar ruta", tint = C.sub) }
             }
+            if(LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.SHARED_TRIPS)) {
+                TextButton(onClick={scope.launch {
+                    val goal=dest ?: return@launch;val pair=vm.pairId.value ?: return@launch
+                    runCatching {com.tony.nosotros.data.SharedJourneys.share(pair,goal.name,goal.lat,goal.lng,r.seconds)}
+                        .onFailure {error="No se pudo compartir el viaje. Revisa internet."}
+                }},enabled=fresh){Text("Compartir este viaje")}
+                JourneyCard(vm)
+            }
             if(!navigating) Button(onClick={navigating=true;follow=true;fitKey++},enabled=fresh,modifier=Modifier.fillMaxWidth()){Text(if(fresh)"Iniciar navegación" else "Necesito una ubicación reciente")}
             if(navigating && offRoute) TextButton(onClick={dest=dest?.copy(); navigating=false; scope.launch {
                 val origin=myPt ?: return@launch;val goal=dest ?: return@launch;busy=true

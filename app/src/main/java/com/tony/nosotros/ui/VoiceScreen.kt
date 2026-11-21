@@ -75,6 +75,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
     var playing by remember { mutableStateOf<String?>(null) }
     var playJob by remember { mutableStateOf<Job?>(null) }
     var notes by remember { mutableStateOf(emptyList<VoiceNotes.Note>()) }
+    var pending by remember { mutableStateOf(voice.pending()) }
     var openMic by remember { mutableStateOf(false) }
     var seconds by remember { mutableIntStateOf(0) }
     val audioManager = remember { context.getSystemService(android.media.AudioManager::class.java) }
@@ -107,9 +108,9 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
         recording = false; sending = true
         audioManager.abandonAudioFocusRequest(noteFocus)
         scope.launch {
-            try { voice.send(); message = "Nota de voz enviada" }
-            catch (_: Exception) { message = "No se pudo enviar. Revisa tu conexión o graba un poco más." }
-            finally { sending = false }
+            try { voice.send(); message = "Nota guardada en el servidor · esperando recepción" }
+            catch (_: Exception) { message = "No se pudo enviar. Si la grabación fue válida, se conserva en Notas de voz para reintentar." }
+            finally { sending = false; pending = voice.pending() }
         }
     }
     LaunchedEffect(direct, saved) { if (!direct) tab = 1 else if (!saved) tab = 0 }
@@ -166,8 +167,12 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                     TextButton(onClick = { if (!radio.talking) showOptions = true }) { Text("Opciones", color = C.me) }
                 }
                 if (showOptions) AlertDialog(onDismissRequest = { showOptions = false },
-                    title = { Text("Opciones de voz") },
+                    title = { Text("Diagnóstico y opciones de voz") },
                     text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text("Recepción: ${if(radio.enabled) "activada" else "desactivada"}", color = C.text)
+                Text("Canal: ${if(radio.connected) "listo" else "sin confirmar"} · ${radio.message}", color = C.sub)
+                Text("No se abre el micrófono hasta mantener pulsado. Una buena señal de internet no garantiza una ruta WebRTC disponible.", color = C.sub, fontSize = 12.sp)
+                if(saved) TextButton(onClick = { showOptions = false; WalkieHub.release(); tab = 1 }) { Text("Si no conecta, grabar una nota") }
                 if (LocalFeatures.current.enabled(Feature.WALKIE_RELAY)) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Modo redes difíciles", color = C.text)
@@ -237,6 +242,20 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                     color = C.text, fontWeight = FontWeight.SemiBold)
                 Text("Suelta para enviar · máximo 30 s", color = C.sub, fontSize = 12.sp)
                 if (playing != null) TextButton(onClick = { playJob?.cancel(); voice.stopPlayback(); playing = null }) { Text("Detener reproducción") }
+                pending.forEach { draft ->
+                    Column(Modifier.fillMaxWidth().glassPanel().padding(14.dp)) {
+                        Text("Nota pendiente · ${maxOf(1,draft.duration/1000)} s", color = C.text)
+                        Text("Solo en este teléfono · no se envía automáticamente", color = C.sub, fontSize = 12.sp)
+                        Row {
+                            TextButton(enabled = !sending && !recording, onClick = { sending = true; scope.launch {
+                                runCatching { voice.sendDraft(draft) }.onSuccess { message = "Guardada en el servidor · esperando recepción" }
+                                    .onFailure { message = "Sigue pendiente. Revisa internet e inténtalo otra vez." }
+                                pending = voice.pending(); sending = false
+                            } }) { Text("Reintentar") }
+                            TextButton(enabled = !sending, onClick = { voice.discard(draft); pending = voice.pending() }) { Text("Descartar") }
+                        }
+                    }
+                }
                 if (notes.isEmpty()) Text("Aquí aparecerán sus notas de voz", color = C.sub, modifier = Modifier.padding(16.dp))
                 notes.forEach { note ->
                     Row(Modifier.fillMaxWidth().glassPanel(22.dp).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -250,7 +269,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                         }) { Text(if (playing == note.id) "■" else "▶", color = C.me, fontSize = 22.sp) }
                         Column(Modifier.weight(1f)) {
                             Text(if (note.uid == uid) "Tu voz" else partner, color = C.text, fontWeight = FontWeight.SemiBold)
-                            Text("${maxOf(1, note.duration / 1000)} segundos", color = C.sub, fontSize = 12.sp)
+                            Text("${maxOf(1, note.duration / 1000)} s · ${if(note.uid != uid) "Recibida" else if(note.received) "Recibida en su teléfono" else "Esperando recepción"}", color = C.sub, fontSize = 12.sp)
                         }
                         if (note.uid == uid || admin) TextButton(onClick = { scope.launch {
                             runCatching { voice.delete(note) }.onFailure { message = "No se pudo borrar la nota" }

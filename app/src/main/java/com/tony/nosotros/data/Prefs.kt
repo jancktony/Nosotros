@@ -89,8 +89,14 @@ class Prefs(ctx: Context) {
     var stillSince: Long
         get() = p.getLong("stillSince", 0L)
         set(v) = p.edit().putLong("stillSince", v).apply()
+    var shareBatteryAlerts: Boolean
+        get() = p.getBoolean("shareBatteryAlerts", false)
+        set(v) = p.edit().putBoolean("shareBatteryAlerts", v).apply()
+    var favoritePhotos: Set<String>
+        get() = p.getStringSet("favoritePhotos", emptySet())?.toSet().orEmpty()
+        set(v) = p.edit().putStringSet("favoritePhotos", v).apply()
     var theme: String
-        get() = p.getString("theme", "night") ?: "night"
+        get() = p.getString("theme", "pink") ?: "pink"
         set(v) = p.edit().putString("theme", v).apply()
     var mapSatellite: Boolean
         get() = p.getBoolean("sat", false)

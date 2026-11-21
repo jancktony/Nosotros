@@ -7,12 +7,29 @@ import com.google.firebase.firestore.Blob
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.MetadataChanges
+import com.google.firebase.firestore.Source
+import kotlinx.coroutines.withTimeout
 import com.tony.nosotros.data.Repo
 import java.io.File
 import kotlinx.coroutines.tasks.await
 
 class VoiceNotes(private val context: Context, private val pairId: String) {
-    data class Note(val id: String, val uid: String, val duration: Long)
+    data class Note(val id: String, val uid: String, val duration: Long, val received: Boolean = false)
+    data class Draft(val id: String, val duration: Long)
+    private val draftDirectory: File get() {
+        val uid = requireNotNull(Repo.uid)
+        val key = java.security.MessageDigest.getInstance("SHA-256").digest("$pairId:$uid".toByteArray()).joinToString("") { "%02x".format(it) }
+        return File(context.filesDir, "voice-drafts/$key").apply { mkdirs() }
+    }
+    fun pending(): List<Draft> = draftDirectory.listFiles().orEmpty().filter { it.name.matches(Regex("[a-f0-9-]+_[0-9]+\\.m4a")) }.map {
+        Draft(it.nameWithoutExtension.substringBefore('_'), it.nameWithoutExtension.substringAfter('_').toLong())
+    }
+    private fun draftFile(draft: Draft): File {
+        require(draft.id.matches(Regex("[a-f0-9-]+")) && draft.duration in 300..30000)
+        return File(draftDirectory,"${draft.id}_${draft.duration}.m4a")
+    }
+    fun discard(draft: Draft) { draftFile(draft).delete() }
     private val notes get() = Repo.db.collection("pairs").document(pairId).collection("voiceNotes")
     private var recorder: MediaRecorder? = null
     private var file: File? = null
@@ -21,10 +38,17 @@ class VoiceNotes(private val context: Context, private val pairId: String) {
     private var playingFile: File? = null
 
     fun listen(result: (List<Note>) -> Unit, error: () -> Unit): ListenerRegistration =
-        notes.orderBy("createdAt", Query.Direction.DESCENDING).limit(30).addSnapshotListener { snapshot, e ->
-            if (e != null) error() else result(snapshot?.documents.orEmpty().map {
-                Note(it.id, it.getString("uid").orEmpty(), it.getLong("durationMs") ?: 0)
-            })
+        notes.orderBy("createdAt", Query.Direction.DESCENDING).limit(30).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, e ->
+            if (e != null) error() else {
+                val uid = Repo.uid
+                snapshot?.documents.orEmpty().forEach { doc ->
+                    if (!doc.metadata.isFromCache && !doc.metadata.hasPendingWrites() && uid != null && doc.getString("uid") != uid && doc.getString("receivedBy") != uid)
+                        doc.reference.update(mapOf("receivedBy" to uid, "receivedAt" to FieldValue.serverTimestamp()))
+                }
+                result(snapshot?.documents.orEmpty().map {
+                    Note(it.id, it.getString("uid").orEmpty(), it.getLong("durationMs") ?: 0, it.getString("receivedBy") != null)
+                })
+            }
         }
 
     @Suppress("DEPRECATION")
@@ -57,16 +81,28 @@ class VoiceNotes(private val context: Context, private val pairId: String) {
     suspend fun send() {
         val rec = recorder ?: return
         recorder = null
-        val target = file
-        file = null
+        val target = file; file = null
         val duration = (android.os.SystemClock.elapsedRealtime() - started).coerceAtMost(30000)
         try {
             try { rec.stop() } finally { rec.release() }
             require(duration >= 300 && target != null && target.length() in 1..150000) { "Grabación demasiado corta" }
-            val uid = Repo.ensureSignedIn()
-            notes.add(mapOf("uid" to uid, "audio" to Blob.fromBytes(target.readBytes()),
-                "durationMs" to duration, "createdAt" to FieldValue.serverTimestamp())).await()
+            val draft = Draft(java.util.UUID.randomUUID().toString(), duration)
+            target.copyTo(draftFile(draft)); target.delete()
+            sendDraft(draft)
         } finally { target?.delete() }
+    }
+
+    /** Same document id on retries: a lost acknowledgement must not duplicate the note. */
+    suspend fun sendDraft(draft: Draft) = withTimeout(12_000) {
+        val target = draftFile(draft)
+        val bytes = target.readBytes(); require(bytes.size in 1..150000)
+        val uid = Repo.ensureSignedIn()
+        val ref = notes.document(draft.id)
+        val existing = ref.get(Source.SERVER).await()
+        if (!existing.exists()) ref.set(mapOf("uid" to uid, "audio" to Blob.fromBytes(bytes),
+            "durationMs" to draft.duration, "createdAt" to FieldValue.serverTimestamp())).await()
+        else require(existing.getString("uid") == uid && existing.getBlob("audio")?.toBytes()?.contentEquals(bytes) == true)
+        target.delete(); Unit
     }
 
     suspend fun play(note: Note, completed: () -> Unit) {

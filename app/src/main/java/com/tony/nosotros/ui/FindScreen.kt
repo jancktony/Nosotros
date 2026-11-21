@@ -1,5 +1,6 @@
 package com.tony.nosotros.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,9 +26,17 @@ fun MoreScreen(onSettings: () -> Unit, onScreen: (Int) -> Unit) {
             Text("Más", Modifier.weight(1f), style = MaterialTheme.typography.headlineMedium)
             IconButton(onClick = onSettings) { Icon(Ic.Gear, "Ajustes", tint = C.text) }
         }
-        SettingsLink(Ic.Clock, "Historial", "Sus recorridos y paradas") { onScreen(1) }
-        SettingsLink(Ic.Pin, "Lugares", "Sus puntos de encuentro") { onScreen(2) }
-        SettingsLink(Ic.Layers, "Galería", "Sus recuerdos") { onScreen(3) }
+        val cards=listOf(Triple(Ic.Clock,"Historial",1),Triple(Ic.Pin,"Lugares",2),Triple(Ic.Layers,"Galería",3))
+        cards.chunked(2).forEach {row ->
+            Row(Modifier.fillMaxWidth().padding(top=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                row.forEach { (icon,title,tab) ->
+                    Column(Modifier.weight(1f).glassPanel().clickable {onScreen(tab)}.heightIn(min=125.dp).padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
+                        Icon(icon,null,tint=C.me);Text(title,color=C.text,style=MaterialTheme.typography.titleMedium)
+                    }
+                }
+                if(row.size==1)Spacer(Modifier.weight(1f))
+            }
+        }
     }
 }
 
