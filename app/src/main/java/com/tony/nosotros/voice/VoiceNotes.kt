@@ -9,12 +9,17 @@ import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.Source
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.withTimeout
 import com.tony.nosotros.data.Repo
 import java.io.File
 import kotlinx.coroutines.tasks.await
 
-class VoiceNotes(private val context: Context, private val pairId: String, private val actor: () -> String = { requireNotNull(Repo.uid) }) {
+class VoiceNotes(private val context: Context, private val pairId: String,
+    private val backend: FirebaseFirestore? = null,
+    private val session: suspend () -> String = { Repo.ensureSignedIn() },
+    private val signedActor: () -> String? = { Repo.uid },
+    private val actor: () -> String = { requireNotNull(signedActor()) }) {
     data class Note(val id: String, val uid: String, val duration: Long, val received: Boolean = false)
     data class Draft(val id: String, val duration: Long)
     private val draftDirectory: File get() {
@@ -30,7 +35,7 @@ class VoiceNotes(private val context: Context, private val pairId: String, priva
         return File(draftDirectory,"${draft.id}_${draft.duration}.m4a")
     }
     fun discard(draft: Draft) { draftFile(draft).delete() }
-    private val notes get() = Repo.db.collection("pairs").document(pairId).collection("voiceNotes")
+    private val notes get() = (backend ?: Repo.db).collection("pairs").document(pairId).collection("voiceNotes")
     private var recorder: MediaRecorder? = null
     private var file: File? = null
     private var started = 0L
@@ -39,8 +44,8 @@ class VoiceNotes(private val context: Context, private val pairId: String, priva
 
     fun listen(result: (List<Note>) -> Unit, error: () -> Unit): ListenerRegistration =
         notes.orderBy("createdAt", Query.Direction.DESCENDING).limit(30).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, e ->
-            if (e != null || Repo.uid != actor()) error() else {
-                val uid = Repo.uid
+            if (e != null || signedActor() != actor()) error() else {
+                val uid = signedActor()
                 val drafts=pending().associateBy {it.id}
                 snapshot?.documents.orEmpty().forEach { doc ->
                     if(!doc.metadata.isFromCache && !doc.metadata.hasPendingWrites() && doc.getString("uid")==uid) {
@@ -105,7 +110,7 @@ class VoiceNotes(private val context: Context, private val pairId: String, priva
     suspend fun sendDraft(draft: Draft) = withTimeout(12_000) {
         val target = draftFile(draft)
         val bytes = target.readBytes(); require(bytes.size in 1..150000)
-        val uid = Repo.ensureSignedIn(); require(uid == actor())
+        val uid = session(); require(uid == actor())
         val ref = notes.document(draft.id)
         val existing = ref.get(Source.SERVER).await()
         if (!existing.exists()) ref.set(mapOf("uid" to uid, "audio" to Blob.fromBytes(bytes),
