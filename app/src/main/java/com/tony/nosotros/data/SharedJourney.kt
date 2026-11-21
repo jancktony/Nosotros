@@ -23,6 +23,14 @@ object SharedJourneys {
             "etaAt" to now+duration,"expiresAt" to now+(duration*2).coerceIn(3_600_000,86_400_000),
             "state" to "active","updatedAt" to FieldValue.serverTimestamp())).await()
     }
+    suspend fun cleanupExpired(pair: String) {
+        val ref=root(pair).document(Repo.ensureSignedIn())
+        Repo.db.runTransaction { tx ->
+            val current=tx.get(ref)
+            if(current.exists() && (current.getLong("expiresAt") ?: Long.MAX_VALUE)<=System.currentTimeMillis())tx.delete(ref)
+            Unit
+        }.await()
+    }
     suspend fun cancel(pair: String) { root(pair).document(Repo.ensureSignedIn()).delete().await() }
     fun arrive(pair: String, uid: String) = root(pair).document(uid).update(mapOf("state" to "arrived","updatedAt" to FieldValue.serverTimestamp()))
 }

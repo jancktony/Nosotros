@@ -137,6 +137,9 @@ class Prefs(ctx: Context) {
     var partnerPlace: String?
         get() = p.getString("pPlace", null)
         set(v) = p.edit().putString("pPlace", v).apply()
+    var myLocationAt: Long
+        get() = p.getLong("myLocationAt",0L)
+        set(v) = p.edit().putLong("myLocationAt",v).apply()
     var myLat: Double
         get() = java.lang.Double.longBitsToDouble(p.getLong("mLat", 0L))
         set(v) = p.edit().putLong("mLat", java.lang.Double.doubleToRawLongBits(v)).apply()

@@ -11,7 +11,7 @@ on:
         default: ''
 concurrency:
   group: android-candidates
-  cancel-in-progress: ${{ github.ref_name == 'feature/experiencia-1.15.8' || github.ref_name == 'feature/calidad-1.15.9' }}
+  cancel-in-progress: ${{ github.ref_name == 'feature/experiencia-completa-1.16' || github.ref_name == 'feature/experiencia-1.15.8' || github.ref_name == 'feature/calidad-1.15.9' }}
 permissions:
   contents: write
   actions: read

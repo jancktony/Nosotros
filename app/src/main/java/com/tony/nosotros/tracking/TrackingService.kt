@@ -322,7 +322,7 @@ class TrackingService : Service() {
         val low = prefs.extremeSaving && level in 1..19 && !bm.isCharging
         if (low != lowBattery) { lowBattery = low; applyPolicy() }
 
-        prefs.myLat = loc.latitude; prefs.myLng = loc.longitude
+        prefs.myLat = loc.latitude; prefs.myLng = loc.longitude; prefs.myLocationAt = loc.time
         if (System.currentTimeMillis() - lastWidgetUpdate > 60_000) {
             lastWidgetUpdate = System.currentTimeMillis(); Widgets.updateAll(this)
         }
@@ -513,7 +513,7 @@ class TrackingService : Service() {
                             prefs.partnerLat = m.lat; prefs.partnerLng = m.lng
                         }
                         prefs.partnerPaused = m.paused
-                        prefs.partnerUpdated = m.updatedAt
+                        prefs.partnerUpdated = m.locationAt
                         prefs.partnerMode = if (m.paused) "" else m.mode.name
                         prefs.partnerPlace = m.placeName
                         updateNotification()

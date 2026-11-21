@@ -9,6 +9,8 @@ import android.content.Intent
 import android.os.Bundle
 import com.tony.nosotros.data.Repo
 import android.widget.RemoteViews
+import androidx.compose.ui.graphics.toArgb
+import com.tony.nosotros.ui.Palettes
 import com.tony.nosotros.App
 import com.tony.nosotros.R
 import com.tony.nosotros.data.Mode
@@ -31,7 +33,14 @@ object Widgets {
     )
 
     internal fun signedIn() = App.firebaseConfigured && Repo.authorizedSession
-    internal fun pink(ctx: Context) = (ctx.applicationContext as App).prefs.theme == "pink"
+    internal fun pink(ctx: Context) = !Palettes.of((ctx.applicationContext as App).prefs.theme).dark
+    internal fun applyTheme(ctx: Context, views: RemoteViews){
+        val p=Palettes.of((ctx.applicationContext as App).prefs.theme)
+        val bg=when(p.id){"redblack"->R.drawable.widget_bg_redblack;"blackpink"->R.drawable.widget_bg_blackpink;"fullpink"->R.drawable.widget_bg_fullpink;else->if(p.dark)R.drawable.widget_bg_night else R.drawable.widget_bg_pink}
+        views.setInt(R.id.w_root,"setBackgroundResource",bg)
+        views.setTextColor(R.id.w_title,p.text.toArgb());views.setTextColor(R.id.w_detail,p.sub.toArgb())
+        views.setTextColor(R.id.w_value,if(p.id=="redblack")0xFFFF304F.toInt() else p.me.toArgb())
+    }
 }
 
 /** Widget: a qué distancia estamos. */
@@ -44,7 +53,7 @@ class DistanceWidget : AppWidgetProvider() {
             val pink = Widgets.pink(ctx)
             val v = RemoteViews(ctx.packageName, if (pink) R.layout.widget_distance_pink else R.layout.widget_distance)
             val name = p.partnerName.ifBlank { "Tu pareja" }
-            val dist = distanceWidgetValue(Widgets.signedIn(), p.partnerPaused, p.partnerUpdated, p.myLat, p.myLng, p.partnerLat, p.partnerLng)
+            val dist = distanceWidgetValue(Widgets.signedIn(), p.partnerPaused, p.partnerUpdated, p.myLat, p.myLng, p.partnerLat, p.partnerLng, myLocationAt=p.myLocationAt)
             v.setTextViewText(R.id.w_title, "Distancia con $name")
             v.setTextViewText(R.id.w_value, dist)
             val mode = Mode.of(p.partnerMode)
@@ -57,6 +66,7 @@ class DistanceWidget : AppWidgetProvider() {
                 else -> TimeFmt.ago(p.partnerUpdated)
             }
             v.setTextViewText(R.id.w_detail, detail)
+            Widgets.applyTheme(ctx,v)
             v.setOnClickPendingIntent(R.id.w_root, Widgets.openApp(ctx))
             mgr.updateAppWidget(id, v)
         }
@@ -88,6 +98,7 @@ class TogetherWidget : AppWidgetProvider() {
                 }
                 v.setTextViewText(R.id.w_detail, "${Together.longText(s)} · ${s.hours} h\n$extra")
             }
+            Widgets.applyTheme(ctx,v)
             v.setOnClickPendingIntent(R.id.w_root, Widgets.openApp(ctx))
             mgr.updateAppWidget(id, v)
         }
@@ -114,12 +125,13 @@ internal object CompactWidgets {
             !Widgets.signedIn() -> "Inicia sesión"
             span == null -> "Sin fecha"
             else -> "${span.totalDays} días"
-        } else distanceWidgetValue(Widgets.signedIn(), p.partnerPaused, p.partnerUpdated, p.myLat, p.myLng, p.partnerLat, p.partnerLng)
+        } else distanceWidgetValue(Widgets.signedIn(), p.partnerPaused, p.partnerUpdated, p.myLat, p.myLng, p.partnerLat, p.partnerLng, myLocationAt=p.myLocationAt)
         val enabled = p.featureEnabled(com.tony.nosotros.data.Feature.COMPACT_WIDGETS)
         v.setTextViewText(R.id.w_value, if (enabled) value else "Desactivado")
         v.setTextViewText(R.id.w_detail, if (!enabled || !Widgets.signedIn()) "Nosotros" else if (days) "♥" else if (p.partnerPaused) "En pausa" else if (p.partnerUpdated > 0) TimeFmt.ago(p.partnerUpdated) else "Esperando señal")
         v.setTextColor(R.id.w_value, if (days) 0xFFF9A8D4.toInt() else 0xFF5EEAD4.toInt())
-        v.setOnClickPendingIntent(R.id.w_root, Widgets.openApp(ctx))
+        Widgets.applyTheme(ctx,v)
+            v.setOnClickPendingIntent(R.id.w_root, Widgets.openApp(ctx))
         mgr.updateAppWidget(id, v)
     }
 }

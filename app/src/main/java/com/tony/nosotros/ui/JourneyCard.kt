@@ -15,6 +15,8 @@ fun JourneyCard(vm: MainViewModel) {
     if(pair==null || !LocalFeatures.current.enabled(Feature.SHARED_TRIPS))return
     val flow=remember(pair){SharedJourneys.flow(pair!!)}
     val journeys by flow.collectAsState(initial=emptyList())
+    val expired=journeys.firstOrNull {it.uid==uid && it.expiresAt<=now}
+    LaunchedEffect(pair,expired?.expiresAt){if(expired!=null)runCatching {SharedJourneys.cleanupExpired(pair!!)}}
     val scope=rememberCoroutineScope();var error by remember { mutableStateOf<String?>(null) }
     journeys.filter { it.expiresAt>now }.forEach { journey ->
         Column(Modifier.fillMaxWidth().glassPanel().padding(14.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {
