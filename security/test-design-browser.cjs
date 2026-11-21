@@ -56,6 +56,15 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
     assert.equal(await page.locator('[data-theme-choice][aria-pressed="true"]').count(),1);
     const fit=await page.locator('.theme-choices').evaluate(e=>e.scrollWidth<=e.clientWidth+1);
     assert.equal(fit,true,'Theme options overflow '+width);
+    await page.evaluate(()=>document.querySelector('[data-go="more"]').click());
+    const moreColors=await page.evaluate(()=>{
+     const probe=document.createElement('span');probe.style.color='var(--ui)';document.body.append(probe);
+     const expected=getComputedStyle(probe).color;probe.remove();
+     return {expected,actual:[...document.querySelectorAll('#screen-more .more-card>span:first-child,#screen-more .story-card>span')].map(e=>getComputedStyle(e).color)};
+    });
+    assert.equal(moreColors.actual.length,6);
+    assert.ok(moreColors.actual.every(c=>c===moreColors.expected),'More icons must follow '+theme+' at '+width);
+    await page.evaluate(()=>document.querySelector('[data-go="settings"]').click());
    }
    await page.locator('[data-theme-choice="redblack"]').click();await page.reload();
    await page.waitForFunction(()=>!document.getElementById('preview').hidden);

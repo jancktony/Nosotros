@@ -43,3 +43,9 @@ input{caret-color:var(--ui)}button:focus-visible,input:focus-visible{outline-col
 :root[data-theme=redblack] .days,:root[data-theme=redblack] .pair-avatars .avatar{border-color:#ff304f;box-shadow:none}
 :root[data-theme=redblack] .map-tools,:root[data-theme=redblack] .map-settings{color:#ff304f}
 :root[data-theme=redblack] .switch.on:after{background:#fff}
+
+/* Más debe usar el tema elegido, incluidos los antiguos acentos por posición. */
+#screen-more .more-card>span:first-child{color:var(--ui);background:var(--soft)}
+#screen-more .story-card>span{color:var(--ui)}
+#screen-more .more-card,#screen-more .story-card{background:var(--panel);border-color:var(--line)}
+#screen-more .more-card:hover{background:var(--soft)}
