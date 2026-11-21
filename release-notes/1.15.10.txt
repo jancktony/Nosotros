@@ -1,0 +1,8 @@
+Candidata privada 1.15.10 · pruebas del administrador
+
+• Walkie: vuelve a intentar preparar la conexión después de tres fallos, con espera gradual y limitada mientras tienes Voz abierta o mantienes pulsado. Evita reintentar una negociación que todavía está activa. El micrófono sigue requiriendo una pulsación vigente.
+• Navegación: utiliza la hora real de la medición GPS, su precisión y la pausa. La actividad del teléfono ya no hace parecer reciente una ubicación antigua.
+
+Esta candidata conserva la interfaz instalada. Las propuestas de viajes, respaldo de voz, batería, recuerdos y nuevos temas siguen en la vista previa y no se anuncian como funciones de esta APK. Street View queda para después.
+
+Prueba primero entre ambos teléfonos. Estos cambios no garantizan atravesar redes que bloquean conexiones directas. Solo Jancktony decide cuándo liberar esta versión a Kelin.
