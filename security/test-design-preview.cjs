@@ -4,6 +4,7 @@ const w=dom.window,d=w.document;
 w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','')};
 w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open')};
 w.eval("function initializeApp(){return {}};function getAuth(){return {}};function onAuthStateChanged(a,cb){cb(null)};function setPersistence(){return Promise.resolve()};function signInWithEmailAndPassword(){return Promise.resolve()};function signOut(){return Promise.resolve()};const browserSessionPersistence={};");
+w.eval(readFileSync('preview-juntos/mejoras.js','utf8'));
 w.eval(readFileSync('preview-juntos/rediseno.js','utf8').replace(/^import[^\n]*\n/gm,''));
 const click=s=>{const el=d.querySelector(s);assert.ok(el,'Missing control: '+s);el.click();return el};
 try {
@@ -65,5 +66,21 @@ try {
  handle.dispatchEvent(new w.MouseEvent('pointerdown',{clientY:100}));handle.dispatchEvent(new w.MouseEvent('pointerup',{clientY:150}));handle.click();
  assert.equal(d.getElementById('person-sheet').dataset.size,'compact');
  handle.click();assert.equal(d.getElementById('person-sheet').dataset.size,'expanded');
+ click('[data-go="improvements"]');assert.equal(d.getElementById('screen-improvements').hidden,false);
+ click('[data-trial="voice-fail"]');assert.match(d.getElementById('voice-trial-status').textContent,/conservada/);
+ click('[data-trial="voice-retry"]');assert.match(d.getElementById('voice-trial-status').textContent,/sigue conservada/);
+ click('[data-trial="voice-send"]');assert.match(d.getElementById('voice-trial-status').textContent,/no confirma/);
+ click('[data-trial="voice-receive"]');assert.match(d.getElementById('voice-trial-status').textContent,/acuse simulado/);
+ click('[data-improvement="1"]');click('[data-trial="trip-start"]');click('[data-trial="trip-cancel"]');assert.match(d.getElementById('trip-trial-status').textContent,/cancelado/);
+ click('[data-trial="trip-start"]');click('[data-trial="trip-arrive"]');assert.match(d.getElementById('trip-trial-status').textContent,/Llegué/);
+ click('[data-improvement="2"]');click('[data-gps="1"]');assert.match(d.getElementById('gps-trial-status').textContent,/distancia por confirmar/);
+ click('[data-improvement="3"]');click('[data-trial="battery-low"]');assert.match(d.getElementById('battery-trial-status').textContent,/No se comparte/);
+ click('[data-trial="battery-toggle"]');click('[data-trial="battery-low"]');assert.match(d.getElementById('battery-trial-status').textContent,/15 %/);
+ click('[data-improvement="4"]');click('[data-trial="favorite"]');assert.equal(d.querySelector('[data-trial="favorite"]').getAttribute('aria-pressed'),'true');
+ click('[data-improvement="5"]');assert.equal(d.querySelector('[data-trial="test-release"]').disabled,true);
+ click('[data-trial="test-approve"]');assert.equal(d.querySelector('[data-trial="test-release"]').disabled,false);
+ d.getElementById('trial-feedback').value='<b>Corregir</b>';d.getElementById('trial-feedback').dispatchEvent(new w.Event('input',{bubbles:true}));assert.equal(d.querySelector('[data-trial="test-release"]').disabled,true);
+ click('[data-trial="test-correct"]');click('[data-improvement="0"]');click('[data-improvement="5"]');assert.equal(d.getElementById('trial-feedback').value,'<b>Corregir</b>');
+ click('[data-trial="test-approve"]');click('[data-trial="test-release"]');assert.match(d.getElementById('test-trial-status').textContent,/No se publicó/);
  console.log('Private gate and interactive navigation, voice, places, history, gallery, profile and simulated release checks passed.');
 } finally { w.close(); }

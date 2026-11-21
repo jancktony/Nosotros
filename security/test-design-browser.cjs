@@ -19,7 +19,7 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
    await page.goto('http://127.0.0.1:'+server.address().port+'/rediseno.html');
    await page.waitForFunction(()=>!document.getElementById('preview').hidden);
    assert.equal(await page.locator('html').getAttribute('data-theme'),'pink');
-   for(const id of ['map','voice','find','history','places','photos','more','settings','admin']){
+   for(const id of ['map','voice','find','history','places','photos','more','settings','admin','improvements']){
     await page.evaluate(id=>document.querySelector('[data-go="'+id+'"]').click(),id);
     await page.waitForTimeout(300);
     const bad=await page.evaluate(()=>{
@@ -66,6 +66,15 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
     assert.ok(moreColors.actual.every(c=>c===moreColors.expected),'More icons must follow '+theme+' at '+width);
     await page.evaluate(()=>document.querySelector('[data-go="settings"]').click());
    }
+   await page.evaluate(()=>document.querySelector('[data-go="improvements"]').click());
+   for(const tab of ['0','1','2','3','4','5']){
+    await page.locator('[data-improvement="'+tab+'"]').click();
+    const fit=await page.locator('#improvement-content').evaluate(e=>[...e.querySelectorAll('button,textarea')].every(b=>b.scrollWidth<=b.clientWidth+2));
+    assert.equal(fit,true,'Improvement controls overflow '+tab+' at '+width);
+   }
+   await page.locator('[data-trial="test-approve"]').click();assert.equal(await page.locator('[data-trial="test-release"]').isEnabled(),true);
+   await page.locator('#trial-feedback').fill('Hay que corregir el ejemplo');assert.equal(await page.locator('[data-trial="test-release"]').isEnabled(),false);
+   await page.evaluate(()=>document.querySelector('[data-go="settings"]').click());
    await page.locator('[data-theme-choice="redblack"]').click();await page.reload();
    await page.waitForFunction(()=>!document.getElementById('preview').hidden);
    assert.equal(await page.locator('html').getAttribute('data-theme'),'redblack','Choice survives reload');
