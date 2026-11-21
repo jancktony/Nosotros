@@ -18,6 +18,7 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
    await page.route('https://unpkg.com/**',route=>route.abort());
    await page.goto('http://127.0.0.1:'+server.address().port+'/rediseno.html');
    await page.waitForFunction(()=>!document.getElementById('preview').hidden);
+   assert.equal(await page.locator('html').getAttribute('data-theme'),'pink');
    for(const id of ['map','voice','find','history','places','photos','more','settings','admin']){
     await page.evaluate(id=>document.querySelector('[data-go="'+id+'"]').click(),id);
     await page.waitForTimeout(300);
@@ -46,6 +47,20 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
    await page.evaluate(()=>document.querySelector('[data-go="settings"]').click());
    await page.locator('[data-setting="General"]').click();
    const original=await page.evaluate(()=>['--mint','--pink'].map(n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim()));
+   for(const theme of ['redblack','blackpink','fullpink','pink']){
+    await page.locator('[data-theme-choice="'+theme+'"]').click();
+    assert.equal(await page.locator('html').getAttribute('data-theme'),theme);
+    const colors=await page.evaluate(()=>['--bg','--ui','--ink'].map(n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim()));
+    assert.equal(colors[0],{pink:'#f9f0f3',redblack:'#0b0b0d',blackpink:'#120e13',fullpink:'#fce4ef'}[theme]);
+    assert.equal(await page.locator('[data-theme-choice][aria-pressed="true"]').count(),1);
+    const fit=await page.locator('.theme-choices').evaluate(e=>e.scrollWidth<=e.clientWidth+1);
+    assert.equal(fit,true,'Theme options overflow '+width);
+   }
+   await page.locator('[data-theme-choice="redblack"]').click();await page.reload();
+   await page.waitForFunction(()=>!document.getElementById('preview').hidden);
+   assert.equal(await page.locator('html').getAttribute('data-theme'),'redblack','Choice survives reload');
+   await page.evaluate(()=>document.querySelector('[data-go="settings"]').click());
+   await page.locator('[data-theme-choice="pink"]').click();
    await page.locator('[data-accent="lilac"]').click();
    const changed=await page.evaluate(()=>['--mint','--pink'].map(n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim()));
    assert.deepEqual(changed,original,'Base colors changed '+width);

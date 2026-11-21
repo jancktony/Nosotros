@@ -8,6 +8,7 @@ w.eval(readFileSync('preview-juntos/rediseno.js','utf8').replace(/^import[^\n]*\
 const click=s=>{const el=d.querySelector(s);assert.ok(el,'Missing control: '+s);el.click();return el};
 try {
  assert.equal(d.getElementById('preview').hidden,true,'The proposal must stay gated before authentication');
+ assert.equal(d.documentElement.dataset.theme,'pink','Fresh default is original pink');
  d.getElementById('preview').hidden=false;
  for(const page of ['voice','find','history','places','photos','settings','admin','map']){
   click('[data-go="'+page+'"]');assert.equal(d.getElementById('screen-'+page).hidden,false);
@@ -43,6 +44,7 @@ try {
  click('#sheet-toggle');assert.equal(d.querySelector('.sheet-details').hidden,false);
  click('#mobile');assert.ok(d.body.classList.contains('compact'));click('#wide');assert.ok(!d.body.classList.contains('compact'));
  click('[data-go="settings"]');click('[data-setting="General"]');
+ for(const theme of ['redblack','blackpink','fullpink','pink']){click('[data-theme-choice="'+theme+'"]');assert.equal(d.documentElement.dataset.theme,theme);assert.equal(w.localStorage.getItem('nosotros-preview-theme'),theme);assert.equal(d.querySelectorAll('[data-theme-choice][aria-pressed="true"]').length,1)}
  click('[data-accent="lilac"]');assert.equal(d.documentElement.style.getPropertyValue('--accent'),'#c7b7f3');
  assert.equal(d.documentElement.style.getPropertyValue('--mint'),'');assert.equal(d.documentElement.style.getPropertyValue('--pink'),'');
  click('[data-go="map"]');
