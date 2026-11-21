@@ -42,5 +42,26 @@ try {
  click('#select-kelin');assert.equal(d.querySelector('.activity-line b').textContent,'Instagram');
  click('#sheet-toggle');assert.equal(d.querySelector('.sheet-details').hidden,false);
  click('#mobile');assert.ok(d.body.classList.contains('compact'));click('#wide');assert.ok(!d.body.classList.contains('compact'));
+ click('[data-go="settings"]');click('[data-setting="General"]');
+ click('[data-accent="lilac"]');assert.equal(d.documentElement.style.getPropertyValue('--accent'),'#c7b7f3');
+ assert.equal(d.documentElement.style.getPropertyValue('--mint'),'');assert.equal(d.documentElement.style.getPropertyValue('--pink'),'');
+ click('[data-go="map"]');
+ const input=d.getElementById('map-search');input.value='<b>Casa de ejemplo</b>';
+ d.getElementById('sheet-search').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+ assert.equal(d.getElementById('destination-title').textContent,'<b>Casa de ejemplo</b>');
+ assert.equal(d.getElementById('destination-title').children.length,0);
+ click('#start-destination');assert.equal(d.getElementById('route-panel').hidden,false);
+ assert.ok(d.querySelector('.app').classList.contains('navigating'));
+ assert.match(d.getElementById('arrival-time').textContent,/\d/);
+ click('#route-summary');assert.equal(d.getElementById('route-actions').hidden,false);
+ const before=Number(d.getElementById('remaining-distance').textContent.replace(',','.'));
+ click('#add-demo-stop');assert.equal(d.getElementById('add-demo-stop').disabled,true);
+ assert.ok(Number(d.getElementById('remaining-distance').textContent.replace(',','.'))>=before);
+ click('#finish-route');assert.equal(d.getElementById('route-panel').hidden,true);
+ assert.ok(!d.querySelector('.app').classList.contains('navigating'));
+ const handle=d.getElementById('sheet-toggle');
+ handle.dispatchEvent(new w.MouseEvent('pointerdown',{clientY:100}));handle.dispatchEvent(new w.MouseEvent('pointerup',{clientY:150}));handle.click();
+ assert.equal(d.getElementById('person-sheet').dataset.size,'compact');
+ handle.click();assert.equal(d.getElementById('person-sheet').dataset.size,'expanded');
  console.log('Private gate and interactive navigation, voice, places, history, gallery, profile and simulated release checks passed.');
 } finally { w.close(); }

@@ -32,7 +32,32 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
     });
     assert.deepEqual(bad,[],'Clipped controls at width '+width+' on '+id+': '+bad.join(', '));
    }
-   console.log('No horizontal overflow/clipped controls: '+width+'px');
+   await page.evaluate(()=>document.querySelector('[data-go="map"]').click());
+   await page.locator('#route').click();await page.locator('#end-route').click();
+   const handle=page.locator('#sheet-toggle'),grip=await handle.boundingBox();
+   await page.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2);await page.mouse.down();
+   await page.mouse.move(grip.x+grip.width/2,grip.y+grip.height/2+60,{steps:5});await page.mouse.up();
+   assert.equal(await page.locator('#person-sheet').getAttribute('data-size'),'compact','Drag-down compact sheet '+width);
+   await page.locator('#route').click();await page.locator('#route-summary').click();
+   assert.equal(await page.locator('#route-actions').isVisible(),true);
+   const routeFit=await page.locator('#route-summary').evaluate(e=>e.scrollWidth<=e.clientWidth+1);
+   assert.equal(routeFit,true,'Route metrics overflow '+width);
+   await page.locator('#finish-route').click();assert.equal(await page.locator('#route-panel').isVisible(),false);
+   await page.evaluate(()=>document.querySelector('[data-go="settings"]').click());
+   await page.locator('[data-setting="General"]').click();
+   const original=await page.evaluate(()=>['--mint','--pink'].map(n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim()));
+   await page.locator('[data-accent="lilac"]').click();
+   const changed=await page.evaluate(()=>['--mint','--pink'].map(n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim()));
+   assert.deepEqual(changed,original,'Base colors changed '+width);
+   assert.deepEqual(original,['#a1e4cf','#efc4d3']);
+   await page.evaluate(()=>document.querySelector('[data-go="voice"]').click());
+   const mic=await page.locator('#mic').boundingBox(),nav=await page.locator('#bottom-nav').boundingBox();
+   if(nav)assert.ok(mic.y+mic.height<=nav.y,'Microphone behind navigation '+width);
+   await page.mouse.move(mic.x+mic.width/2,mic.y+mic.height/2);await page.mouse.down();
+   await page.mouse.move(mic.x+mic.width+40,mic.y+mic.height+20,{steps:4});
+   assert.equal(await page.locator('#mic').getAttribute('aria-pressed'),'true');await page.mouse.up();
+   assert.equal(await page.locator('#mic').getAttribute('aria-pressed'),'false');
+   console.log('Navigation, sheet drag, route, original colors and microphone capture: '+width+'px');
    await page.close();
   }
  }finally{await browser.close();await new Promise(r=>server.close(r));}
