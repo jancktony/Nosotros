@@ -87,7 +87,9 @@ class VoiceNotes(private val context: Context, private val pairId: String, priva
             try { rec.stop() } finally { rec.release() }
             require(duration >= 300 && target != null && target.length() in 1..150000) { "Grabación demasiado corta" }
             val draft = Draft(java.util.UUID.randomUUID().toString(), duration)
-            target.copyTo(draftFile(draft)); target.delete()
+            val retained=draftFile(draft);val temporary=File(retained.parentFile,retained.name+".tmp")
+            try { target.copyTo(temporary); check(temporary.renameTo(retained)) } finally { temporary.delete() }
+            target.delete()
             sendDraft(draft)
         } finally { target?.delete() }
     }

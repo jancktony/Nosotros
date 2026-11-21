@@ -188,7 +188,7 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         val toTurn = r?.steps?.take(nextIndex)?.sumOf { it.distanceM }?.minus(along)?.coerceAtLeast(0.0) ?: 0.0
-                        Text(when { !fresh -> "Esperando ubicación reciente"; offRoute -> "Fuera de la ruta"; arrived -> "Llegaste a tu destino"; else -> "En ${TimeFmt.km(toTurn)}" },color=C.me)
+                        Text(when { !fresh -> "Esperando ubicación reciente"; offRoute -> "Fuera de la ruta"; arrived -> "Llegaste a tu destino"; else -> "En ${TimeFmt.km(toTurn)}" },color=C.accent)
                         Text(if(arrived)dest?.name.orEmpty() else r?.steps?.getOrNull(nextIndex)?.text.orEmpty(), color=C.text,style=androidx.compose.material3.MaterialTheme.typography.titleMedium)
                     }
                     if(!follow) TextButton(onClick={follow=true;fitKey++}){Text("Centrar")}
@@ -251,7 +251,7 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
             if(!navigating && !short) LazyColumn(Modifier.heightIn(max = 130.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 itemsIndexed(r.steps) { i, s ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${i + 1}", color = C.me, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.width(26.dp))
+                        Text("${i + 1}", color = C.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.width(26.dp))
                         Text(s.text, color = C.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
                         if (s.distanceM > 0) Text(TimeFmt.km(s.distanceM), color = C.sub, fontSize = 12.sp)
                     }

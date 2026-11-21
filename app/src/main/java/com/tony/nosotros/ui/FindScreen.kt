@@ -75,7 +75,7 @@ fun FindScreen(vm: MainViewModel, onSettings: () -> Unit, onDirections: (Member)
                     scope.launch { busy=true; message=runCatching { Repo.requestLive(pair,m.uid,4); "Ubicación solicitada; esperando al teléfono" }.getOrElse { "No se pudo solicitar la ubicación" };busy=false }
                 }) { Text("Solicitar ubicación reciente") }
             }
-            message?.let { Text(it,color=C.me) }
+            message?.let { Text(it,color=C.accent) }
             Text("El sonido requiere permiso previo en ese teléfono y respeta su volumen. Necesita conexión; no localiza teléfonos apagados.",color=C.sub,style=MaterialTheme.typography.bodySmall)
         }
     }

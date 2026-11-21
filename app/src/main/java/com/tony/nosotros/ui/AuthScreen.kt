@@ -60,7 +60,7 @@ fun AuthScreen(vm: MainViewModel, upgrade: Boolean) {
         }
         if (!upgrade) {
             TextButton(onClick = { create = !create; vm.authError.value = null }) {
-                Text(if (create) "Ya tengo cuenta: iniciar sesión" else "No tengo cuenta: crear una", color = C.me)
+                Text(if (create) "Ya tengo cuenta: iniciar sesión" else "No tengo cuenta: crear una", color = C.accent)
             }
             if (!create) TextButton(onClick = { vm.forgot(email) }, enabled = email.contains("@")) {
                 Text("Olvidé mi contraseña", color = C.sub)

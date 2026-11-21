@@ -244,7 +244,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
                 }
                 if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MAP_3D)) TextButton(onClick = { vm.setMap3d(!threeD) }, modifier = Modifier
                     .clip(RoundedCornerShape(18.dp)).background(C.surface)) {
-                    Text(if (threeD) "2D" else "3D", color = C.me, fontWeight = FontWeight.Bold)
+                    Text(if (threeD) "2D" else "3D", color = C.accent, fontWeight = FontWeight.Bold)
                 }
             }
             if (sheetHidden) TextButton(onClick = { scope.launch { sheet.bottomSheetState.expand() } },
@@ -356,7 +356,7 @@ private fun PlaceCard(p: Place, me: Member?, partner: Member?, uid: String?, onE
                     Text("A ${TimeFmt.km(Geo.dist(it.lat, it.lng, p.lat, p.lng))} de ti", color = C.sub, fontSize = 13.sp)
                 }
             }
-            if (mine) Text("Editar", color = C.me, fontWeight = FontWeight.Bold,
+            if (mine) Text("Editar", color = C.accent, fontWeight = FontWeight.Bold,
                 modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onEdit).padding(10.dp))
         }
     }
@@ -435,7 +435,7 @@ internal fun PartnerSheet(
             if(quickPlaces.isNotEmpty())Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(9.dp)){
                 quickPlaces.forEach {place -> TextButton(onClick={onQuickPlace(place)},modifier=Modifier.weight(1f).glassPanel(18.dp)){
                     Icon(Ic.Pin,null,tint=C.me,modifier=Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text(place.name,color=C.text,maxLines=1)
-                }}
+                }}}
             appActivity?.let { AppActivityRow(name,it) }
             if(LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.BATTERY_ALERTS) && partner?.shareBatteryAlerts == true && partner.battery in 0..19 && !partner.charging && System.currentTimeMillis()-partner.updatedAt in 0..600_000)
                 InfoBanner(Ic.Battery,"$name tiene ${partner.battery}% de batería",C.warn)

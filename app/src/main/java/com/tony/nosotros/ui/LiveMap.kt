@@ -503,11 +503,11 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
             }
         }
     ))
-    (s.getLayer("together-halo") as? CircleLayer)?.setProperties(PropertyFactory.circleColor(palette.me.toArgb()))
+    (s.getLayer("together-halo") as? CircleLayer)?.setProperties(PropertyFactory.circleColor(pal.me.toArgb()))
     val pairFeatures = if (joined) {
         val key = "tg_" + people.map { listOf(it.uid, it.initial, it.avatar, it.color, it.ink) }.hashCode()
         image(key) { togetherBitmap(ctx, people) }
-        if (s.getImage("together-heart") == null) s.addImage("together-heart", togetherHeartBitmap(ctx,palette.me.toArgb()))
+        if (s.getImage("together-heart") == null) s.addImage("together-heart", togetherHeartBitmap(ctx,pal.me.toArgb()))
         val center = com.tony.nosotros.util.PairProximity.center(people[0].lat, people[0].lng, people[1].lat, people[1].lng)
         listOf(Feature.fromGeometry(Point.fromLngLat(center.lng, center.lat)).apply { addStringProperty("icon", key) })
     } else emptyList()

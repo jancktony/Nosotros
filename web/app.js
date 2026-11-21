@@ -160,7 +160,7 @@ function render(){
  const nav=[['phones','Teléfonos'],['photos','Galería'],['settings','Ajustes'],...(isAdmin()?[['admin','Administración']]:[])];
  if(webTab==='admin'&&!isAdmin())webTab='phones';
  app.innerHTML=`<header class="topbar"><div><span class="wordmark">nosotros<span>✦</span></span><p class="sub">Creado por <span id="creator-name">${esc(S.pair.creatorBrand||'Jancktony Murgas')}</span></p></div><div class="toolbar"><span class="private-badge">ACCESO PRIVADO</span><button data-act="logout">Cerrar sesión</button></div></header>
- <nav class="web-nav" aria-label="Panel privado">${nav.map(([value,title])=>`<button data-act="web-tab" data-mode="${value}" class="${webTab===value?'active':''}">${title}</button>`).join('')}</nav>
+ <nav class="web-nav" aria-label="Panel privado">${nav.map(([value,title])=>`<button data-act="web-tab" data-mode="${value}" class="${webTab===value?'active':''}" aria-label="${title}">${value==='admin'?'<span class="nav-wide">Administración</span><span class="nav-small">Admin</span>':title}</button>`).join('')}</nav>
  <div class="page-title"><span class="eyebrow">TU ESPACIO, DONDE ESTÉS</span><h1>${({phones:'Tus teléfonos',photos:'Sus recuerdos',settings:'A tu manera',admin:'Tú decides'})[webTab]}</h1><p class="sub">${webTab==='phones'?'Última señal, ubicación y herramientas para encontrarlos.':'Un espacio privado para ustedes dos.'}</p></div>
  <p id="web-notice" class="card status" role="status" ${notice?'':'hidden'}>${esc(notice)}</p>
  ${webTab==='phones'?`<section id="phone-cards" class="grid"><article class="card">${person(me)}</article><article class="card">${person(other)}</article></section><section class="card"><h2>Encontrar el teléfono</h2><p class="sub">Última ubicación recibida. Un teléfono apagado o sin internet puede no responder. Hacer sonar respeta su volumen y No molestar.</p><div id="map"></div></section><section class="card"><h2>Sus lugares</h2><div id="places-list">${placesHTML()}</div></section>`:''}
@@ -231,7 +231,7 @@ app.addEventListener('click',async event=>{
  try{
   const p=doc(db,'pairs',pairId),release=S.releases.find(r=>r.id===id);
   if(action==='logout'){await signOut(auth);return}
-  if(action==='web-tab'){webTab=button.dataset.mode;notice='';render();return}
+  if(action==='web-tab'){webTab=button.dataset.mode;notice='';render();window.scrollTo(0,0);return}
   if(action==='save-profile'){
    const name=app.querySelector('#profile-name').value.trim();if(!name||name.length>40)throw Error('Escribe un nombre de hasta 40 caracteres.');
    await updateDoc(doc(p,'members',uid),{name});delete drafts['profile-name'];notice='Nombre guardado. Se sincroniza con tu teléfono desde Nosotros 1.11.';render();return;

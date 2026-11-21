@@ -339,7 +339,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                 val newCode by vm.newCode.collectAsState()
                 Text("Si tu pareja reinstaló la app o cambió de teléfono sin tener cuenta, crea un código nuevo para que vuelva a entrar.",
                     color = C.sub, fontSize = 13.sp)
-                newCode?.let { Text("Código nuevo: $it  (dura 24 h)", color = C.me, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+                newCode?.let { Text("Código nuevo: $it  (dura 24 h)", color = C.accent, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
                 if (isAdmin) ActionButton("Crear código para mi pareja", C.warn) { vm.resetPartner() }
                 else Text("Solo el administrador puede regenerar el código de vinculación.", color = C.sub, fontSize = 13.sp)
                 ActionButton("Desvincular", C.danger) { confirmUnlink = true }
@@ -370,7 +370,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                 TextButton(onClick = {
                     pickDate = false
                     state.selectedDateMillis?.let { pickTime = it }
-                }) { Text("Siguiente", color = C.me) }
+                }) { Text("Siguiente", color = C.accent) }
             },
             dismissButton = { TextButton(onClick = { pickDate = false }) { Text("Cancelar", color = C.sub) } },
             colors = DatePickerDefaults.colors(containerColor = C.surface),
@@ -391,7 +391,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     vm.setSince(fromUtcDay(utcDay, tState.hour, tState.minute)); pickTime = null
-                }) { Text("Guardar", color = C.me) }
+                }) { Text("Guardar", color = C.accent) }
             },
             dismissButton = {
                 TextButton(onClick = { vm.setSince(fromUtcDay(utcDay, 0, 0)); pickTime = null }) { Text("Sin hora", color = C.sub) }

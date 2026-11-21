@@ -77,6 +77,7 @@ object C {
     val line get() = p.line
     val text get() = p.text
     val sub get() = p.sub
+    val accent get() = if(p.id == "redblack") Color(0xFFFF304F) else p.me
     val me get() = p.me
     val meInk get() = p.meInk
     val partner get() = p.partner

@@ -34,3 +34,11 @@ body[data-theme=fullpink]{color-scheme:light;--bg:#fce4ef;--card:#fbe0ec;--line:
 body[data-theme=pink]{color-scheme:light}.primary,#login>button[type=submit]{color:var(--on-me,var(--bg))}
 body[data-theme=redblack] .web-nav button.active{background:#e6002e;color:#fff}
 body[data-theme=redblack] .status,body[data-theme=redblack] .wordmark>span{color:#ff304f}
+
+.nav-small{display:none}
+@media(max-width:700px){.nav-wide{display:none}.nav-small{display:inline}.web-nav{overflow:visible}.web-nav button{flex:1;min-width:0;font-size:11px;padding:10px 4px}}
+
+body{--glass:color-mix(in srgb,var(--card) 78%,transparent);--edge:color-mix(in srgb,var(--text) 11%,transparent)}
+body[data-theme=redblack]{--me:#ff304f;--action:#e6002e}
+.primary,#login>button[type=submit]{background:var(--action,var(--me))}
+body[data-theme=redblack] .primary:hover:not(:disabled){background:var(--action)}

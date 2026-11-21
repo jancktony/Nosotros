@@ -136,7 +136,7 @@ private fun Root(vm: MainViewModel) {
             confirmButton = { androidx.compose.material3.TextButton(onClick = {
                 update = null
                 com.tony.nosotros.update.Updater.start(ctx.applicationContext, r)
-            }) { Text("Actualizar", color = C.me) } },
+            }) { Text("Actualizar", color = C.accent) } },
             dismissButton = { androidx.compose.material3.TextButton(onClick = { update = null }) { Text("Luego", color = C.sub) } },
         )
     }

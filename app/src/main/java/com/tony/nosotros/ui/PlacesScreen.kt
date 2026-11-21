@@ -72,7 +72,7 @@ fun PlacesScreen(vm: MainViewModel, onAdd: () -> Unit, onEdit: (Place) -> Unit) 
                                 Text("Vas seguido a este sitio", fontWeight = FontWeight.SemiBold)
                                 Text("¿Le pones nombre?", color = C.sub, fontSize = 13.sp)
                             }
-                            TextButton(onClick = { onEdit(s) }) { Text("Nombrar", color = C.me) }
+                            TextButton(onClick = { onEdit(s) }) { Text("Nombrar", color = C.accent) }
                             IconButton(onClick = { vm.deletePlace(s.id) }) { Icon(Ic.Close, "Descartar", tint = C.sub) }
                         }
                     }
@@ -138,7 +138,7 @@ fun PlaceDialog(initial: Place, title: String, onSave: (Place) -> Unit, onMove: 
         },
         confirmButton = {
             TextButton(onClick = { onSave(initial.copy(name = name.trim(), radius = radius.toDouble())) }, enabled = name.isNotBlank()) {
-                Text("Guardar", color = C.me)
+                Text("Guardar", color = C.accent)
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = C.sub) } },

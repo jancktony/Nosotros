@@ -1,7 +1,7 @@
 name: Validar y publicar web privada
 on:
   push:
-    branches: [main, feature/experiencia-1.15.8, feature/juntos-animado-1.15, feature/pruebas-web-walkie, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13, fix/reintento-directo-1.13.1]
+    branches: [feature/experiencia-completa-1.16, main, feature/experiencia-1.15.8, feature/juntos-animado-1.15, feature/pruebas-web-walkie, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13, fix/reintento-directo-1.13.1]
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +22,11 @@ jobs:
       - run: node --test web/tests/*.test.cjs
       - run: npm test
       - run: node --check web/app.js
+      - run: npm install --no-save --package-lock=false playwright@1.51.1
+      - name: Verificar temas y pantallas móvil y web
+        run: |
+          BROWSER_BIN=$(command -v google-chrome || command -v google-chrome-stable)
+          PREVIEW_BROWSER_BIN="$BROWSER_BIN" node security/test-web-experience-browser.cjs
       - name: Aplicar reglas verificadas
         env:
           ONLY_RULES: '1'

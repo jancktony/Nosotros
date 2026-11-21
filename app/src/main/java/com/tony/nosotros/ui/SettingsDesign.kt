@@ -29,7 +29,7 @@ fun SettingsHero(title: String, subtitle: String, badge: String = "NOSOTROS", tr
         .background(Brush.linearGradient(listOf(C.me.copy(alpha = .07f), Color.Transparent, C.partner.copy(alpha = .04f))))
         .padding(22.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(badge, color = C.me, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Text(badge, color = C.accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
             Text(title, color = C.text, fontSize = 26.sp, fontWeight = FontWeight.Bold)
             Text(subtitle, color = C.sub, fontSize = 13.sp)
         }

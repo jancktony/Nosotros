@@ -1,0 +1,11 @@
+1.16.0 · experiencia y funciones para dos
+
+• Temas completos en app y web: Rosa original predeterminado, Rojo y negro, Negro y rosa, Rosa completo, Noche y Claro. Se conserva tu elección anterior y cada teléfono elige su tema.
+• Panel del mapa con búsqueda, accesos a tus lugares, cristal ligero y viajes compartidos. Más usa tarjetas adaptables con el tema elegido, incluidos los iconos y Juntos.
+• Notas de voz: una grabación válida que falla al enviarse queda guardada en este teléfono para Reintentar o Descartar. No se reenvía sola. Distingue pendiente, guardada en servidor y recibida en el otro teléfono. Diagnóstico muestra el estado real del walkie y permite pasar a notas si no conecta.
+• Comparte el destino y la estimación inicial desde la navegación. Puedes dejar de compartir; se elimina el destino. La llegada se confirma con GPS preciso durante 20 segundos, no por la hora estimada. El viaje caduca en un máximo de 24 horas.
+• Aviso de batería baja dentro de Nosotros, activado voluntariamente por cada persona. No añade avisos a la barra del sistema.
+• Favoritos personales en galería y fechas de los recuerdos. Los favoritos se guardan en cada teléfono o navegador.
+• Administración: las nuevas funciones empiezan Solo dueño y pueden apagarse o liberarse para ambos. Se mantienen observaciones, aprobación de la prueba, liberar y forzar una actualización compatibles con la decisión del dueño.
+
+No incluye Street View ni promete conexión directa universal entre redes. El servidor propio permanente y la firma de iPhone siguen pendientes de infraestructura/cuenta de Apple. Actualiza y prueba primero; tú decides cuándo liberar a Kelin.

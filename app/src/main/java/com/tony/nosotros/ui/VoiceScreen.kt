@@ -151,20 +151,20 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                     if (!compact) Text("Walkie-talkie · cerca de $partner", color = C.sub, fontSize = 13.sp)
                 }
                 Box(Modifier.clip(CircleShape).background(C.me.copy(alpha = .12f)).padding(horizontal = 12.dp, vertical = 7.dp)) {
-                    Text("PRIVADO", color = C.me, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    Text("PRIVADO", color = C.accent, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                 }
             }
             if (direct && saved) Row(Modifier.fillMaxWidth().glassPanel(22.dp).padding(5.dp)) {
                 if (direct) RadioTab("En directo", tab == 0, Modifier.weight(1f), compact = tiny) { WalkieHub.release(); voice.close(); recording = false; playing = null; tab = 0; WalkieHub.prepare() }
                 if (saved) RadioTab("Notas de voz", tab == 1, Modifier.weight(1f), compact = tiny) { openMic = false; WalkieHub.release(); tab = 1 }
             }
-            message?.let { Text(it, color = C.me, fontSize = 13.sp) }
+            message?.let { Text(it, color = C.accent, fontSize = 13.sp) }
             if (tab == 0 && direct) {
                 Row(Modifier.fillMaxWidth().glassPanel(22.dp)
                     .padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Recepción", Modifier.weight(1f), color = C.text, fontWeight = FontWeight.SemiBold)
                     Switch(radio.enabled, { receive(it) })
-                    TextButton(onClick = { if (!radio.talking) showOptions = true }) { Text("Opciones", color = C.me) }
+                    TextButton(onClick = { if (!radio.talking) showOptions = true }) { Text("Opciones", color = C.accent) }
                 }
                 if (showOptions) AlertDialog(onDismissRequest = { showOptions = false },
                     title = { Text("Diagnóstico y opciones de voz") },
@@ -197,8 +197,8 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                         val tone = android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 70)
                         tone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 300)
                         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ tone.release() }, 500)
-                    }) { Text("Probar altavoz", color = C.me) }
-                    TextButton(onClick = { WalkieHub.service?.reconnect() }) { Text("Reconectar", color = C.me) }
+                    }) { Text("Probar altavoz", color = C.accent) }
+                    TextButton(onClick = { WalkieHub.service?.reconnect() }) { Text("Reconectar", color = C.accent) }
                 }
 
                     } }, confirmButton = { TextButton(onClick = { showOptions = false }) { Text("Listo") } })
@@ -266,7 +266,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
                                 try { voice.play(note) { playing = null; audioManager.abandonAudioFocusRequest(noteFocus) } }
                                 catch (_: Exception) { playing = null; message = "No se pudo reproducir la nota" }
                             }
-                        }) { Text(if (playing == note.id) "■" else "▶", color = C.me, fontSize = 22.sp) }
+                        }) { Text(if (playing == note.id) "■" else "▶", color = C.accent, fontSize = 22.sp) }
                         Column(Modifier.weight(1f)) {
                             Text(if (note.uid == uid) "Tu voz" else partner, color = C.text, fontWeight = FontWeight.SemiBold)
                             Text("${maxOf(1, note.duration / 1000)} s · ${if(note.uid != uid) "Recibida" else if(note.received) "Recibida en su teléfono" else "Esperando recepción"}", color = C.sub, fontSize = 12.sp)

@@ -116,7 +116,7 @@ fun PhotosScreen(vm: MainViewModel) {
                 Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
                     SettingsHero("Sus recuerdos", "${photos.size} momentos compartidos · solo ustedes", "EL ÁLBUM DE USTEDES")
                     PanelTabs(listOf("Todas", "Mis fotos", "De $partnerName") + if(allowFavorites) listOf("Favoritos") else emptyList(), filter) { filter = it }
-                    if (processing || sending) Text("Preparando su recuerdo…", color = C.me, fontSize = 12.sp)
+                    if (processing || sending) Text("Preparando su recuerdo…", color = C.accent, fontSize = 12.sp)
                     error?.let { Text(it, color = C.warn, fontSize = 12.sp) }
                     if (visible.isEmpty()) Text("El primer recuerdo los está esperando. Elige una foto o abre la cámara.", color = C.sub, fontSize = 14.sp, modifier = Modifier.padding(vertical = 25.dp))
                 }
@@ -134,7 +134,7 @@ fun PhotosScreen(vm: MainViewModel) {
                             favorites=if(photo.id in favorites) favorites-photo.id else favorites+photo.id
                             vm.prefs.favoritePhotos=favorites
                         },modifier=Modifier.align(Alignment.TopEnd).background(C.surface.copy(alpha=.9f))) {
-                            Text(if(photo.id in favorites) "♥" else "♡",color=C.me)
+                            Text(if(photo.id in favorites) "♥" else "♡",color=C.accent)
                         }
                         if (photo.caption.isNotBlank()) Text(photo.caption, color=Color.White,fontSize=10.sp,maxLines=2,
                             modifier=Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha=.4f)).padding(9.dp))
@@ -142,7 +142,7 @@ fun PhotosScreen(vm: MainViewModel) {
                 }
             }
             if (moreAvailable && photos.isNotEmpty()) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                TextButton(enabled = !moreBusy, onClick = {vm.loadOlderPhotos()}) { Text(if(moreBusy) "Cargando…" else "Ver recuerdos anteriores", color=C.me) }
+                TextButton(enabled = !moreBusy, onClick = {vm.loadOlderPhotos()}) { Text(if(moreBusy) "Cargando…" else "Ver recuerdos anteriores", color=C.accent) }
             }
             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(88.dp)) }
         }
