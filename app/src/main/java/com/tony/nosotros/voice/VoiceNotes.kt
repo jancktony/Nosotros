@@ -39,7 +39,7 @@ class VoiceNotes(private val context: Context, private val pairId: String, priva
 
     fun listen(result: (List<Note>) -> Unit, error: () -> Unit): ListenerRegistration =
         notes.orderBy("createdAt", Query.Direction.DESCENDING).limit(30).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, e ->
-            if (e != null) error() else {
+            if (e != null || Repo.uid != actor()) error() else {
                 val uid = Repo.uid
                 snapshot?.documents.orEmpty().forEach { doc ->
                     if (!doc.metadata.isFromCache && !doc.metadata.hasPendingWrites() && uid != null && doc.getString("uid") != uid && doc.getString("receivedBy") != uid)
@@ -98,7 +98,7 @@ class VoiceNotes(private val context: Context, private val pairId: String, priva
     suspend fun sendDraft(draft: Draft) = withTimeout(12_000) {
         val target = draftFile(draft)
         val bytes = target.readBytes(); require(bytes.size in 1..150000)
-        val uid = Repo.ensureSignedIn()
+        val uid = Repo.ensureSignedIn(); require(uid == actor())
         val ref = notes.document(draft.id)
         val existing = ref.get(Source.SERVER).await()
         if (!existing.exists()) ref.set(mapOf("uid" to uid, "audio" to Blob.fromBytes(bytes),

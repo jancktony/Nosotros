@@ -67,7 +67,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
     var allowRelay by remember { mutableStateOf(App.instance.prefs.allowVoiceRelay) }
     var confirmRelay by remember { mutableStateOf(false) }
     var showOptions by remember { mutableStateOf(false) }
-    val voice = remember { VoiceNotes(context.applicationContext, pair) }
+    val voice = remember { VoiceNotes(context.applicationContext, pair) { uid } }
     var tab by remember { mutableIntStateOf(if (direct) 0 else 1) }
     var message by remember { mutableStateOf<String?>(null) }
     var recording by remember { mutableStateOf(false) }
