@@ -30,7 +30,7 @@ class MapPanelDeviceTest {
         ui.setContent {
             NosotrosTheme {
                 Box(Modifier.width(320.dp).height(400.dp)) {
-                    PartnerSheet(Member(uid="demo",name="Kelin",updatedAt=now,locationAt=now-60_000,
+                    PartnerSheet(Member(uid="demo",name="Kelin",acc=12f,updatedAt=now,locationAt=now-60_000,
                         lat=11.0,lng=-74.0,placeName="Casa",battery=62),"demo",14.0,0L,emptyList(),
                         together=true,collapsed=collapsed.value,liveRequested=0L,eta=null,leftName=null,
                         leftAt=0L,appActivity=com.tony.nosotros.presence.AppActivity("Instagram","Última detección · hace 30 s","IG",true),onLive={})
@@ -59,7 +59,7 @@ class MapPanelDeviceTest {
                 androidx.compose.ui.unit.Density(density,scale.value)) {
                 NosotrosTheme {
                     Box(Modifier.width(320.dp).height(500.dp)) {
-                        PartnerSheet(Member(uid="demo",name="Kelin",lat=11.0,lng=-74.0,updatedAt=System.currentTimeMillis(),
+                        PartnerSheet(Member(uid="demo",name="Kelin",acc=12f,lat=11.0,lng=-74.0,updatedAt=System.currentTimeMillis(),
                             locationAt=System.currentTimeMillis(),placeName="Casa"),"demo",14.0,0L,emptyList(),
                             together=true,collapsed=true,liveRequested=0L,eta=null,leftName=null,leftAt=0L,
                             appActivity=activity.value,onHeaderHeight={measured=it},onLive={})

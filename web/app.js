@@ -2,6 +2,12 @@ import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase
 import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,setPersistence,browserSessionPersistence,sendPasswordResetEmail} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {getFirestore,doc,setDoc,updateDoc,deleteDoc,onSnapshot,collection,query,orderBy,limit,where,getDocs,getDoc,serverTimestamp,writeBatch,deleteField} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
+const themeBackgrounds={pink:'#f9f0f3',redblack:'#0b0b0d',blackpink:'#120e13',fullpink:'#fce4ef',night:'#0e171e',light:'#f5f4f0'};
+function applyWebTheme(mode){
+ const valid=Object.hasOwn(themeBackgrounds,mode)?mode:'pink';document.body.dataset.theme=valid;
+ document.querySelector('meta[name="theme-color"]')?.setAttribute('content',themeBackgrounds[valid]);
+ return valid;
+}
 const app=document.getElementById('app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ago=t=>{if(!t)return 'Sin señal';const m=Math.max(0,Math.floor((Date.now()-t)/60000));return m<1?'Ahora':m<60?`Hace ${m} min`:m<1440?`Hace ${Math.floor(m/60)} h`:`Hace ${Math.floor(m/1440)} días`};
@@ -224,7 +230,7 @@ app.addEventListener('click',async event=>{
  }
  if(!uid||!pairId)return;
   if(action==='theme'){
-   const mode=button.dataset.mode;document.body.dataset.theme=mode;try{localStorage.setItem('nosotros-web-theme',mode)}catch{}return;
+   const mode=applyWebTheme(button.dataset.mode);try{localStorage.setItem('nosotros-web-theme',mode)}catch{}return;
   }
 
  button.disabled=true;
@@ -298,4 +304,4 @@ setInterval(()=>{if(uid&&S.pair&&Object.keys(S.activity).length)render()},30000)
 
 function meVersion(){return S.members.find(m=>m.id===uid)?.appVersion}
 app.addEventListener('input',event=>{if(['profile-name','anniversary-date','creator-brand'].includes(event.target.id))drafts[event.target.id]=event.target.value});
-document.body.dataset.theme='pink';try{const t=localStorage.getItem('nosotros-web-theme');if(['pink','redblack','blackpink','fullpink','night','light'].includes(t))document.body.dataset.theme=t}catch{}
+applyWebTheme('pink');try{applyWebTheme(localStorage.getItem('nosotros-web-theme'))}catch{}
