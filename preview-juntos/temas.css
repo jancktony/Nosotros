@@ -1,6 +1,6 @@
 /* Rosa original: valores de Palettes.Pink; las variantes son optativas. */
 :root{color-scheme:light;--bg:#f9f0f3;--ink:#3b0a24;--sub:#7a2e55;--ui:#a95476;--on-ui:#fff;--surface:#f9f0f3;--glass:#fffffff0;--soft:#fce4ef;--line:#be185d33;--panel:#ffffffe0;--map-ground:#f1e5eb;--map-road:#cbaaba;--lilac:#705095;--sky:#246a92;--coral:#9a4737;--accent:#a95476}
-:root[data-theme=redblack]{color-scheme:dark;--bg:#0b0b0d;--ink:#fff1f2;--sub:#debfc5;--ui:#ff4757;--on-ui:#39060e;--surface:#111114;--glass:#18181bea;--soft:#351c24;--line:#f5b8c133;--panel:#18181be8;--map-ground:#141114;--map-road:#51454b;--lilac:#c7b7f3;--sky:#9fcff5;--coral:#f5b8a6;--accent:#ff4757}
+:root[data-theme=redblack]{color-scheme:dark;--bg:#0b0b0d;--ink:#fff1f2;--sub:#debfc5;--ui:#ff304f;--on-ui:#fff;--surface:#111114;--glass:#18181bea;--soft:#271419;--line:#f5b8c133;--panel:#18181be8;--map-ground:#141114;--map-road:#51454b;--lilac:#c7b7f3;--sky:#9fcff5;--coral:#f5b8a6;--accent:#ff304f}
 :root[data-theme=blackpink]{color-scheme:dark;--bg:#120e13;--ink:#fff1f8;--sub:#dbc1d1;--ui:#efc4d3;--on-ui:#3b0a24;--surface:#19121a;--glass:#281d2aea;--soft:#402536;--line:#efc4d333;--panel:#281d2ae0;--map-ground:#151218;--map-road:#514554;--lilac:#c7b7f3;--sky:#9fcff5;--coral:#f5b8a6;--accent:#efc4d3}
 :root[data-theme=fullpink]{--bg:#fce4ef;--surface:#f7d5e4;--glass:#fce4eff0;--soft:#f2c6da;--panel:#fce4efe8;--map-ground:#f5dce8;--map-road:#c69aaf}
 body{background:var(--bg);color:var(--ink)}
@@ -36,3 +36,10 @@ input{caret-color:var(--ui)}button:focus-visible,input:focus-visible{outline-col
 .theme-choices i span{display:block;width:55%;height:10px;border-radius:8px;background:var(--sample-accent)}
 @media(prefers-reduced-transparency:reduce){.glass,.person-sheet,.bottom-nav,.route-panel{background:var(--surface)!important}}
 @supports not (backdrop-filter:blur(1px)){.glass,.person-sheet,.bottom-nav,.route-panel{background:var(--surface)!important}}
+
+/* Rojo puro y negro: sin tintes rosados en los elementos protagonistas. */
+:root[data-theme=redblack] .primary,:root[data-theme=redblack] .primary:hover,:root[data-theme=redblack] .switch.on,:root[data-theme=redblack] #mic,:root[data-theme=redblack] #mic[aria-pressed=true],:root[data-theme=redblack] .bottom-nav button.active,:root[data-theme=redblack] #desktop-nav button.active,:root[data-theme=redblack] .joined-label,:root[data-theme=redblack] #route-actions>.finish-route{background:#e6002e;color:#fff}
+:root[data-theme=redblack] .jan{background:#e6002e}:root[data-theme=redblack] .kel{background:#8c142a}
+:root[data-theme=redblack] .days,:root[data-theme=redblack] .pair-avatars .avatar{border-color:#ff304f;box-shadow:none}
+:root[data-theme=redblack] .map-tools,:root[data-theme=redblack] .map-settings{color:#ff304f}
+:root[data-theme=redblack] .switch.on:after{background:#fff}

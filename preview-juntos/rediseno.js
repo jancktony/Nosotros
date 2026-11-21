@@ -3,7 +3,7 @@ import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,setPersist
 const $=id=>document.getElementById(id), auth=getAuth(initializeApp(window.FB));
 const accents={mint:['Menta','#a1e4cf'],lilac:['Lavanda','#c7b7f3'],sky:['Cielo','#9fcff5'],coral:['Coral','#f5b8a6']};
 let currentAccent=null,currentTheme='pink';
-const themes={pink:['Rosa original · predeterminado','#f9f0f3','#a95476'],redblack:['Rojo y negro','#0b0b0d','#ff4757'],blackpink:['Negro y rosa','#120e13','#efc4d3'],fullpink:['Rosa completo','#fce4ef','#a95476']};
+const themes={pink:['Rosa original · predeterminado','#f9f0f3','#a95476'],redblack:['Rojo y negro','#0b0b0d','#e6002e'],blackpink:['Negro y rosa','#120e13','#efc4d3'],fullpink:['Rosa completo','#fce4ef','#a95476']};
 function applyTheme(id,remember=false){
  currentTheme=Object.hasOwn(themes,id)?id:'pink';
  document.documentElement.dataset.theme=currentTheme;

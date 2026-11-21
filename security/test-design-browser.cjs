@@ -51,6 +51,7 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
     await page.locator('[data-theme-choice="'+theme+'"]').click();
     assert.equal(await page.locator('html').getAttribute('data-theme'),theme);
     const colors=await page.evaluate(()=>['--bg','--ui','--ink'].map(n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim()));
+    if(theme==='redblack'){const micColor=await page.locator('#mic').evaluate(e=>getComputedStyle(e).backgroundColor);assert.equal(micColor,'rgb(230, 0, 46)','Red theme must render saturated red on microphone')}
     assert.equal(colors[0],{pink:'#f9f0f3',redblack:'#0b0b0d',blackpink:'#120e13',fullpink:'#fce4ef'}[theme]);
     assert.equal(await page.locator('[data-theme-choice][aria-pressed="true"]').count(),1);
     const fit=await page.locator('.theme-choices').evaluate(e=>e.scrollWidth<=e.clientWidth+1);
