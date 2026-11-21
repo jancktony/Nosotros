@@ -41,7 +41,14 @@ class VoiceNotes(private val context: Context, private val pairId: String, priva
         notes.orderBy("createdAt", Query.Direction.DESCENDING).limit(30).addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, e ->
             if (e != null || Repo.uid != actor()) error() else {
                 val uid = Repo.uid
+                val drafts=pending().associateBy {it.id}
                 snapshot?.documents.orEmpty().forEach { doc ->
+                    if(!doc.metadata.isFromCache && !doc.metadata.hasPendingWrites() && doc.getString("uid")==uid) {
+                        drafts[doc.id]?.let { draft ->
+                            val target=draftFile(draft)
+                            if(target.exists() && doc.getBlob("audio")?.toBytes()?.contentEquals(target.readBytes()) == true)target.delete()
+                        }
+                    }
                     if (!doc.metadata.isFromCache && !doc.metadata.hasPendingWrites() && uid != null && doc.getString("uid") != uid && doc.getString("receivedBy") != uid)
                         doc.reference.update(mapOf("receivedBy" to uid, "receivedAt" to FieldValue.serverTimestamp()))
                 }

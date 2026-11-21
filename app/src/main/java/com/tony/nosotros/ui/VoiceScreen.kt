@@ -134,7 +134,7 @@ internal fun VoicePanel(pair: String, uid: String, partner: String, direct: Bool
         onDispose { lifecycle.removeObserver(observer); openMic = false; WalkieHub.foregroundOpen = false; WalkieHub.release(); voice.close(); playJob?.cancel(); audioManager.abandonAudioFocusRequest(noteFocus) }
     }
     DisposableEffect(saved) {
-        val listener = if (saved) voice.listen({ notes = it }, { message = "No se pudieron cargar las notas de voz" }) else null
+        val listener = if (saved) voice.listen({ notes = it; pending = voice.pending() }, { message = "No se pudieron cargar las notas de voz" }) else null
         onDispose { listener?.remove(); voice.close(); recording = false; playJob?.cancel(); playing = null }
     }
     BoxWithConstraints(Modifier.fillMaxSize().experienceBackground(), contentAlignment = Alignment.TopCenter) {
