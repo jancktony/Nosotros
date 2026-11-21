@@ -83,9 +83,9 @@ class WalkieService : Service() {
                 if (ready) {
                     retryAttempt = 0; handler.removeCallbacks(retry)
                     if (requested) startTalking()
-                } else if (!available && (WalkieHub.foregroundOpen || requested) && retryAttempt < 3 && !message.contains("inactividad")) {
-                    handler.removeCallbacks(retry); retryAttempt++
-                    handler.postDelayed(retry, 2000L * retryAttempt)
+                } else if (!available && (WalkieHub.foregroundOpen || requested) && connection?.active != true && !message.contains("inactividad")) {
+                    handler.removeCallbacks(retry); retryAttempt = (retryAttempt + 1).coerceAtMost(5)
+                    handler.postDelayed(retry, WalkieRetry.delayMillis(retryAttempt))
                 }
                 if (available && requested) startTalking()
             }
