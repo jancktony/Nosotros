@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
 
 /** Fictitious accounts, local emulators and synthetic bytes: no recording or production access. */
 class NoteDeliveryDeviceTest {
- @Test fun offlineDraftRetriesOnceAndOnlyReceiverConfirmsReceipt()=runBlocking {
+ @Test fun offlineDraftRetriesOnceAndOnlyReceiverConfirmsReceipt()=runBlocking<Unit> {
   val context=InstrumentationRegistry.getInstrumentation().targetContext
   fun backend(name:String,email:String):Pair<FirebaseApp,FirebaseFirestore>{
    val app=FirebaseApp.initializeApp(context,FirebaseOptions.Builder().setProjectId("demo-nosotros")
