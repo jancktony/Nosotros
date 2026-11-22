@@ -89,8 +89,14 @@ class Prefs(ctx: Context) {
     var stillSince: Long
         get() = p.getLong("stillSince", 0L)
         set(v) = p.edit().putLong("stillSince", v).apply()
+    var shareBatteryAlerts: Boolean
+        get() = p.getBoolean("shareBatteryAlerts", false)
+        set(v) = p.edit().putBoolean("shareBatteryAlerts", v).apply()
+    var favoritePhotos: Set<String>
+        get() = p.getStringSet("favoritePhotos", emptySet())?.toSet().orEmpty()
+        set(v) = p.edit().putStringSet("favoritePhotos", v).apply()
     var theme: String
-        get() = p.getString("theme", "night") ?: "night"
+        get() = p.getString("theme", "pink") ?: "pink"
         set(v) = p.edit().putString("theme", v).apply()
     var mapSatellite: Boolean
         get() = p.getBoolean("sat", false)
@@ -131,6 +137,9 @@ class Prefs(ctx: Context) {
     var partnerPlace: String?
         get() = p.getString("pPlace", null)
         set(v) = p.edit().putString("pPlace", v).apply()
+    var myLocationAt: Long
+        get() = p.getLong("myLocationAt",0L)
+        set(v) = p.edit().putLong("myLocationAt",v).apply()
     var myLat: Double
         get() = java.lang.Double.longBitsToDouble(p.getLong("mLat", 0L))
         set(v) = p.edit().putLong("mLat", java.lang.Double.doubleToRawLongBits(v)).apply()

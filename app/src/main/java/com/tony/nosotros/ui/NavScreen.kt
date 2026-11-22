@@ -188,7 +188,7 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         val toTurn = r?.steps?.take(nextIndex)?.sumOf { it.distanceM }?.minus(along)?.coerceAtLeast(0.0) ?: 0.0
-                        Text(when { !fresh -> "Esperando ubicación reciente"; offRoute -> "Fuera de la ruta"; arrived -> "Llegaste a tu destino"; else -> "En ${TimeFmt.km(toTurn)}" },color=C.me)
+                        Text(when { !fresh -> "Esperando ubicación reciente"; offRoute -> "Fuera de la ruta"; arrived -> "Llegaste a tu destino"; else -> "En ${TimeFmt.km(toTurn)}" },color=C.accent)
                         Text(if(arrived)dest?.name.orEmpty() else r?.steps?.getOrNull(nextIndex)?.text.orEmpty(), color=C.text,style=androidx.compose.material3.MaterialTheme.typography.titleMedium)
                     }
                     if(!follow) TextButton(onClick={follow=true;fitKey++}){Text("Centrar")}
@@ -232,6 +232,14 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
                 }
                 IconButton(onClick = { navigating=false; arrived=false; along=0.0; dest = null; route = null }) { Icon(Ic.Close, "Quitar ruta", tint = C.sub) }
             }
+            if(LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.SHARED_TRIPS)) {
+                TextButton(onClick={scope.launch {
+                    val goal=dest ?: return@launch;val pair=vm.pairId.value ?: return@launch
+                    runCatching {com.tony.nosotros.data.SharedJourneys.share(pair,goal.name,goal.lat,goal.lng,r.seconds)}
+                        .onFailure {error="No se pudo compartir el viaje. Revisa internet."}
+                }},enabled=fresh){Text("Compartir este viaje")}
+                JourneyCard(vm)
+            }
             if(!navigating) Button(onClick={navigating=true;follow=true;fitKey++},enabled=fresh,modifier=Modifier.fillMaxWidth()){Text(if(fresh)"Iniciar navegación" else "Necesito una ubicación reciente")}
             if(navigating && offRoute) TextButton(onClick={dest=dest?.copy(); navigating=false; scope.launch {
                 val origin=myPt ?: return@launch;val goal=dest ?: return@launch;busy=true
@@ -243,7 +251,7 @@ fun NavScreen(vm: MainViewModel, initialDestination: Routing.Hit? = null, onClos
             if(!navigating && !short) LazyColumn(Modifier.heightIn(max = 130.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 itemsIndexed(r.steps) { i, s ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${i + 1}", color = C.me, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.width(26.dp))
+                        Text("${i + 1}", color = C.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.width(26.dp))
                         Text(s.text, color = C.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
                         if (s.distanceM > 0) Text(TimeFmt.km(s.distanceM), color = C.sub, fontSize = 12.sp)
                     }

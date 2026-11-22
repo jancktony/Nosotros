@@ -54,12 +54,22 @@ object Palettes {
     val Light = Pink.copy(id = "light", bg = Color(0xFFF5F4F0), surface = Color.White, surface2 = Color(0xFFEBECE6),
         line = Color(0xFFE4E7DE), text = Color(0xFF223B33), sub = Color(0xFF728177), me = Color(0xFF376F5A),
         meInk = Color.White, partner = Color(0xFFAB6880), partnerInk = Color.White, glass = Color(0xE8FFFFFF))
-    fun of(id: String?) = when (id) { "pink" -> Pink; "light" -> Light; else -> Night }
+    val RedBlack = Night.copy(id = "redblack", bg = Color(0xFF0B0B0D), surface = Color(0xFF18181B),
+        surface2 = Color(0xFF271419), line = Color(0xFF5C2833), text = Color(0xFFFFF1F2), sub = Color(0xFFDECBD0),
+        me = Color(0xFFE6002E), meInk = Color.White, partner = Color(0xFFFF304F), partnerInk = Color(0xFF270008), glass = Color(0xD918181B))
+    val BlackPink = Night.copy(id = "blackpink", bg = Color(0xFF120E13), surface = Color(0xFF201923),
+        surface2 = Color(0xFF402536), line = Color(0xFF614653), text = Color(0xFFFFF1F8), sub = Color(0xFFDBC1D1),
+        me = Color(0xFFEFC4D3), meInk = Color(0xFF3B0A24), partner = Color(0xFFF29CC4), partnerInk = Color(0xFF3B0A24), glass = Color(0xD9281D2A))
+    val FullPink = Pink.copy(id = "fullpink", bg = Color(0xFFFCE4EF), surface = Color(0xFFFBE0EC),
+        surface2 = Color(0xFFF2C6DA), partner = Color(0xFF8C3565), partnerInk = Color.White, glass = Color(0xD9FCE4EF))
+    val choices get() = listOf("Rosa original" to Pink, "Rojo y negro" to RedBlack,
+        "Negro y rosa" to BlackPink, "Rosa completo" to FullPink, "Noche" to Night, "Claro" to Light)
+    fun of(id: String?) = choices.firstOrNull { it.second.id == id }?.second ?: Pink
 }
 
 /** Colores del tema activo. Cambiar [p] repinta toda la app. */
 object C {
-    var p by mutableStateOf(Palettes.Night)
+    var p by mutableStateOf(Palettes.Pink)
     val dark get() = p.dark
     val bg get() = p.bg
     val surface get() = p.surface
@@ -67,6 +77,7 @@ object C {
     val line get() = p.line
     val text get() = p.text
     val sub get() = p.sub
+    val accent get() = if(p.id == "redblack") Color(0xFFFF304F) else p.me
     val me get() = p.me
     val meInk get() = p.meInk
     val partner get() = p.partner

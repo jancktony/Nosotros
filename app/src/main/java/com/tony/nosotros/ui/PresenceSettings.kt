@@ -46,7 +46,7 @@ fun PresenceSettings(vm: MainViewModel) {
     if (!granted) TextButton(onClick = {
         runCatching { ctx.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:${ctx.packageName}"))) }
             .onFailure { ctx.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
-    }) { Text("Abrir permiso de acceso de uso", color = C.me) }
+    }) { Text("Abrir permiso de acceso de uso", color = C.accent) }
     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
         Text(if (appSharing) "Compartiendo mi app" else "Compartir mi app", Modifier.weight(1f), color = C.text)
         Switch(appSharing, { enabled -> if (enabled) confirm = Feature.APP_PRESENCE
@@ -63,8 +63,8 @@ fun PresenceSettings(vm: MainViewModel) {
             else { sleepSharing = false; vm.setPresence(true, false) } },
             enabled = sleepSharing || access.enabled(Feature.SLEEP_STATUS))
     }
-    Text("Mi noche · ${start - 12}:00 p. m. — $wake:00 ${if (wake == 12) "p. m." else "a. m."}", color = C.me, fontSize = 13.sp)
-    TextButton(onClick = { schedule = true }) { Text("Cambiar mi horario", color = C.me) }
+    Text("Mi noche · ${start - 12}:00 p. m. — $wake:00 ${if (wake == 12) "p. m." else "a. m."}", color = C.accent, fontSize = 13.sp)
+    TextButton(onClick = { schedule = true }) { Text("Cambiar mi horario", color = C.accent) }
     HelpDisclosure("Cómo se estima el descanso", "Tras 30 minutos de inactividad nocturna: Posiblemente durmiendo. Una hora después de tu horario: Pasó su hora habitual de despertar. Sin señal reciente, la estimación caduca. Apagar el teléfono no confirma sueño.")
     }
     if (schedule) AlertDialog(onDismissRequest = { schedule = false }, title = { Text("Tu horario habitual") },
@@ -79,7 +79,7 @@ fun PresenceSettings(vm: MainViewModel) {
     }
 
         } }, confirmButton = { TextButton(onClick = { schedule = false }) { Text("Listo") } })
-    if (appSharing || sleepSharing) Text("Estás compartiendo actividad. Puedes apagar ambos interruptores cuando quieras.", color = C.me)
+    if (appSharing || sleepSharing) Text("Estás compartiendo actividad. Puedes apagar ambos interruptores cuando quieras.", color = C.accent)
     message?.let { Text(it, color = C.sub) }
     confirm?.let { feature ->
         AlertDialog(onDismissRequest = { confirm = null }, title = { Text("¿Compartir con tu pareja?") },

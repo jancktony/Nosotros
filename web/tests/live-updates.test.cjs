@@ -65,3 +65,24 @@ test('untrusted names are displayed as text through incremental updates',async t
  const partner=dom.window.document.querySelectorAll('.grid article')[1];
  assert.equal(partner.querySelector('img'),null);assert.match(partner.textContent,/<img src=x onerror=alert\(1\)>/);
 });
+
+test('personal themes default to pink and survive live updates',async t=>{
+ const {api,dom}=await fixture(t);assert.equal(dom.window.document.body.dataset.theme,'pink');api.tab('settings');api.render();
+ for(const theme of ['redblack','blackpink','fullpink','pink']){
+  dom.window.document.querySelector(`[data-act="theme"][data-mode="${theme}"]`).click();
+  assert.equal(dom.window.document.body.dataset.theme,theme);api.S.members[1].battery--;api.render();
+  assert.equal(dom.window.document.body.dataset.theme,theme);assert.equal(dom.window.localStorage.getItem('nosotros-web-theme'),theme);
+ }
+});
+test('favorites persist locally without editing the partner photo',async t=>{
+ const {api,dom}=await fixture(t);api.S.photos=[{id:'photo',at:Date.now(),caption:'Recuerdo'}];api.tab('photos');api.render();
+ dom.window.document.querySelector('[data-act="favorite-photo"]').click();
+ assert.deepEqual(JSON.parse(dom.window.localStorage.getItem('nosotros-photo-favorites')),['photo']);
+ assert.match(dom.window.document.querySelector('.photos').textContent,/Favorito/);
+ dom.window.document.querySelector('[data-act="favorite-photo"]').click();assert.deepEqual(JSON.parse(dom.window.localStorage.getItem('nosotros-photo-favorites')),[]);
+});
+test('shared journeys escape destinations and label estimates honestly',async t=>{
+ const {api,dom}=await fixture(t);api.S.journeys=[{id:'alice',name:'<img src=x>',state:'active',expiresAt:Date.now()+600000,etaAt:Date.now()+300000}];api.render();
+ const card=dom.window.document.querySelector('.journey-card');assert.ok(card);assert.equal(card.querySelector('img'),null);assert.match(card.textContent,/Estimación al iniciar/);assert.match(card.textContent,/Dejar de compartir/);
+ api.S.journeys[0].expiresAt=Date.now()-1000;api.render();assert.equal(dom.window.document.querySelector('.journey-card'),null);
+});

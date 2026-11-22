@@ -94,13 +94,15 @@ fun PhotosScreen(vm: MainViewModel) {
     val sending by vm.sending.collectAsState()
     val moreBusy by vm.morePhotosBusy.collectAsState()
     val moreAvailable by vm.morePhotosAvailable.collectAsState()
+    var favorites by remember { mutableStateOf(vm.prefs.favoritePhotos) }
+    val allowFavorites = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.PHOTO_FAVORITES)
     var filter by remember { mutableStateOf("Todas") }
     var picked by remember { mutableStateOf<Uri?>(null) }
     var caption by remember { mutableStateOf("") }
     var viewing by remember { mutableStateOf<String?>(null) }
     var processing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    val visible = photos.filter { filter == "Todas" || if (filter == "Mis fotos") it.uid == uid else it.uid != uid }
+    val visible = photos.filter { filter == "Todas" || if (filter == "Favoritos") it.id in favorites else if (filter == "Mis fotos") it.uid == uid else it.uid != uid }
     val partnerName = partner?.name?.ifBlank { null } ?: "Tu pareja"
     val cameraUri = remember { FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", File(ctx.cacheDir,"cam").apply { mkdirs() }.resolve("foto.jpg")) }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { if (it != null) picked = it }
@@ -113,8 +115,8 @@ fun PhotosScreen(vm: MainViewModel) {
             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(15.dp)) {
                     SettingsHero("Sus recuerdos", "${photos.size} momentos compartidos · solo ustedes", "EL ÁLBUM DE USTEDES")
-                    PanelTabs(listOf("Todas", "Mis fotos", "De $partnerName"), filter) { filter = it }
-                    if (processing || sending) Text("Preparando su recuerdo…", color = C.me, fontSize = 12.sp)
+                    PanelTabs(listOf("Todas", "Mis fotos", "De $partnerName") + if(allowFavorites) listOf("Favoritos") else emptyList(), filter) { filter = it }
+                    if (processing || sending) Text("Preparando su recuerdo…", color = C.accent, fontSize = 12.sp)
                     error?.let { Text(it, color = C.warn, fontSize = 12.sp) }
                     if (visible.isEmpty()) Text("El primer recuerdo los está esperando. Elige una foto o abre la cámara.", color = C.sub, fontSize = 14.sp, modifier = Modifier.padding(vertical = 25.dp))
                 }
@@ -128,13 +130,19 @@ fun PhotosScreen(vm: MainViewModel) {
                     val image = remember(photo.id) { BitmapFactory.decodeByteArray(photo.thumb,0,photo.thumb.size) }
                     Box(Modifier.aspectRatio(.88f).clip(RoundedCornerShape(20.dp)).background(C.surface2).clickable { viewing = photo.id }) {
                         image?.let { Image(it.asImageBitmap(),photo.caption.ifBlank { "Foto compartida" }, Modifier.fillMaxSize(),contentScale=ContentScale.Crop) }
+                        if(allowFavorites) TextButton(onClick={
+                            favorites=if(photo.id in favorites) favorites-photo.id else favorites+photo.id
+                            vm.prefs.favoritePhotos=favorites
+                        },modifier=Modifier.align(Alignment.TopEnd).background(C.surface.copy(alpha=.9f))) {
+                            Text(if(photo.id in favorites) "♥" else "♡",color=C.accent)
+                        }
                         if (photo.caption.isNotBlank()) Text(photo.caption, color=Color.White,fontSize=10.sp,maxLines=2,
                             modifier=Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha=.4f)).padding(9.dp))
                     }
                 }
             }
             if (moreAvailable && photos.isNotEmpty()) item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                TextButton(enabled = !moreBusy, onClick = {vm.loadOlderPhotos()}) { Text(if(moreBusy) "Cargando…" else "Ver recuerdos anteriores", color=C.me) }
+                TextButton(enabled = !moreBusy, onClick = {vm.loadOlderPhotos()}) { Text(if(moreBusy) "Cargando…" else "Ver recuerdos anteriores", color=C.accent) }
             }
             item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(88.dp)) }
         }

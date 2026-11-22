@@ -76,7 +76,7 @@ private enum class Focus { BOTH, ME, PARTNER }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.dp, onSettings: () -> Unit, onNavigate: () -> Unit, onAddPlace: (Double, Double) -> Unit, onEditPlace: (Place) -> Unit) {
+fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.dp, onSettings: () -> Unit, onNavigate: () -> Unit, onAddPlace: (Double, Double) -> Unit, onEditPlace: (Place) -> Unit, onNavigatePlace: ((Place) -> Unit)? = null) {
     val me by vm.me.collectAsState()
     val partner by vm.partner.collectAsState()
     val places by vm.places.collectAsState()
@@ -191,6 +191,8 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
                 liveRequested = liveRequested, eta = eta, leftName = lastLeft?.placeName, leftAt = lastLeft?.end ?: 0L,
                 appActivity = partnerActivity, sleepStatus = otherSleep.text(presenceNow,true),
                 onHeaderHeight = { headerHeight = it },
+                onSearch = onNavigate, quickPlaces = places.filter {it.owner==vm.uid.value && !it.suggested}.take(2),
+                onQuickPlace = { onNavigatePlace?.invoke(it) }, extra = { JourneyCard(vm) },
                 onLive = { vm.requestLive(); liveRequested = System.currentTimeMillis(); focus = Focus.PARTNER; fitKey++ },
             ) }
         },
@@ -242,7 +244,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
                 }
                 if (LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.MAP_3D)) TextButton(onClick = { vm.setMap3d(!threeD) }, modifier = Modifier
                     .clip(RoundedCornerShape(18.dp)).background(C.surface)) {
-                    Text(if (threeD) "2D" else "3D", color = C.me, fontWeight = FontWeight.Bold)
+                    Text(if (threeD) "2D" else "3D", color = C.accent, fontWeight = FontWeight.Bold)
                 }
             }
             if (sheetHidden) TextButton(onClick = { scope.launch { sheet.bottomSheetState.expand() } },
@@ -354,7 +356,7 @@ private fun PlaceCard(p: Place, me: Member?, partner: Member?, uid: String?, onE
                     Text("A ${TimeFmt.km(Geo.dist(it.lat, it.lng, p.lat, p.lng))} de ti", color = C.sub, fontSize = 13.sp)
                 }
             }
-            if (mine) Text("Editar", color = C.me, fontWeight = FontWeight.Bold,
+            if (mine) Text("Editar", color = C.accent, fontWeight = FontWeight.Bold,
                 modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = onEdit).padding(10.dp))
         }
     }
@@ -371,6 +373,10 @@ private fun FloatingCard(onClose: () -> Unit, content: @Composable () -> Unit) {
 private fun statusLine(m: Member): String {
     if (!m.hasLocation) return "Sin ubicación todavía"
     if (m.paused) return if (m.pausedUntil > 4_000_000_000_000L) "Ubicación en pausa" else "En pausa hasta las ${TimeFmt.hour(m.pausedUntil)}"
+    if (m.locationAt <= 0) return "Ubicación por confirmar"
+    if (System.currentTimeMillis()-m.updatedAt > 600_000) return "Sin señal reciente · último GPS ${TimeFmt.ago(m.locationAt)}"
+    if (System.currentTimeMillis()-m.locationAt > 360_000) return "Ubicación antigua · GPS ${TimeFmt.ago(m.locationAt)}"
+    if (!m.acc.isFinite() || m.acc<=0 || m.acc>80) return "Ubicación sin precisión suficiente"
     val freshness = if (m.locationAt > 0) "GPS ${TimeFmt.ago(m.locationAt)}" else "Ubicación por confirmar"
     val activity = when {
         m.mode.moving && m.speedKmh >= 3 -> "${m.mode.label} · ${m.speedKmh.toInt()} km/h"
@@ -387,6 +393,8 @@ internal fun PartnerSheet(
     liveRequested: Long, eta: Eta.Result?, leftName: String?, leftAt: Long, onLive: () -> Unit,
     appActivity: com.tony.nosotros.presence.AppActivity? = null, sleepStatus: String? = null,
     onHeaderHeight: (Int) -> Unit = {},
+    onSearch: (() -> Unit)? = null, quickPlaces: List<Place> = emptyList(), onQuickPlace: (Place) -> Unit = {},
+    extra: @Composable () -> Unit = {},
 ) {
     Column(
         Modifier.fillMaxWidth().height(600.dp).verticalScroll(rememberScrollState())
@@ -402,6 +410,11 @@ internal fun PartnerSheet(
         val name = partner?.name?.ifBlank { null } ?: "Tu pareja"
         val paused = partner?.paused == true
         Column(Modifier.fillMaxWidth().onSizeChanged { onHeaderHeight(it.height) }, verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        onSearch?.let { search ->
+            TextButton(onClick=search,modifier=Modifier.fillMaxWidth().glassPanel(24.dp)) {
+                Icon(Ic.Nav,null,tint=C.me);Spacer(Modifier.width(10.dp));Text("Buscar un lugar o dirección",color=C.text)
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Avatar(initialOf(name, "P"), C.partner, C.partnerInk, 52.dp, dim = paused, photo = partner?.avatar.orEmpty())
             Spacer(Modifier.width(12.dp))
@@ -419,11 +432,18 @@ internal fun PartnerSheet(
             }
         }
 
+            if(quickPlaces.isNotEmpty())Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(9.dp)){
+                quickPlaces.forEach {place -> TextButton(onClick={onQuickPlace(place)},modifier=Modifier.weight(1f).glassPanel(18.dp)){
+                    Icon(Ic.Pin,null,tint=C.me,modifier=Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text(place.name,color=C.text,maxLines=1)
+                }}}
             appActivity?.let { AppActivityRow(name,it) }
+            if(LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.BATTERY_ALERTS) && partner?.shareBatteryAlerts == true && partner.battery in 0..19 && !partner.charging && System.currentTimeMillis()-partner.updatedAt in 0..600_000)
+                InfoBanner(Ic.Battery,"$name tiene ${partner.battery}% de batería",C.warn)
         }
 
         // The collapsed sheet exposes only its header, never statistics behind the floating dock.
         if (collapsed) return@Column
+        extra()
 
         if (eta != null && !paused) InfoBanner(Ic.Clock,
             (if (leftName != null) "Salió de $leftName a las ${TimeFmt.hour(leftAt)}. " else "") +

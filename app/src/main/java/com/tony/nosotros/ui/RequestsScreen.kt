@@ -41,14 +41,14 @@ fun RequestsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 text="";"Solicitud guardada. Pendiente de revisión; todavía no activa un agente automáticamente."
             }.getOrElse{"No se pudo guardar. Revisa tu conexión."};busy=false
         }}){Text("Guardar solicitud")}
-        message?.let{Text(it,color=C.me)}
+        message?.let{Text(it,color=C.accent)}
         SectionLabel("Asistente IA")
         Text("Todavía no conectado. Falta configurar un proveedor y un servidor seguro; no se ha activado ningún servicio de pago.",color=C.sub)
         OutlinedButton(enabled=text.isNotBlank(),onClick={clipboard.setText(AnnotatedString("Nosotros ${BuildConfig.VERSION_NAME}: ${text.trim()}"));message="Copiado. Puedes pegarlo en tu chat de Codex para revisarlo."}){Text("Copiar para revisar con Codex")}
         SectionLabel("Solicitudes guardadas")
         if(items.isEmpty())Text("Todavía no hay solicitudes",color=C.sub)
         items.forEach{(body,state)->Card{Column(Modifier.fillMaxWidth().padding(14.dp)){
-            Text(if(state=="received")"Recibida · pendiente de revisión" else state,color=C.me)
+            Text(if(state=="received")"Recibida · pendiente de revisión" else state,color=C.accent)
             Text(body)
         }}}
     }

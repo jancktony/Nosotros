@@ -15,7 +15,10 @@ service cloud.firestore {
     function changedOnly(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
     function own(data) { return data.uid == request.auth.uid; }
     function validFlags(flags) {
-      return flags is map && flags.keys().hasOnly(['walkie', 'voiceNotes', 'map3d', 'profilePhoto', 'compactWidgets', 'placeAlerts', 'manualUpdates', 'autoUpdates', 'lockDetails', 'appPresence', 'sleepStatus', 'mapPlaces', 'mapGlobe', 'mapTogether', 'walkieRelay', 'findPhone'])
+      return flags is map && flags.keys().hasOnly(['sharedTrips', 'batteryAlerts', 'photoFavorites', 'walkie', 'voiceNotes', 'map3d', 'profilePhoto', 'compactWidgets', 'placeAlerts', 'manualUpdates', 'autoUpdates', 'lockDetails', 'appPresence', 'sleepStatus', 'mapPlaces', 'mapGlobe', 'mapTogether', 'walkieRelay', 'findPhone'])
+        && flags.get('sharedTrips', 'admin') in ['off', 'admin', 'all']
+        && flags.get('batteryAlerts', 'admin') in ['off', 'admin', 'all']
+        && flags.get('photoFavorites', 'admin') in ['off', 'admin', 'all']
         && flags.get('findPhone', 'off') in ['off', 'admin', 'all']
         && flags.get('appPresence', 'off') in ['off', 'admin', 'all']
         && flags.get('sleepStatus', 'off') in ['off', 'admin', 'all']
@@ -40,7 +43,8 @@ service cloud.firestore {
       return mode == 'all' || (mode == 'admin' && data.admin == request.auth.uid);
     }
     function validProfile(data) {
-      return (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 90000))
+      return (!('shareBatteryAlerts' in data) || data.shareBatteryAlerts is bool)
+        && (!('avatar' in data) || (data.avatar is string && data.avatar.size() <= 90000))
         && (!('findPhoneEnabled' in data) || data.findPhoneEnabled is bool);
     }
     function validMembers(data) {
@@ -243,6 +247,18 @@ service cloud.firestore {
           && (request.resource.data.state != 'approved' ||
             get(/databases/$(database)/documents/pairs/$(id)/members/$(request.auth.uid)).data.appVersion == version);
       }
+      match /journeys/{uid} {
+        allow read: if member(id) && feature(id, 'sharedTrips', 'admin');
+        allow delete: if member(id) && request.auth.uid == uid;
+        allow create, update: if member(id) && request.auth.uid == uid && feature(id, 'sharedTrips', 'admin')
+          && request.resource.data.keys().hasOnly(['name','lat','lng','etaAt','expiresAt','state','updatedAt'])
+          && request.resource.data.name is string && request.resource.data.name.size()>0 && request.resource.data.name.size()<=120
+          && request.resource.data.lat is number && request.resource.data.lat>=-90 && request.resource.data.lat<=90
+          && request.resource.data.lng is number && request.resource.data.lng>=-180 && request.resource.data.lng<=180
+          && request.resource.data.etaAt is int && request.resource.data.expiresAt is int
+          && request.resource.data.expiresAt>request.time.toMillis() && request.resource.data.expiresAt<=request.time.toMillis()+86400000
+          && request.resource.data.state in ['active','arrived'] && request.resource.data.updatedAt == request.time;
+      }
       match /voiceNotes/{note} {
         allow read: if member(id) && feature(id, 'voiceNotes', 'off');
         allow create: if member(id) && feature(id, 'voiceNotes', 'off') && own(request.resource.data)
@@ -252,6 +268,9 @@ service cloud.firestore {
           && request.resource.data.durationMs is int
           && request.resource.data.durationMs >= 300 && request.resource.data.durationMs <= 30000
           && request.resource.data.createdAt == request.time;
+        allow update: if member(id) && feature(id, 'voiceNotes', 'off') && !own(resource.data)
+          && changedOnly(['receivedBy', 'receivedAt']) && request.resource.data.receivedBy == request.auth.uid
+          && request.resource.data.receivedAt == request.time;
         allow delete: if member(id) && (own(resource.data) || admin(id));
       }
       match /walkiePresence/{uid} {
@@ -270,7 +289,7 @@ service cloud.firestore {
             && consent.updatedAt.toMillis() >= request.time.toMillis() - 480000;
         }
         allow read: if member(id) && feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off') && participant();
-        allow delete: if member(id) && participant();
+        allow delete: if member(id) && (!exists(/databases/$(database)/documents/pairs/$(id)/walkiePackets/$(packet)) || participant());
         allow create: if member(id) && feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off')
           && own(request.resource.data) && request.resource.data.to in pairData(id).members
           && request.resource.data.to != request.auth.uid && targetFeature('walkieRelay', request.resource.data.to)
@@ -285,7 +304,7 @@ service cloud.firestore {
       match /walkieCalls/{call} {
         function participant() { return member(id) && request.auth.uid in [resource.data.uid, resource.data.to]; }
         allow read: if member(id) && feature(id, 'walkie', 'off');
-        allow delete: if participant();
+        allow delete: if member(id) && (!exists(/databases/$(database)/documents/pairs/$(id)/walkieCalls/$(call)) || participant());
         allow create: if member(id) && feature(id, 'walkie', 'off') && own(request.resource.data)
           && request.resource.data.keys().hasOnly(['uid', 'to', 'offer', 'createdAt'])
           && request.resource.data.to in pairData(id).members
@@ -299,7 +318,7 @@ service cloud.firestore {
           function callData() { return get(/databases/$(database)/documents/pairs/$(id)/walkieCalls/$(call)).data; }
           function participant() { return member(id) && request.auth.uid in [callData().uid, callData().to]; }
           allow read: if participant() && feature(id, 'walkie', 'off');
-          allow delete: if participant();
+          allow delete: if member(id) && (!exists(/databases/$(database)/documents/pairs/$(id)/walkieCalls/$(call)) || participant());
           allow create: if participant() && feature(id, 'walkie', 'off') && own(request.resource.data)
             && request.resource.data.keys().hasOnly(['uid', 'candidate', 'mid', 'line'])
             && request.resource.data.candidate is string && request.resource.data.candidate.size() <= 4096

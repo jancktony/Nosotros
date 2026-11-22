@@ -48,13 +48,13 @@ fun FloatingDock(selected: Int, items: List<DockItem>, onSelect: (Int) -> Unit) 
         items.forEach { item ->
             val active = selected == item.id
             Column(Modifier.weight(1f).clip(RoundedCornerShape(23.dp))
-                .background(if (active) C.me.copy(alpha = .14f) else Color.Transparent)
+                .background(if (active) (if(C.p.id=="redblack") C.me else C.me.copy(alpha = .14f)) else Color.Transparent)
                 .semantics { this.selected = active }
                 .clickable(role = Role.Tab) { onSelect(item.id) }
                 .heightIn(min = 56.dp).padding(horizontal = 2.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Icon(item.icon, null, tint = if (active) C.me else C.sub, modifier = Modifier.size(22.dp))
-                Text(item.label, color = if (active) C.me else C.sub, fontSize = 11.sp,
+                Icon(item.icon, null, tint = if (active) (if(C.p.id=="redblack") C.meInk else C.me) else C.sub, modifier = Modifier.size(22.dp))
+                Text(item.label, color = if (active) (if(C.p.id=="redblack") C.meInk else C.me) else C.sub, fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }
         }

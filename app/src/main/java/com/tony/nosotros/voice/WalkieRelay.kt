@@ -76,8 +76,10 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
                     report()
                     // Cleanup errors must not invalidate an acknowledged presence.
                     runCatching {
-                        packets.whereEqualTo("uid", uid).limit(100).get().await().documents.forEach {
-                            if (clock.now() - (it.getTimestamp("createdAt")?.toDate()?.time ?: 0) > 15_000) it.reference.delete()
+                        packets.whereEqualTo("uid", uid).limit(100).get(Source.SERVER).await().documents.forEach {
+                            val created=it.getTimestamp("createdAt")?.toDate()?.time
+                            if (VoicePacketExpiry.canClean(it.metadata.isFromCache,it.metadata.hasPendingWrites(),created,clock.now()))
+                                it.reference.delete()
                         }
                     }
                 }.onFailure {

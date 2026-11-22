@@ -2,19 +2,27 @@ import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase
 import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,setPersistence,browserSessionPersistence,sendPasswordResetEmail} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {getFirestore,doc,setDoc,updateDoc,deleteDoc,onSnapshot,collection,query,orderBy,limit,where,getDocs,getDoc,serverTimestamp,writeBatch,deleteField} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 
+const themeBackgrounds={pink:'#f9f0f3',redblack:'#0b0b0d',blackpink:'#120e13',fullpink:'#fce4ef',night:'#0e171e',light:'#f5f4f0'};
+function applyWebTheme(mode){
+ const valid=Object.hasOwn(themeBackgrounds,mode)?mode:'pink';document.body.dataset.theme=valid;
+ document.querySelector('meta[name="theme-color"]')?.setAttribute('content',themeBackgrounds[valid]);
+ return valid;
+}
 const app=document.getElementById('app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ago=t=>{if(!t)return 'Sin señal';const m=Math.max(0,Math.floor((Date.now()-t)/60000));return m<1?'Ahora':m<60?`Hace ${m} min`:m<1440?`Hace ${Math.floor(m/60)} h`:`Hace ${Math.floor(m/1440)} días`};
-const FEATURES=[['mapTogether','Juntos · perfiles y corazones animados','admin'],['findPhone','Encontrar y hacer sonar teléfonos','off'],['appPresence','Compartir aplicación en uso (voluntario)','off'],['sleepStatus','Descanso estimado (voluntario)','off'],['mapPlaces','Nombres de universidades y lugares','off'],['mapGlobe','Globo terrestre experimental','off'],['walkieRelay','Walkie en redes difíciles (opcional)','off'],['walkie','Walkie-talkie en directo','off'],['voiceNotes','Notas de voz','off'],['map3d','Mapa inclinado y edificios','all'],['profilePhoto','Fotos de perfil','all'],['compactWidgets','Widgets compactos','all'],['placeAlerts','Avisos de llegada y salida','all'],['manualUpdates','Buscar actualizaciones','all'],['autoUpdates','Instalación de versiones aprobadas','all'],['lockDetails','Detalles en pantalla de bloqueo','all']];
+const FEATURES=[['sharedTrips','Viajes compartidos voluntarios','admin'],['batteryAlerts','Aviso interno de batería','admin'],['photoFavorites','Recuerdos favoritos','admin'],['mapTogether','Juntos · perfiles y corazones animados','admin'],['findPhone','Encontrar y hacer sonar teléfonos','off'],['appPresence','Compartir aplicación en uso (voluntario)','off'],['sleepStatus','Descanso estimado (voluntario)','off'],['mapPlaces','Nombres de universidades y lugares','off'],['mapGlobe','Globo terrestre experimental','off'],['walkieRelay','Walkie en redes difíciles (opcional)','off'],['walkie','Walkie-talkie en directo','off'],['voiceNotes','Notas de voz','off'],['map3d','Mapa inclinado y edificios','all'],['profilePhoto','Fotos de perfil','all'],['compactWidgets','Widgets compactos','all'],['placeAlerts','Avisos de llegada y salida','all'],['manualUpdates','Buscar actualizaciones','all'],['autoUpdates','Instalación de versiones aprobadas','all'],['lockDetails','Detalles en pantalla de bloqueo','all']];
+let journeyUnsub=null,journeyKey='';
+let favoritePhotos=new Set();try{favoritePhotos=new Set(JSON.parse(localStorage.getItem('nosotros-photo-favorites')||'[]'))}catch{}
 let webTab='phones',commandUnsub=[],commandKey='',drafts={},photoViewer=null;
 let db,auth,uid=null,pairId=null,map,unsub=[],activityUnsub=[],activityKey='',selected=null,renderedSelection=null,notice='';
 let renderedTab=null,renderedAdmin=null,mapFeatures='';
 const markers=new Map();
-const S={pair:null,members:[],places:[],photos:[],releases:[],reviews:{},activity:{},commands:{}};
+const S={pair:null,members:[],places:[],photos:[],releases:[],reviews:{},activity:{},commands:{},journeys:[]};
 const isAdmin=()=>uid&&S.pair?.admin===uid;
 const canLocate=m=>m&&Number.isFinite(m.lat)&&Number.isFinite(m.lng)&&(m.lat!==0||m.lng!==0)&&m.lat>=-90&&m.lat<=90&&m.lng>=-180&&m.lng<=180;
 const paused=m=>(m?.pausedUntil||0)>Date.now();
-function clear(){commandUnsub.forEach(fn=>fn());commandUnsub=[];commandKey='';webTab='phones';drafts={};photoViewer=null;activityUnsub.forEach(fn=>fn());activityUnsub=[];activityKey='';unsub.forEach(fn=>fn());unsub=[];destroyMap();renderedTab=null;renderedAdmin=null;uid=null;pairId=null;selected=null;renderedSelection=null;Object.assign(S,{pair:null,members:[],places:[],photos:[],releases:[],reviews:{},activity:{},commands:{}})}
+function clear(){journeyUnsub?.();journeyUnsub=null;journeyKey='';S.journeys=[];commandUnsub.forEach(fn=>fn());commandUnsub=[];commandKey='';webTab='phones';drafts={};photoViewer=null;activityUnsub.forEach(fn=>fn());activityUnsub=[];activityKey='';unsub.forEach(fn=>fn());unsub=[];destroyMap();renderedTab=null;renderedAdmin=null;uid=null;pairId=null;selected=null;renderedSelection=null;Object.assign(S,{pair:null,members:[],places:[],photos:[],releases:[],reviews:{},activity:{},commands:{}})}
 function errorMessage(e){return e?.code==='auth/invalid-credential'||e?.code==='auth/wrong-password'||e?.code==='auth/user-not-found'?'Correo o contraseña incorrectos.':e?.code==='auth/too-many-requests'?'Espera un momento antes de intentarlo otra vez.':e?.code==='permission-denied'?'Esta cuenta no tiene acceso a este panel.':e?.message&&(e.message.startsWith('Verifica')||['Elige','Escribe','Primero'].some(x=>e.message.startsWith(x)))?e.message:'No se pudo completar. Revisa la conexión y vuelve a intentarlo.'}
 function login(message=''){
  clear();app.innerHTML=`<div class="center"><form class="card" id="login" style="max-width:420px;width:100%"><span class="eyebrow">SOLO USTEDES DOS</span><h1>Nosotros<span style="color:var(--me)">.</span></h1><p class="sub">Entra con el mismo correo de la app para encontrar tu teléfono y ver sus datos.</p><p><label for="login-email">Tu correo</label><input id="login-email" name="email" type="email" autocomplete="username" placeholder="Tu correo" required></p><p><label for="login-password">Tu contraseña</label><input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required></p><button type="submit">Entrar</button> <button type="button" data-act="forgot">Olvidé mi contraseña</button><p id="login-error" role="alert">${esc(message)}</p><p class="sub">Creado por Jancktony Murgas</p></form></div>`;
@@ -39,7 +47,7 @@ function start(){
  const p=doc(db,'pairs',pairId);let adminSubscriptions=false;
  unsub.push(onSnapshot(p,snapshot=>{
   const data=snapshot.data();if(!data?.members?.includes(uid)){signOut(auth);login('La cuenta ya no está vinculada.');return}
-  S.pair=data;watchActivity();watchCommands();
+  S.pair=data;watchActivity();watchCommands();watchJourneys();
   if(isAdmin()&&!adminSubscriptions){adminSubscriptions=true;
    unsub.push(onSnapshot(query(collection(db,'releases'),orderBy('publishedAt','desc'),limit(20)),s=>{S.releases=s.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.ready&&r.pairId===pairId);render()},()=>{notice='No se pudieron cargar las versiones';render()}));
    unsub.push(onSnapshot(collection(p,'releaseReviews'),s=>{S.reviews=Object.fromEntries(s.docs.map(d=>[d.id,d.data()]));render()},()=>{}));
@@ -50,7 +58,16 @@ function start(){
  unsub.push(onSnapshot(collection(p,'places'),s=>{S.places=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
  unsub.push(onSnapshot(query(collection(p,'photos'),orderBy('at','desc'),limit(24)),s=>{S.photos=s.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
 }
-function enabled(key,target=uid){const mode=S.pair?.featureFlags?.[key]||'off';return mode==='all'||(mode==='admin'&&target===S.pair?.admin)}
+function enabled(key,target=uid){const mode=S.pair?.featureFlags?.[key]||FEATURES.find(f=>f[0]===key)?.[2]||'off';return mode==='all'||(mode==='admin'&&target===S.pair?.admin)}
+function watchJourneys(){
+ const key=JSON.stringify([pairId,enabled('sharedTrips')]);if(key===journeyKey)return;journeyKey=key;
+ journeyUnsub?.();journeyUnsub=null;S.journeys=[];
+ if(enabled('sharedTrips'))journeyUnsub=onSnapshot(collection(db,'pairs',pairId,'journeys'),snap=>{S.journeys=snap.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{S.journeys=[];render()});
+}
+function journeyCard(member){
+ const j=S.journeys?.find(j=>j.id===member.id&&j.expiresAt>Date.now());if(!j||!enabled('sharedTrips'))return '';
+ return `<section class="journey-card"><h3>${j.state==='arrived'?'Llegó a':'En camino a'} ${esc(j.name)}</h3><p class="sub">${j.state==='arrived'?'Llegada confirmada por GPS':`Estimación al iniciar: ${new Date(j.etaAt).toLocaleTimeString('es-CO',{hour:'numeric',minute:'2-digit',hour12:true})}`}</p>${member.id===uid?'<button data-act="cancel-journey">Dejar de compartir</button>':''}</section>`;
+}
 function watchActivity(){
  const signature=JSON.stringify([S.pair.members,S.pair.admin,S.pair.featureFlags?.appPresence,S.pair.featureFlags?.sleepStatus]);
  if(signature===activityKey)return;activityKey=signature;
@@ -97,9 +114,9 @@ function settingsPanel(me){
  const localDate=date&&!Number.isNaN(date.valueOf())?`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`:'';
  return `<section class="card"><span class="eyebrow">MI PERFIL</span><h2>Así te verá tu pareja</h2><label for="profile-name">Tu nombre</label><input id="profile-name" maxlength="40" autocomplete="nickname" value="${esc(drafts['profile-name']??me?.name??'')}"><button class="primary" data-act="save-profile">Guardar mi nombre</button><p class="sub">Para conservar el nombre sincronizado, tu teléfono debe usar Nosotros 1.11 o posterior. Solo editas tu propio perfil. Los permisos y el consentimiento de actividad se aceptan desde cada teléfono.</p></section>
  <section class="card"><span class="eyebrow">SU FECHA ESPECIAL</span><h2>Nuestro aniversario</h2><label for="anniversary-date">Fecha compartida</label><input id="anniversary-date" type="date" value="${esc(drafts['anniversary-date']??localDate)}"><button data-act="save-anniversary">Guardar fecha</button></section>
- <section class="card"><h2>Apariencia de esta web</h2><div class="toolbar">${[['night','Noche'],['light','Claro'],['pink','Rosa']].map(([value,title])=>`<button data-act="theme" data-mode="${value}">${title}</button>`).join('')}</div><p class="sub">Se guarda en este navegador. La apariencia de cada teléfono se elige en su app.</p></section>`;
+ <section class="card"><h2>Apariencia de esta web</h2><div class="toolbar">${[['pink','Rosa original · predeterminado'],['redblack','Rojo y negro'],['blackpink','Negro y rosa'],['fullpink','Rosa completo'],['night','Noche'],['light','Claro']].map(([value,title])=>`<button data-act="theme" data-mode="${value}">${title}</button>`).join('')}</div><p class="sub">Se guarda en este navegador. La apariencia de cada teléfono se elige en su app.</p></section>`;
 }
-function photosPanel(){return `<section class="card"><span class="eyebrow">SOLO USTEDES</span><h2>Sus recuerdos</h2><div class="photos">${S.photos.map(photo=>`<button class="photo-cell" data-act="photo" data-id="${esc(photo.id)}"><img alt="${esc(photo.caption||'Foto compartida')}" src="data:image/jpeg;base64,${esc(photo.thumb?.toBase64?.()||'')}"><span>${esc(photo.caption||'Un momento juntos')}</span></button>`).join('')||'<p class="sub">El primer recuerdo los está esperando.</p>'}</div></section>`}
+function photosPanel(){return `<section class="card"><span class="eyebrow">SOLO USTEDES</span><h2>Sus recuerdos</h2><div class="photos">${S.photos.map(photo=>`<button class="photo-cell" data-act="photo" data-id="${esc(photo.id)}"><img alt="${esc(photo.caption||'Foto compartida')}" src="data:image/jpeg;base64,${esc(photo.thumb?.toBase64?.()||'')}"><span>${esc(photo.caption||'Un momento juntos')} · ${new Date(photo.at||0).toLocaleDateString('es-CO')}${favoritePhotos.has(photo.id)?' · Favorito':''}</span></button>${enabled('photoFavorites')?`<button data-act="favorite-photo" data-id="${esc(photo.id)}">${favoritePhotos.has(photo.id)?'Quitar favorito':'Guardar favorito'}</button>`:''}`).join('')||'<p class="sub">El primer recuerdo los está esperando.</p>'}</div></section>`}
 function viewer(){if(!photoViewer)return '';return `<dialog id="photo-viewer"><div class="viewer-toolbar"><span>${esc(photoViewer.caption||'Un momento juntos')}</span><button data-act="photo-close">Cerrar</button></div><img alt="Foto compartida ampliada" src="data:image/jpeg;base64,${esc(photoViewer.src)}"><p class="sub">${esc(photoViewer.status||'')}</p></dialog>`}
 function person(member){
  if(!member)return '<p class="sub">Esperando la primera señal</p>';
@@ -110,6 +127,8 @@ function person(member){
  <div class="row"><span class="grow sub">Batería</span>${member.battery>=0?`${member.battery}%${member.charging?' · Cargando':''}`:'Sin datos'}</div>
  <p>${isPaused?'Ubicación pausada':esc(member.placeName||'Ubicación disponible según la última señal')}</p>
  ${activityText(member)}
+ ${enabled('batteryAlerts')&&member.shareBatteryAlerts&&member.battery>=0&&member.battery<20&&!member.charging&&Date.now()-member.updatedAt<600000?`<p class="status">Batería baja: ${member.battery}% · aviso compartido voluntariamente</p>`:''}
+ ${journeyCard(member)}
  <button data-act="center" data-id="${esc(member.id)}" ${available?'':'disabled'}>Ver ${own?'mi teléfono':'teléfono'} en el mapa</button>
  <button data-act="locate" data-id="${esc(member.id)}" ${isPaused?'disabled':''}>Solicitar ubicación reciente</button>
  <div class="toolbar"><button data-act="ring" data-id="${esc(member.id)}" ${member.findPhoneEnabled&&enabled('findPhone',member.id)?'':'disabled'}>Hacer sonar</button>${available?`<a class="button" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/dir/?api=1&destination=${member.lat},${member.lng}">Cómo llegar</a>`:''}</div>
@@ -147,7 +166,7 @@ function render(){
  const nav=[['phones','Teléfonos'],['photos','Galería'],['settings','Ajustes'],...(isAdmin()?[['admin','Administración']]:[])];
  if(webTab==='admin'&&!isAdmin())webTab='phones';
  app.innerHTML=`<header class="topbar"><div><span class="wordmark">nosotros<span>✦</span></span><p class="sub">Creado por <span id="creator-name">${esc(S.pair.creatorBrand||'Jancktony Murgas')}</span></p></div><div class="toolbar"><span class="private-badge">ACCESO PRIVADO</span><button data-act="logout">Cerrar sesión</button></div></header>
- <nav class="web-nav" aria-label="Panel privado">${nav.map(([value,title])=>`<button data-act="web-tab" data-mode="${value}" class="${webTab===value?'active':''}">${title}</button>`).join('')}</nav>
+ <nav class="web-nav" aria-label="Panel privado">${nav.map(([value,title])=>`<button data-act="web-tab" data-mode="${value}" class="${webTab===value?'active':''}" aria-label="${title}">${value==='admin'?'<span class="nav-wide">Administración</span><span class="nav-small">Admin</span>':title}</button>`).join('')}</nav>
  <div class="page-title"><span class="eyebrow">TU ESPACIO, DONDE ESTÉS</span><h1>${({phones:'Tus teléfonos',photos:'Sus recuerdos',settings:'A tu manera',admin:'Tú decides'})[webTab]}</h1><p class="sub">${webTab==='phones'?'Última señal, ubicación y herramientas para encontrarlos.':'Un espacio privado para ustedes dos.'}</p></div>
  <p id="web-notice" class="card status" role="status" ${notice?'':'hidden'}>${esc(notice)}</p>
  ${webTab==='phones'?`<section id="phone-cards" class="grid"><article class="card">${person(me)}</article><article class="card">${person(other)}</article></section><section class="card"><h2>Encontrar el teléfono</h2><p class="sub">Última ubicación recibida. Un teléfono apagado o sin internet puede no responder. Hacer sonar respeta su volumen y No molestar.</p><div id="map"></div></section><section class="card"><h2>Sus lugares</h2><div id="places-list">${placesHTML()}</div></section>`:''}
@@ -196,6 +215,13 @@ function drawMap(live){
 app.addEventListener('click',async event=>{
  const button=event.target.closest('[data-act]');if(!button)return;
  const action=button.dataset.act,id=button.dataset.id;
+ if(action==='favorite-photo'){
+  if(!enabled('photoFavorites')||!S.photos.some(p=>p.id===id))return;
+  if(favoritePhotos.has(id))favoritePhotos.delete(id);else favoritePhotos.add(id);
+  try{localStorage.setItem('nosotros-photo-favorites',JSON.stringify([...favoritePhotos]))}catch{}render();return;
+ }
+ if(action==='cancel-journey'){try{await deleteDoc(doc(db,'pairs',pairId,'journeys',uid))}catch(e){notice=errorMessage(e);render()}return}
+
  if(action==='forgot'){
   const form=app.querySelector('#login'),email=form.email.value.trim();
   if(!email||!form.email.checkValidity()){form.querySelector('#login-error').textContent='Escribe un correo válido.';return}
@@ -203,14 +229,15 @@ app.addEventListener('click',async event=>{
   catch(e){form.querySelector('#login-error').textContent=errorMessage(e)}return;
  }
  if(!uid||!pairId)return;
+  if(action==='theme'){
+   const mode=applyWebTheme(button.dataset.mode);try{localStorage.setItem('nosotros-web-theme',mode)}catch{}return;
+  }
+
  button.disabled=true;
  try{
   const p=doc(db,'pairs',pairId),release=S.releases.find(r=>r.id===id);
   if(action==='logout'){await signOut(auth);return}
-  if(action==='web-tab'){webTab=button.dataset.mode;notice='';render();return}
-  if(action==='theme'){
-   const mode=button.dataset.mode;document.body.dataset.theme=mode;try{localStorage.setItem('nosotros-web-theme',mode)}catch{}return;
-  }
+  if(action==='web-tab'){webTab=button.dataset.mode;notice='';render();window.scrollTo(0,0);return}
   if(action==='save-profile'){
    const name=app.querySelector('#profile-name').value.trim();if(!name||name.length>40)throw Error('Escribe un nombre de hasta 40 caracteres.');
    await updateDoc(doc(p,'members',uid),{name});delete drafts['profile-name'];notice='Nombre guardado. Se sincroniza con tu teléfono desde Nosotros 1.11.';render();return;
@@ -277,4 +304,4 @@ setInterval(()=>{if(uid&&S.pair&&Object.keys(S.activity).length)render()},30000)
 
 function meVersion(){return S.members.find(m=>m.id===uid)?.appVersion}
 app.addEventListener('input',event=>{if(['profile-name','anniversary-date','creator-brand'].includes(event.target.id))drafts[event.target.id]=event.target.value});
-try{document.body.dataset.theme=localStorage.getItem('nosotros-web-theme')||'night'}catch{}
+applyWebTheme('pink');try{applyWebTheme(localStorage.getItem('nosotros-web-theme'))}catch{}

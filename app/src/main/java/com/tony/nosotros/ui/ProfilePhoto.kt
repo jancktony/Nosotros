@@ -71,7 +71,7 @@ fun ProfilePhotoControls(vm: MainViewModel) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Avatar(initialOf(me?.name ?: vm.prefs.myName, "Yo"), C.me, C.meInk, 64.dp, photo = me?.avatar ?: vm.prefs.myAvatar)
         TextButton(enabled = !busy, onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
-            Text(if (busy) "Guardando…" else "Cambiar foto de perfil", color = C.me)
+            Text(if (busy) "Guardando…" else "Cambiar foto de perfil", color = C.accent)
         }
     }
     if (!me?.avatar.isNullOrBlank()) TextButton(enabled = !busy, onClick = { vm.setAvatar("") }) { Text("Eliminar foto", color = C.danger) }

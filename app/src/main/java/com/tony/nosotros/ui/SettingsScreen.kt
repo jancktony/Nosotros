@@ -92,6 +92,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
     val p = vm.prefs
     var name by remember { mutableStateOf(p.myName) }
     var vehicle by remember { mutableStateOf(p.vehicle) }
+    var shareBatteryAlerts by remember { mutableStateOf(p.shareBatteryAlerts) }
     var nArrive by remember { mutableStateOf(p.notifyArrive) }
     var nLeave by remember { mutableStateOf(p.notifyLeave) }
     var nPause by remember { mutableStateOf(p.notifyPause) }
@@ -148,14 +149,27 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
 
         if (category == "Actividad") PresenceSettings(vm)
 
+        if(category == "Avisos" && LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.BATTERY_ALERTS)) {
+            Section(Ic.Battery,"Batería · aviso dentro de Nosotros") {
+                Toggle("Compartir mi aviso de batería baja",shareBatteryAlerts){
+                    shareBatteryAlerts=it;p.shareBatteryAlerts=it
+                    vm.pairId.value?.let { pair -> com.tony.nosotros.data.Repo.updateMe(pair,mapOf("shareBatteryAlerts" to it)) }
+                    vm.refreshTracking()
+                }
+                Text("Voluntario. No añade notificaciones a la barra del teléfono.",color=C.sub,fontSize=13.sp)
+            }
+        }
         // ---------- Apariencia ----------
         if (category == "General") {
             Section(Ic.Palette, "Apariencia") {
                 Text("Tema", color = C.sub, fontSize = 14.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ThemeTile("Noche", Palettes.Night, theme == "night", Modifier.weight(1f)) { vm.setTheme("night") }
-                    ThemeTile("Claro", Palettes.Light, theme == "light", Modifier.weight(1f)) { vm.setTheme("light") }
-                    ThemeTile("Rosa", Palettes.Pink, theme == "pink", Modifier.weight(1f)) { vm.setTheme("pink") }
+                Text("Rosa original es el predeterminado. El tema se guarda solo en este teléfono.", color = C.sub, fontSize = 13.sp)
+                Palettes.choices.chunked(2).forEach { choices ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        choices.forEach { (label, palette) ->
+                            ThemeTile(label, palette, theme == palette.id, Modifier.weight(1f)) { vm.setTheme(palette.id) }
+                        }
+                    }
                 }
             }
         }
@@ -325,7 +339,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                 val newCode by vm.newCode.collectAsState()
                 Text("Si tu pareja reinstaló la app o cambió de teléfono sin tener cuenta, crea un código nuevo para que vuelva a entrar.",
                     color = C.sub, fontSize = 13.sp)
-                newCode?.let { Text("Código nuevo: $it  (dura 24 h)", color = C.me, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+                newCode?.let { Text("Código nuevo: $it  (dura 24 h)", color = C.accent, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
                 if (isAdmin) ActionButton("Crear código para mi pareja", C.warn) { vm.resetPartner() }
                 else Text("Solo el administrador puede regenerar el código de vinculación.", color = C.sub, fontSize = 13.sp)
                 ActionButton("Desvincular", C.danger) { confirmUnlink = true }
@@ -356,7 +370,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
                 TextButton(onClick = {
                     pickDate = false
                     state.selectedDateMillis?.let { pickTime = it }
-                }) { Text("Siguiente", color = C.me) }
+                }) { Text("Siguiente", color = C.accent) }
             },
             dismissButton = { TextButton(onClick = { pickDate = false }) { Text("Cancelar", color = C.sub) } },
             colors = DatePickerDefaults.colors(containerColor = C.surface),
@@ -377,7 +391,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     vm.setSince(fromUtcDay(utcDay, tState.hour, tState.minute)); pickTime = null
-                }) { Text("Guardar", color = C.me) }
+                }) { Text("Guardar", color = C.accent) }
             },
             dismissButton = {
                 TextButton(onClick = { vm.setSince(fromUtcDay(utcDay, 0, 0)); pickTime = null }) { Text("Sin hora", color = C.sub) }
@@ -442,7 +456,7 @@ fun Section(icon: ImageVector, title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ThemeTile(label: String, pal: Palette, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+internal fun ThemeTile(label: String, pal: Palette, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Column(
         modifier.clip(RoundedCornerShape(16.dp)).background(pal.bg)
             .border(if (selected) 2.5.dp else 1.dp, if (selected) C.me else C.line, RoundedCornerShape(16.dp))

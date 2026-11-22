@@ -1,6 +1,9 @@
 package com.tony.nosotros.data
 
 enum class Feature(val id: String, val title: String, val defaultMode: String = "all") {
+    SHARED_TRIPS("sharedTrips", "Viajes compartidos voluntarios", "admin"),
+    BATTERY_ALERTS("batteryAlerts", "Aviso interno de batería (voluntario)", "admin"),
+    PHOTO_FAVORITES("photoFavorites", "Recuerdos favoritos", "admin"),
     FIND_PHONE("findPhone", "Encontrar y hacer sonar teléfonos", "off"),
     WALKIE_RELAY("walkieRelay", "Walkie en redes difíciles (opcional)", "off"),
     APP_PRESENCE("appPresence", "Compartir aplicación en uso (voluntario)", "off"),

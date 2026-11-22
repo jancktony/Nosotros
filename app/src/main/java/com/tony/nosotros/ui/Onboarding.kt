@@ -180,7 +180,7 @@ private fun PairStep(vm: MainViewModel) {
 
     // Cuenta recuperada (ya tenía pareja) o recién unido con código: terminar
     if (pairId != null && code == null) {
-        Text("¡Listo! Ya están conectados.", color = C.me, fontWeight = FontWeight.SemiBold)
+        Text("¡Listo! Ya están conectados.", color = C.accent, fontWeight = FontWeight.SemiBold)
         PrimaryButton("Empezar") { vm.finishOnboarding() }
         return
     }
@@ -193,9 +193,9 @@ private fun PairStep(vm: MainViewModel) {
                     .border(1.dp, C.me.copy(alpha = 0.4f), RoundedCornerShape(20.dp)).padding(24.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                if (code == null) CircularProgressIndicator(color = C.me)
+                if (code == null) CircularProgressIndicator(color = C.accent)
                 else Text(code!!.chunked(3).joinToString(" "), fontSize = 40.sp, fontWeight = FontWeight.Bold,
-                    letterSpacing = 4.sp, color = C.me, textAlign = TextAlign.Center)
+                    letterSpacing = 4.sp, color = C.accent, textAlign = TextAlign.Center)
             }
             val joined = members.size >= 2
             Text(if (joined) "¡Tu pareja se unió!" else "Esperando a que tu pareja se una… (el código dura 24 h)",

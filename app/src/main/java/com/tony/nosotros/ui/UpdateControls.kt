@@ -35,7 +35,7 @@ fun UpdateControls(pairId: String?) {
                 .onFailure { message = "No se pudo comprobar. Revisa tu conexión y vuelve a intentarlo." }
             busy = false
         }
-    }) { Text(if (busy) "Un momento…" else "Buscar actualizaciones", color = C.me) }
+    }) { Text(if (busy) "Un momento…" else "Buscar actualizaciones", color = C.accent) }
     message?.let { Text(it, color = C.sub, fontSize = 13.sp) }
     available?.let { release ->
         AlertDialog(
@@ -46,7 +46,7 @@ fun UpdateControls(pairId: String?) {
                 available = null
                 message = null
                 Updater.start(ctx, release)
-            }) { Text("Actualizar ahora", color = C.me) } },
+            }) { Text("Actualizar ahora", color = C.accent) } },
             dismissButton = { TextButton(enabled = !busy, onClick = { available = null }) { Text("Luego", color = C.sub) } }
         )
     }

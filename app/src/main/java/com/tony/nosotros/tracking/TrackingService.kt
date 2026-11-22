@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.location.Location
 import android.os.BatteryManager
+import kotlinx.coroutines.flow.collectLatest
 import android.os.IBinder
 import android.os.SystemClock
 import android.os.Looper
@@ -77,6 +78,9 @@ class TrackingService : Service() {
     private var rawMode = Mode.UNKNOWN
     private var liveUntil = 0L
     private var pausedUntil = 0L
+    private val journeyArrival = JourneyArrival()
+    private var activeJourney: com.tony.nosotros.data.SharedJourney? = null
+    private var arrivingJourney = false
     private var lowBattery = false
     private var lastFix: Location? = null
     private var lastUpload = 0L
@@ -294,6 +298,14 @@ class TrackingService : Service() {
         val fixElapsed = loc.elapsedRealtimeNanos / 1_000_000
         if (nowElapsed - fixElapsed !in 0..30_000 || !loc.hasAccuracy() || !loc.accuracy.isFinite()) return
         lastFix = loc
+        val journey=activeJourney
+        if(journey!=null && journey.state=="active" && journey.expiresAt>System.currentTimeMillis() && prefs.featureEnabled(com.tony.nosotros.data.Feature.SHARED_TRIPS)) {
+            val distance=com.tony.nosotros.util.Geo.dist(loc.latitude,loc.longitude,journey.lat,journey.lng)
+            if(!arrivingJourney && journeyArrival.fix(nowElapsed,distance,loc.accuracy)) {
+                arrivingJourney=true
+                com.tony.nosotros.data.SharedJourneys.arrive(pairId ?: return,me ?: return).addOnCompleteListener {arrivingJourney=false}
+            }
+        } else journeyArrival.reset()
         val reliableSpeed = loc.speed.takeIf {
             loc.hasSpeed() && it.isFinite() && it >= 0f &&
                 (!loc.hasSpeedAccuracy() || loc.speedAccuracyMetersPerSecond <= 1.5f)
@@ -310,7 +322,7 @@ class TrackingService : Service() {
         val low = prefs.extremeSaving && level in 1..19 && !bm.isCharging
         if (low != lowBattery) { lowBattery = low; applyPolicy() }
 
-        prefs.myLat = loc.latitude; prefs.myLng = loc.longitude
+        prefs.myLat = loc.latitude; prefs.myLng = loc.longitude; prefs.myLocationAt = loc.time
         if (System.currentTimeMillis() - lastWidgetUpdate > 60_000) {
             lastWidgetUpdate = System.currentTimeMillis(); Widgets.updateAll(this)
         }
@@ -368,6 +380,7 @@ class TrackingService : Service() {
             fields["acc"] = it.accuracy.toDouble()
             fields["speedKmh"] = if (it.hasSpeed() && mode.moving) it.speed * 3.6 else 0.0
         }
+        fields["shareBatteryAlerts"] = prefs.shareBatteryAlerts
         Repo.updateMe(pid, fields)
         updateNotification()
     }
@@ -469,6 +482,16 @@ class TrackingService : Service() {
             }
         }
         scope.launch {
+            Repo.pairInfoFlow(pid).collectLatest { info ->
+                if(com.tony.nosotros.data.FeatureAccess(info.featureFlags,info.admin==uid).enabled(com.tony.nosotros.data.Feature.SHARED_TRIPS)) {
+                    com.tony.nosotros.data.SharedJourneys.flow(pid).collect { journeys ->
+                        val next=journeys.firstOrNull {it.uid==uid}
+                        if(next!=activeJourney){journeyArrival.reset();activeJourney=next}
+                    }
+                }
+            }
+        }
+        scope.launch {
             Repo.placesFlow(pid).collect { all ->
                 engine.allPlaces = all
                 val mine = all.filter { it.owner == uid && !it.suggested && it.name.isNotBlank() }
@@ -490,7 +513,7 @@ class TrackingService : Service() {
                             prefs.partnerLat = m.lat; prefs.partnerLng = m.lng
                         }
                         prefs.partnerPaused = m.paused
-                        prefs.partnerUpdated = m.updatedAt
+                        prefs.partnerUpdated = m.locationAt
                         prefs.partnerMode = if (m.paused) "" else m.mode.name
                         prefs.partnerPlace = m.placeName
                         updateNotification()
@@ -504,6 +527,7 @@ class TrackingService : Service() {
             var previousRequest = 0L
             Repo.pairInfoFlow(pid).collect {
                 prefs.featureModes = it.featureFlags; prefs.featureAdmin = it.admin == uid
+                if(!prefs.featureEnabled(com.tony.nosotros.data.Feature.SHARED_TRIPS)) { activeJourney=null;journeyArrival.reset() }
                 presence?.refresh()
                 if (!prefs.featureEnabled(com.tony.nosotros.data.Feature.FIND_PHONE)) com.tony.nosotros.find.PhoneFinder.stop()
                 Widgets.updateAll(this@TrackingService)

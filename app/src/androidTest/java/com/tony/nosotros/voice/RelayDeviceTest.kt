@@ -41,7 +41,7 @@ class RelayDeviceTest {
   assertEquals("bob",FirebaseAuth.getInstance(appB).currentUser?.uid)
   assertTrue(FirebaseAuth.getInstance(appA).currentUser?.isEmailVerified==true)
   assertNotNull(Tasks.await(dbA.document("pairs/voice-integration-$round").get(com.google.firebase.firestore.Source.SERVER),10,TimeUnit.SECONDS).get("members"))
-  val arrival=CountDownLatch(2);val actual=mutableListOf<ByteArray>()
+  val arrival=CountDownLatch(2);val actual=java.util.concurrent.CopyOnWriteArrayList<ByteArray>()
   val packetA=VoiceWire.packet(0,listOf(byteArrayOf(1,2,3,4)),123)
   val packetB=VoiceWire.packet(0,listOf(byteArrayOf(5,6,7,8)),456)
   try {
@@ -76,7 +76,11 @@ class RelayDeviceTest {
    val before=actual.size
    val afterRecovery=VoiceWire.packet(1,listOf(byteArrayOf(9,8,7,6)),123)
    withContext(Dispatchers.Main) { assertTrue(a!!.enqueue(afterRecovery)); a!!.flush() }
-   withTimeout(10_000){while(actual.size<=before)delay(50)}
+   try { withTimeout(10_000){while(actual.size<=before)delay(50)} }
+   catch(e:kotlinx.coroutines.TimeoutCancellationException) {
+    val remaining=Tasks.await(dbA.collection("pairs/voice-integration-$round/walkiePackets").get(com.google.firebase.firestore.Source.SERVER),10,TimeUnit.SECONDS)
+    fail("After recovery round=$round readyA=${a?.ready} readyB=${b?.ready} A=$statusA B=$statusB received=${actual.size} previous=$before waiting=${remaining.size()}")
+   }
    assertTrue("No delivered audio after recovery",actual.any{it.contentEquals(afterRecovery)})
   } finally {
    withContext(Dispatchers.Main){a?.close();b?.close()}

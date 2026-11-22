@@ -52,7 +52,7 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
         }
         SettingsHero("Tú decides", "Primero pruebas. Después compartes con $name.", "CREADO POR TI")
         PanelTabs(listOf("Resumen", "Versiones", "Funciones", "Herramientas"), tab) { tab = it }
-        message?.let { Text(it, color = C.me, fontSize = 13.sp) }
+        message?.let { Text(it, color = C.accent, fontSize = 13.sp) }
         if (tab == "Resumen") {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 WidgetPreview("Tu teléfono", BuildConfig.VERSION_NAME, C.me, Modifier.weight(1f))
@@ -138,7 +138,7 @@ fun AdminScreen(vm: MainViewModel, onBack: () -> Unit) {
                 Text("La pausa y los permisos del teléfono se respetan. Para hacerlo sonar, abre el panel web; debe estar permitido en ese teléfono.", color = C.sub, fontSize = 12.sp)
             }
             Section(Ic.Link, "Su conexión") {
-                code?.let { Text(it, color = C.me, fontSize = 26.sp, letterSpacing = 3.sp) }
+                code?.let { Text(it, color = C.accent, fontSize = 26.sp, letterSpacing = 3.sp) }
                 ActionButton("Cambiar teléfono vinculado", C.warn) { confirmation = "El teléfono anterior de $name se desvinculará hasta introducir el código nuevo." to { vm.resetPartner() } }
                 ActionButton("Ceder administración", C.danger) { confirmation = "Solo $name podrá devolverte la administración." to { vm.giveAdmin(); onBack() } }
             }

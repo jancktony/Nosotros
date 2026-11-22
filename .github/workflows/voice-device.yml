@@ -1,8 +1,8 @@
 name: Verificar audio comprimido en Android
 on:
   push:
-    branches: [feature/fiabilidad-y-viajes, feature/calidad-1.15.9, feature/recepcion-retencion-1.15.6, feature/recuperacion-walkie-1.15.5, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13, fix/reintento-directo-1.13.1, feature/voz-estable-juntos-1.14]
-    paths: ['app/build.gradle.kts', 'app/src/main/java/com/tony/nosotros/voice/**', 'app/src/androidTest/**', '.github/workflows/voice-device.yml']
+    branches: [feature/experiencia-completa-1.16, feature/fiabilidad-y-viajes, feature/calidad-1.15.9, feature/recepcion-retencion-1.15.6, feature/recuperacion-walkie-1.15.5, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13, fix/reintento-directo-1.13.1, feature/voz-estable-juntos-1.14]
+    paths: ['app/**', 'firestore.rules', '.github/workflows/voice-device.yml']
   workflow_dispatch:
 concurrency:
   group: voice-${{ github.ref_name }}
@@ -28,7 +28,7 @@ jobs:
           arch: x86_64
           target: default
           disable-animations: true
-          script: npx firebase emulators:exec --only auth,firestore --project demo-nosotros 'node security/seed-voice-emulators.cjs && (./gradlew connectedDebugAndroidTest -PcodecTest=1 -Pandroid.testInstrumentationRunnerArguments.class=com.tony.nosotros.voice.VoiceCodecDeviceTest,com.tony.nosotros.voice.HoldGestureTest,com.tony.nosotros.voice.PeerConnectionDeviceTest,com.tony.nosotros.voice.DirectIdleDeviceTest,com.tony.nosotros.voice.RelayDeviceTest; CODE=$?; node security/inspect-voice-emulator.cjs; adb logcat -d > emulator-logcat.txt; exit $CODE)'
+          script: npx firebase emulators:exec --only auth,firestore --project demo-nosotros 'node security/seed-voice-emulators.cjs && (./gradlew connectedDebugAndroidTest -PcodecTest=1 -Pandroid.testInstrumentationRunnerArguments.class=com.tony.nosotros.voice.NoteDeliveryDeviceTest,com.tony.nosotros.voice.PendingVoiceDeviceTest,com.tony.nosotros.voice.VoiceCodecDeviceTest,com.tony.nosotros.voice.HoldGestureTest,com.tony.nosotros.voice.PeerConnectionDeviceTest,com.tony.nosotros.voice.DirectIdleDeviceTest,com.tony.nosotros.voice.RelayDeviceTest; CODE=$?; node security/inspect-voice-emulator.cjs; adb logcat -d > emulator-logcat.txt; exit $CODE)'
       - name: Detalle del emulador ficticio si falla voz
         if: failure()
         run: |

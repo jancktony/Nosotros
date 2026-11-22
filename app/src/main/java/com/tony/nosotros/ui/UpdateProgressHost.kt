@@ -76,10 +76,10 @@ internal fun UpdateProgressPanel(
             verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Actualización", color = C.text, fontWeight = FontWeight.Bold)
-                TextButton(onClick = onMinimize) { Text("Minimizar", color = C.me) }
+                TextButton(onClick = onMinimize) { Text("Minimizar", color = C.accent) }
             }
             Surface(shape = RoundedCornerShape(24.dp), color = C.me.copy(alpha = .14f)) {
-                Text("N", Modifier.padding(horizontal = 26.dp, vertical = 16.dp), color = C.me, fontSize = 38.sp, fontWeight = FontWeight.Bold)
+                Text("N", Modifier.padding(horizontal = 26.dp, vertical = 16.dp), color = C.accent, fontSize = 38.sp, fontWeight = FontWeight.Bold)
             }
             Text("Nosotros", color = C.text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
             Text("Versión actual ${BuildConfig.VERSION_NAME} → ${state.version}", color = C.sub)
@@ -96,7 +96,7 @@ internal fun UpdateProgressPanel(
                 else -> state.message
             }, color = C.sub)
             if (state.stage == InstallStage.DOWNLOADING) {
-                Text(state.percent?.let { "$it %" } ?: "Conectando…", color = C.me, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                Text(state.percent?.let { "$it %" } ?: "Conectando…", color = C.accent, fontSize = 36.sp, fontWeight = FontWeight.Bold)
                 Text("${megabytes(state.bytes)} de ${megabytes(state.total)}", color = C.sub)
                 if (state.bytesPerSecond > 0) Text(
                     String.format(java.util.Locale("es"), "%.0f KB/s", state.bytesPerSecond / 1024.0) + (state.secondsLeft?.let { " · ~${it.coerceAtLeast(1)} s restantes" } ?: ""),
@@ -129,6 +129,6 @@ internal fun UpdateProgressPanel(
 
 @Composable
 private fun InstallBar(state: InstallSnapshot) {
-    if (state.percent != null) LinearProgressIndicator(progress = { state.percent!! / 100f }, modifier = Modifier.fillMaxWidth(), color = C.me)
-    else LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = C.me)
+    if (state.percent != null) LinearProgressIndicator(progress = { state.percent!! / 100f }, modifier = Modifier.fillMaxWidth(), color = C.accent)
+    else LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = C.accent)
 }

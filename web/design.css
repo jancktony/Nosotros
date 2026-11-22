@@ -25,3 +25,21 @@ input,textarea{background:color-mix(in srgb,var(--bg) 70%,transparent);border-co
 dialog{background:var(--card);border-color:var(--edge)}.status{overflow-wrap:anywhere}
 @media(max-width:700px){main{padding:18px 14px;gap:16px}.grid{grid-template-columns:minmax(0,1fr)}.card{padding:20px;border-radius:24px}.topbar{gap:8px;flex-wrap:wrap}.topbar .toolbar{justify-content:flex-start}.web-nav{top:8px;border-radius:22px;gap:3px}.web-nav button{padding:10px 12px;font-size:12px;flex:0 0 auto}#map{height:360px}.row{align-items:flex-start}.photos{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:9px}}
 @media(prefers-reduced-motion:reduce){button,.button{transition:none}}
+
+/* Temas personales aprobados: la elección no modifica el teléfono de la pareja. */
+body:not([data-theme]),body[data-theme=pink]{--bg:#f9f0f3;--card:#fff;--line:#be185d33;--text:#3b0a24;--sub:#7a2e55;--me:#a95476;--her:#0f766e;--on-me:#fff}
+body[data-theme=redblack]{color-scheme:dark;--bg:#0b0b0d;--card:#18181b;--line:#5c2833;--text:#fff1f2;--sub:#decbd0;--me:#e6002e;--her:#ff304f;--on-me:#fff}
+body[data-theme=blackpink]{color-scheme:dark;--bg:#120e13;--card:#201923;--line:#614653;--text:#fff1f8;--sub:#dbc1d1;--me:#efc4d3;--her:#f29cc4;--on-me:#3b0a24}
+body[data-theme=fullpink]{color-scheme:light;--bg:#fce4ef;--card:#fbe0ec;--line:#be185d33;--text:#3b0a24;--sub:#7a2e55;--me:#a95476;--her:#8c3565;--on-me:#fff}
+body[data-theme=pink]{color-scheme:light}.primary,#login>button[type=submit]{color:var(--on-me,var(--bg))}
+body[data-theme=redblack] .web-nav button.active{background:#e6002e;color:#fff}
+body[data-theme=redblack] .status,body[data-theme=redblack] .wordmark>span{color:#ff304f}
+
+.nav-small{display:none}
+@media(max-width:700px){.nav-wide{display:none}.nav-small{display:inline}.web-nav{overflow:visible}.web-nav button{flex:1;min-width:0;font-size:11px;padding:10px 4px}}
+
+body{--glass:color-mix(in srgb,var(--card) 78%,transparent);--edge:color-mix(in srgb,var(--text) 11%,transparent)}
+body[data-theme=redblack]{--me:#ff304f;--action:#e6002e}
+.primary,#login>button[type=submit]{background:var(--action,var(--me))}
+body[data-theme=redblack] .primary:hover:not(:disabled){background:var(--action)}
+.page-title>.eyebrow,#login>.eyebrow,.card>.eyebrow{display:none}.private-badge{font-size:11px}
