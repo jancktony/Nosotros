@@ -34,6 +34,7 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
     @Volatile private var peerEnabled = false
     @Volatile private var closed = false
     private var engine: PushAudio? = null
+    private var audioEpoch=0
     private var audioJob: Job? = null
     private var lastActivity = 0L
     private var inFlight = false
@@ -124,9 +125,15 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
         }
     }
     private fun audio(): PushAudio {
-        engine?.let { return it }
+        engine?.takeIf {it.usable}?.let { return it }
+        engine?.close(); engine = null
+        audioJob?.cancel(); audioJob = null
+        val generation=++audioEpoch
+        val heard=java.util.concurrent.atomic.AtomicBoolean(false)
         val audio = PushAudio({ bytes -> enqueue(bytes) }, { lastActivity = android.os.SystemClock.elapsedRealtime() },
-            { handler.post { status("No se pudo abrir audio. Revisa permiso de micrófono y volumen multimedia.", false) } })
+            { cause -> handler.post { if(!closed && generation==audioEpoch)
+                status(if(cause==AudioFailure.CAPTURE) "Android no pudo leer el micrófono. Revisa permiso y otras apps." else "Android no pudo reproducir la voz. Revisa salida y volumen multimedia.", false)
+            } }, played={if(heard.compareAndSet(false,true))handler.post {if(!closed && generation==audioEpoch)report()}})
         engine = audio; lastActivity = android.os.SystemClock.elapsedRealtime()
         audioJob = scope.launch {
             while (isActive && engine != null) {
@@ -166,6 +173,7 @@ class WalkieRelay(private val pair: String, private val uid: String, private val
     }
     fun stopTalking() { engine?.stop(); flush() }
     fun close() {
+        ++audioEpoch
         closed = true; peer?.remove(); incoming?.remove(); awaitingAudio = emptyList(); scope.cancel()
         engine?.close(); engine = null; pending.clear()
         written.take(100).forEach { it.delete() }; written.clear()

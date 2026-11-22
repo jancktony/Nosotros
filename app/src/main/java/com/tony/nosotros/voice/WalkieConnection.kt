@@ -231,9 +231,10 @@ class WalkieConnection(context: Context, private val pair: String, private val u
             data.send(DataChannel.Buffer(java.nio.ByteBuffer.wrap(packet), true))
     }
     private fun audio(): PushAudio {
-        audio?.let { return it }
+        audio?.takeIf {it.usable}?.let { return it }
+        audio?.close(); audio = null
         return PushAudio(::sendPacket, { lastActivity = now() },
-            { handler.post { end("No se pudo reproducir el audio. Revisa el volumen multimedia.") } })
+            { cause -> handler.post { end(if(cause==AudioFailure.CAPTURE) "Android no pudo leer el micrófono. Revisa permiso y uso del micrófono por otra app." else "Android no pudo reproducir el audio. Revisa la salida y el volumen multimedia.") } })
             .also { audio = it; lastActivity = now() }
     }
     internal fun releaseIdleAudio() {
