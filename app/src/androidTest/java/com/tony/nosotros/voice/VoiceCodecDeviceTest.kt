@@ -85,7 +85,11 @@ class VoiceCodecDeviceTest {
     }
 
     @Test fun twoRealPlaybackEnginesPlayBothDirectionsAndSubsequentTurns() {
-        val frames=toneFrames(660.0).take(36)
+        val encoded=toneFrames(660.0).take(36)
+        val joined=encoded.fold(ByteArray(0)){all,frame->all+frame}
+        val framer=AmrFrames()
+        val frames=joined.toList().chunked(47).flatMap {chunk->framer.feed(chunk.toByteArray())}
+        assertEquals(encoded.size,frames.size)
         val bytesA=java.util.concurrent.atomic.AtomicInteger(0)
         val bytesB=java.util.concurrent.atomic.AtomicInteger(0)
         val errors=java.util.concurrent.CopyOnWriteArrayList<AudioFailure>()

@@ -105,6 +105,7 @@ class PushAudio(private val sendPacket: (ByteArray) -> Boolean, private val acti
         input = rec; talking = true
         capture = thread(name = "walkie-record") {
             val frames = mutableListOf<ByteArray>()
+            val framer=AmrFrames()
             val info = MediaCodec.BufferInfo(); var time = 0L
             fun flush() { if (frames.isNotEmpty()) {
                 if (sendPacket(VoiceWire.packet(sequence++, frames.toList(), stream))) activity()
@@ -113,11 +114,15 @@ class PushAudio(private val sendPacket: (ByteArray) -> Boolean, private val acti
             fun drain(wait: Long) {
                 var index = encoder.dequeueOutputBuffer(info, wait)
                 while (index >= 0) {
-                    if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0 && info.size in 1..64) {
+                    if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0 && info.size > 0) {
                         encoder.getOutputBuffer(index)?.let { bytes ->
                             bytes.position(info.offset); bytes.limit(info.offset + info.size)
-                            frames.add(ByteArray(info.size).also { bytes.get(it) })
-                            if (frames.size >= 6) flush()
+                            require(info.size<=8192)
+                            val encoded=ByteArray(info.size).also {bytes.get(it)}
+                            framer.feed(encoded).forEach {frame ->
+                                frames.add(frame)
+                                if(frames.size>=6)flush()
+                            }
                         }
                     }
                     encoder.releaseOutputBuffer(index, false)
