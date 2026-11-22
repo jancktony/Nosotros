@@ -332,3 +332,22 @@ test('battery alert consent belongs to each phone owner',async()=>{
  await assertFails(updateDoc(p(bob(),'pairs/p/members/alice'),{shareBatteryAlerts:false}));
  await assertFails(updateDoc(p(alice(),'pairs/p/members/alice'),{shareBatteryAlerts:'yes'}));
 });
+
+
+test('voice cleanup is idempotent after the peer already removed packets and calls',async()=>{
+ await assertSucceeds(updateDoc(p(alice()),{featureFlags:{walkie:'all',walkieRelay:'all'}}));
+ await env.withSecurityRulesDisabled(async ctx=>{
+  await setDoc(p(ctx,'pairs/p/walkiePackets/old'),{uid:'alice',to:'bob',audio:Bytes.fromUint8Array(new Uint8Array([1]))});
+  await setDoc(p(ctx,'pairs/p/walkieCalls/old'),{uid:'alice',to:'bob'});
+  await setDoc(p(ctx,'pairs/p/walkieCalls/old/candidates/ice'),{uid:'alice'});
+ });
+ await assertSucceeds(deleteDoc(p(bob(),'pairs/p/walkiePackets/old')));
+ await assertSucceeds(deleteDoc(p(alice(),'pairs/p/walkiePackets/old')));
+ await assertSucceeds(deleteDoc(p(alice(),'pairs/p/walkieCalls/old')));
+ await assertSucceeds(deleteDoc(p(bob(),'pairs/p/walkieCalls/old')));
+ await assertSucceeds(deleteDoc(p(bob(),'pairs/p/walkieCalls/old/candidates/ice')));
+ await assertSucceeds(deleteDoc(p(alice(),'pairs/p/walkieCalls/old/candidates/ice')));
+ await assertFails(deleteDoc(p(stranger(),'pairs/p/walkiePackets/old')));
+ await assertFails(deleteDoc(p(stranger(),'pairs/p/walkieCalls/old')));
+ await assertFails(deleteDoc(p(stranger(),'pairs/p/walkieCalls/old/candidates/ice')));
+});

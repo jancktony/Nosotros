@@ -289,7 +289,7 @@ service cloud.firestore {
             && consent.updatedAt.toMillis() >= request.time.toMillis() - 480000;
         }
         allow read: if member(id) && feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off') && participant();
-        allow delete: if member(id) && participant();
+        allow delete: if member(id) && (!exists(/databases/$(database)/documents/pairs/$(id)/walkiePackets/$(packet)) || participant());
         allow create: if member(id) && feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off')
           && own(request.resource.data) && request.resource.data.to in pairData(id).members
           && request.resource.data.to != request.auth.uid && targetFeature('walkieRelay', request.resource.data.to)
@@ -304,7 +304,7 @@ service cloud.firestore {
       match /walkieCalls/{call} {
         function participant() { return member(id) && request.auth.uid in [resource.data.uid, resource.data.to]; }
         allow read: if member(id) && feature(id, 'walkie', 'off');
-        allow delete: if participant();
+        allow delete: if member(id) && (!exists(/databases/$(database)/documents/pairs/$(id)/walkieCalls/$(call)) || participant());
         allow create: if member(id) && feature(id, 'walkie', 'off') && own(request.resource.data)
           && request.resource.data.keys().hasOnly(['uid', 'to', 'offer', 'createdAt'])
           && request.resource.data.to in pairData(id).members
@@ -318,7 +318,7 @@ service cloud.firestore {
           function callData() { return get(/databases/$(database)/documents/pairs/$(id)/walkieCalls/$(call)).data; }
           function participant() { return member(id) && request.auth.uid in [callData().uid, callData().to]; }
           allow read: if participant() && feature(id, 'walkie', 'off');
-          allow delete: if participant();
+          allow delete: if member(id) && (!exists(/databases/$(database)/documents/pairs/$(id)/walkieCalls/$(call)) || participant());
           allow create: if participant() && feature(id, 'walkie', 'off') && own(request.resource.data)
             && request.resource.data.keys().hasOnly(['uid', 'candidate', 'mid', 'line'])
             && request.resource.data.candidate is string && request.resource.data.candidate.size() <= 4096
