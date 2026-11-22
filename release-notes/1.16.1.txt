@@ -1,0 +1,8 @@
+1.16.1 · recuperación de reproducción de voz
+
+• Reabre la salida de Android si una escritura de audio falla al cambiar de ruta o dispositivo. Maneja escrituras parciales y evita descartar voz silenciosamente.
+• Descarta reproductores averiados y libera sus recursos para que los siguientes paquetes puedan volver a sonar, sin dejar el canal alternativo unido para siempre a un decodificador muerto.
+• Distingue los errores de micrófono de los de reproducción. Detecta cuando Android silencia la captura o deja de entregar muestras.
+• Mantiene el protocolo de voz y todos los temas y funciones de 1.16.0. No cambia el volumen ni fuerza un altavoz sobre tus auriculares.
+
+Prueba primero desde Administración. La compatibilidad del protocolo se conserva con 1.15.9; las correcciones de cada teléfono necesitan instalar esta versión en ese teléfono. Pendiente validar físicamente en sus Samsung; no se afirma que una prueba de emulador confirme su micrófono o altavoz real.
