@@ -1,0 +1,21 @@
+name: Leer metadata privada de voz sin contenido
+on:
+  push:
+    branches: [fix/audio-bidireccional-1.16.1]
+    paths: ['security/inspect-voice-metadata.cjs', '.github/workflows/voice-metadata.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - name: Leer solo versiones y consentimiento de transporte
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node security/inspect-voice-metadata.cjs
