@@ -13,7 +13,8 @@ class AmrFramesTest {
   assertTrue(parser.feed("MR\n".toByteArray()+a.copyOfRange(0,10)).isEmpty())
   val result=parser.feed(a.copyOfRange(10,a.size));assertArrayEquals(a,result.single())
  }
+ @Test fun noDataFrameRemainsValid(){assertArrayEquals(byteArrayOf(0x7c),AmrFrames().feed(byteArrayOf(0x7c)).single())}
  @Test fun malformedOrUnboundedCodecOutputIsReported(){
-  for(bytes in listOf(byteArrayOf(0x7c),ByteArray(8193))){try{AmrFrames().feed(bytes);fail("Invalid codec output accepted")}catch(expected:IllegalArgumentException){}}
+  for(bytes in listOf(byteArrayOf(0x48),ByteArray(8193))){try{AmrFrames().feed(bytes);fail("Invalid codec output accepted")}catch(expected:IllegalArgumentException){}}
  }
 }
