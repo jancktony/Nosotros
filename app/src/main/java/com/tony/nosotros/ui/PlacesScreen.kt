@@ -1,5 +1,10 @@
 package com.tony.nosotros.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.tony.nosotros.data.Routing
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,10 +60,10 @@ fun PlacesScreen(vm: MainViewModel, onAdd: () -> Unit, onEdit: (Place) -> Unit) 
             contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            item { SettingsHero("Sus lugares", "Casa, trabajo y esos rincones especiales.", "SUS PUNTOS DE ENCUENTRO") }
+            item { SettingsHero("Sus lugares", "Direcciones y puntos que ustedes confirman.", "SUS PUNTOS DE ENCUENTRO") }
             item { OutlinedTextField(search, {search=it}, label={Text("Buscar un lugar")},singleLine=true,modifier=Modifier.fillMaxWidth()) }
             item {
-                Text("Toca “Agregar lugar” y mueve el mapa hasta el punto exacto. También puedes mantener presionado el mapa principal.",
+                Text("Escribe ciudad y dirección, revisa el resultado y confirma el pin en el mapa. También puedes ajustarlo manualmente.",
                     color = C.sub, fontSize = 14.sp)
             }
             if (suggestions.isNotEmpty()) {
@@ -80,10 +85,10 @@ fun PlacesScreen(vm: MainViewModel, onAdd: () -> Unit, onEdit: (Place) -> Unit) 
             }
             item { SectionLabel("Mis lugares", Modifier.padding(top = 10.dp)) }
             if (mine.isEmpty()) item { Text("Aún no tienes lugares.", color = C.sub, fontSize = 14.sp) }
-            items(mine.filter {it.name.contains(search,true)}, key = { it.id }) { PlaceRow(it, C.me, onEdit = { onEdit(it) }, onDelete = { vm.deletePlace(it.id) }) }
+            items(mine.filter {it.displayName.contains(search,true)}, key = { it.id }) { PlaceRow(it, C.me, onEdit = { onEdit(it) }, onDelete = { vm.deletePlace(it.id) }) }
             item { SectionLabel("Lugares de $partnerName", Modifier.padding(top = 10.dp)) }
             if (theirs.isEmpty()) item { Text("Aún no tiene lugares.", color = C.sub, fontSize = 14.sp) }
-            items(theirs.filter {it.name.contains(search,true)}, key = { it.id }) { PlaceRow(it, C.partner, onEdit = if (isAdmin) ({ onEdit(it) }) else null, onDelete = if (isAdmin) ({ vm.deletePlace(it.id) }) else null) }
+            items(theirs.filter {it.displayName.contains(search,true)}, key = { it.id }) { PlaceRow(it, C.partner, onEdit = if (isAdmin) ({ onEdit(it) }) else null, onDelete = if (isAdmin) ({ vm.deletePlace(it.id) }) else null) }
             item { Spacer(Modifier.padding(40.dp)) }
         }
         ExtendedFloatingActionButton(
@@ -104,7 +109,7 @@ private fun PlaceRow(p: Place, accent: androidx.compose.ui.graphics.Color, onEdi
             IconTile(Ic.Pin, tint = accent)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(p.name, fontWeight = FontWeight.SemiBold)
+                Text(p.displayName, fontWeight = FontWeight.SemiBold)
                 Text("${p.visits} visitas · radio ${p.radius.toInt()} m", color = C.sub, fontSize = 13.sp)
             }
             if (onEdit != null) TextButton(onClick = onEdit) { Text("Editar", color = C.sub) }
@@ -113,34 +118,59 @@ private fun PlaceRow(p: Place, accent: androidx.compose.ui.graphics.Color, onEdi
     }
 }
 
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 @Composable
 fun PlaceDialog(initial: Place, title: String, onSave: (Place) -> Unit, onMove: ((Place) -> Unit)? = null, onDismiss: () -> Unit) {
-    var name by remember { mutableStateOf(initial.name) }
-    var radius by remember { mutableFloatStateOf(initial.radius.toFloat()) }
-    val presets = listOf("Casa", "Trabajo", "Universidad", "Gimnasio", "Familia")
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = C.surface,
-        title = { Text(title) },
+    var address by remember(initial) { mutableStateOf(initial.address) }
+    var city by remember(initial) { mutableStateOf(initial.city) }
+    var radius by remember(initial) { mutableFloatStateOf(initial.radius.toFloat()) }
+    var confirmed by remember(initial) { mutableStateOf((initial.lat != 0.0 || initial.lng != 0.0) && (initial.address.isNotBlank() || initial.id.isNotBlank())) }
+    var busy by remember { mutableStateOf(false) }
+    var hits by remember { mutableStateOf(emptyList<Routing.Hit>()) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    fun draft(lat: Double = initial.lat, lng: Double = initial.lng) = initial.copy(
+        name = initial.name.ifBlank { address.trim() }, address = address.trim(), city = city.trim(),
+        radius = radius.toDouble(), lat = lat, lng = lng)
+    val legacy = address.isBlank() && city.isBlank() && initial.id.isNotBlank() && initial.name.isNotBlank()
+    AlertDialog(onDismissRequest = onDismiss, containerColor = C.surface, title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Nombre") }, singleLine = true)
-                androidx.compose.foundation.layout.FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) { presets.forEach { Chip(it, name == it) { name = it } } }
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(city, { city = it.take(80); confirmed = false; hits = emptyList(); message = null },
+                    label = { Text("Ciudad") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(address, { address = it.take(200); confirmed = false; hits = emptyList(); message = null },
+                    label = { Text("Dirección exacta") }, placeholder = { Text("Calle 56 #43-20") },
+                    enabled = !busy, modifier = Modifier.fillMaxWidth())
+                if (legacy) Text("Lugar anterior: ${initial.name}. Puedes conservarlo o añadir su dirección.", color = C.sub, fontSize = 12.sp)
+                Text("La dirección será el título del lugar. El pin debe señalar el edificio.", color = C.sub, fontSize = 12.sp)
+                TextButton(enabled = !busy && address.isNotBlank() && city.isNotBlank() && onMove != null, onClick = {
+                    scope.launch {
+                        busy = true; hits = emptyList(); message = null
+                        try {
+                            val result = Routing.search("${address.trim()}, ${city.trim()}", null)
+                            hits = result.hits.take(4)
+                            message = if (hits.isNotEmpty()) "Elige un resultado y revisa el pin; una coincidencia puede ser aproximada."
+                                else if (result.failure == Routing.SearchFailure.UNAVAILABLE) "La búsqueda no está disponible. Puedes ubicar el pin manualmente."
+                                else "No se encontró esa dirección. Revisa la ciudad o ubica el pin manualmente."
+                        } finally { busy = false }
+                    }
+                }) { Text(if (busy) "Buscando…" else "Buscar dirección") }
+                message?.let { Text(it, color = C.sub, fontSize = 12.sp) }
+                hits.forEach { hit ->
+                    TextButton(onClick = { onMove?.invoke(draft(hit.lat, hit.lng)) }, modifier = Modifier.fillMaxWidth()) {
+                        Column { Text(hit.name); Text(hit.detail, color = C.sub, fontSize = 11.sp); Text("Revisar este punto en el mapa", fontSize = 12.sp) }
+                    }
+                }
+                if (onMove != null) TextButton(enabled = !busy, onClick = { onMove(draft()) }) {
+                    Text(if (confirmed) "Ajustar punto en el mapa" else "Confirmar punto en el mapa")
+                }
+                if (confirmed) Text("Punto confirmado · ${draft().displayName}", color = C.accent, fontSize = 12.sp)
                 Text("Radio: ${radius.toInt()} m", color = C.sub, fontSize = 14.sp)
                 Slider(radius, { radius = it }, valueRange = 50f..400f, steps = 6)
-                if (onMove != null) Chip("Ajustar punto exacto en el mapa", false, icon = Ic.Pin) {
-                    onMove(initial.copy(name = name.trim(), radius = radius.toDouble()))
-                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(initial.copy(name = name.trim(), radius = radius.toDouble())) }, enabled = name.isNotBlank()) {
-                Text("Guardar", color = C.accent)
-            }
+            TextButton(enabled = !busy && confirmed && (legacy || address.isNotBlank() && city.isNotBlank()), onClick = { onSave(draft()) }) { Text("Guardar", color = C.accent) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = C.sub) } },
-    )
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar", color = C.sub) } })
 }

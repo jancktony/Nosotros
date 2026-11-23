@@ -477,8 +477,8 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
 
     (s.getSource("places") as? GeoJsonSource)?.setGeoJson(FeatureCollection.fromFeatures(
         places.filter { !it.suggested && it.name.isNotBlank() }.map { p ->
-            val id = "pl_${pal.id}_${p.name}"
-            image(id) { labelBitmap(ctx, pal, p.name) }
+            val id = "pl_${pal.id}_${p.displayName}"
+            image(id) { labelBitmap(ctx, pal, p.displayName) }
             Feature.fromGeometry(Point.fromLngLat(p.lng, p.lat)).apply {
                 addStringProperty("icon", id)
                 addStringProperty("pid", p.id)
@@ -590,7 +590,8 @@ private fun labelBitmap(ctx: Context, pal: Palette, text: String): Bitmap {
         textSize = 13f * d; color = pal.text.toArgb()
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
-    val tw = tp.measureText(text)
+    val shown = android.text.TextUtils.ellipsize(text, android.text.TextPaint(tp), 240 * d, android.text.TextUtils.TruncateAt.END).toString()
+    val tw = tp.measureText(shown)
     val w = (tw + 24 * d).toInt()
     val h = (44 * d).toInt()
     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -601,7 +602,7 @@ private fun labelBitmap(ctx: Context, pal: Palette, text: String): Bitmap {
     p.color = pal.surface.toArgb(); c.drawRoundRect(pill, 9 * d, 9 * d, p)
     p.style = Paint.Style.STROKE; p.strokeWidth = 1.5f * d; p.color = pal.me.toArgb()
     c.drawRoundRect(pill, 9 * d, 9 * d, p)
-    c.drawText(text, 12 * d, 14 * d - (tp.descent() + tp.ascent()) / 2, tp)
+    c.drawText(shown, 12 * d, 14 * d - (tp.descent() + tp.ascent()) / 2, tp)
     p.style = Paint.Style.FILL; p.color = pal.surface.toArgb()
     c.drawCircle(w / 2f, h - 8 * d, 6.5f * d, p)
     p.style = Paint.Style.STROKE; p.strokeWidth = 3f * d; p.color = pal.me.toArgb()

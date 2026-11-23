@@ -1,7 +1,7 @@
 name: Verificar audio comprimido en Android
 on:
   push:
-    branches: [fix/audio-bidireccional-1.16.1, feature/experiencia-completa-1.16, feature/fiabilidad-y-viajes, feature/calidad-1.15.9, feature/recepcion-retencion-1.15.6, feature/recuperacion-walkie-1.15.5, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13, fix/reintento-directo-1.13.1, feature/voz-estable-juntos-1.14]
+    branches: [feature/lugares-navegacion-1.17, fix/audio-bidireccional-1.16.1, feature/experiencia-completa-1.16, feature/fiabilidad-y-viajes, feature/calidad-1.15.9, feature/recepcion-retencion-1.15.6, feature/recuperacion-walkie-1.15.5, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13, fix/reintento-directo-1.13.1, feature/voz-estable-juntos-1.14]
     paths: ['app/**', 'firestore.rules', '.github/workflows/voice-device.yml']
   workflow_dispatch:
 concurrency:

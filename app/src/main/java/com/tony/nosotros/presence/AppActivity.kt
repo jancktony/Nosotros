@@ -2,7 +2,7 @@ package com.tony.nosotros.presence
 
 import java.util.Locale
 
-data class AppActivity(val title: String, val subtitle: String, val badge: String, val available: Boolean) {
+data class AppActivity(val title: String, val subtitle: String, val badge: String, val available: Boolean, val icon: String = "") {
     companion object {
         fun label(raw: String): String = when (raw.trim().lowercase(Locale.ROOT)) {
             "inicio de one ui", "one ui home" -> "Pantalla de inicio"
@@ -22,7 +22,7 @@ data class AppActivity(val title: String, val subtitle: String, val badge: Strin
                 "pantalla de inicio" -> "⌂"
                 else -> name.take(2).uppercase(Locale.ROOT)
             }
-            return AppActivity(name,"Última detección · hace $ago",badge,true)
+            return AppActivity(name,"Última detección · hace $ago",badge,true,p.icon)
         }
     }
 }

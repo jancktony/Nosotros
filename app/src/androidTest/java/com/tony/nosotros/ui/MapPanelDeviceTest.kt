@@ -39,7 +39,7 @@ class MapPanelDeviceTest {
         }
         ui.onNodeWithText("Kelin").assertIsDisplayed()
         ui.onNodeWithText("Instagram").assertIsDisplayed()
-        ui.onNodeWithText("Última detección · hace 30 s").assertIsDisplayed()
+        ui.onNodeWithText("hace 30 s").assertIsDisplayed()
         ui.onNodeWithText("Distancia").assertDoesNotExist()
         ui.onNodeWithText("Velocidad").assertDoesNotExist()
         ui.onNode(hasText("GPS hace",substring=true)).assertIsDisplayed()

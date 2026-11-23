@@ -161,7 +161,193 @@ service cloud.firestore {
           && request.resource.data.sharing is bool && request.resource.data.updatedAt == request.time
           && ((!request.resource.data.sharing && request.resource.data.keys().hasOnly(['sharing', 'updatedAt']))
             || (request.resource.data.sharing && targetFeature('appPresence', uid)
-              && request.resource.data.keys().hasOnly(['sharing', 'label', 'updatedAt'])
+              && request.resource.data.keys().hasOnly(['sharing', 'label', 'icon', 'updatedAt'])
+              && request.resource.data.get('icon', '') is string && request.resource.data.get('icon', '').size() <= 8192
+              && request.resource.data.get('icon', '').matches('^[A-Za-z0-9+/]*={0,2}
+              && request.resource.data.label is string && request.resource.data.label.size() <= 100));
+      }
+      match /sleepPresence/{uid} {
+        allow read: if member(id) && (request.auth.uid == uid || targetFeature('sleepStatus', uid));
+        allow delete: if member(id) && request.auth.uid == uid;
+        allow create, update: if member(id) && request.auth.uid == uid
+          && request.resource.data.sharing is bool && request.resource.data.updatedAt == request.time
+          && ((!request.resource.data.sharing && request.resource.data.keys().hasOnly(['sharing', 'updatedAt']))
+            || (request.resource.data.sharing && targetFeature('sleepStatus', uid)
+              && request.resource.data.keys().hasOnly(['sharing', 'state', 'since', 'updatedAt'])
+              && request.resource.data.state in ['awake', 'idle', 'sleeping', 'overdue']
+              && request.resource.data.since is int && request.resource.data.since >= 0
+              && request.resource.data.since <= request.time.toMillis()));
+      }
+      match /deviceCommands/{uid} {
+        allow get: if member(id) && uid in pairData(id).members;
+        function newRequest() {
+          return member(id) && uid in pairData(id).members && targetFeature('findPhone', uid)
+            && get(/databases/$(database)/documents/pairs/$(id)/members/$(uid)).data.get('findPhoneEnabled', false) == true
+            && request.resource.data.keys().hasOnly(['requestId', 'requester', 'type', 'createdAt', 'expiresAt', 'status'])
+            && request.resource.data.requestId is string && request.resource.data.requestId.matches('[a-zA-Z0-9-]{20,40}')
+            && request.resource.data.requester == request.auth.uid && request.resource.data.type == 'ring'
+            && request.resource.data.status == 'queued' && request.resource.data.createdAt == request.time
+            && request.resource.data.expiresAt is int && request.resource.data.expiresAt > request.time.toMillis()
+            && request.resource.data.expiresAt <= request.time.toMillis() + 60000;
+        }
+        allow create: if newRequest();
+        allow update: if (newRequest() && request.time.toMillis() - resource.data.createdAt.toMillis() >= 10000)
+          || (member(id) && request.auth.uid == uid && changedOnly(['status', 'handledAt'])
+            && request.resource.data.status in ['ringing', 'stopped', 'unavailable']
+            && request.resource.data.handledAt == request.time);
+      }
+      match /members/{uid} {
+        allow read: if member(id);
+        allow create: if member(id) && uid == request.auth.uid && validProfile(request.resource.data);
+        allow update: if member(id) && validProfile(request.resource.data) && (
+          uid == request.auth.uid ||
+          (uid in pairData(id).members && changedOnly(['liveRequestedUntil'])
+            && request.resource.data.liveRequestedUntil is int
+            && request.resource.data.liveRequestedUntil <= request.time.toMillis() + 300000
+            && request.resource.data.liveRequestedUntil >= request.time.toMillis())
+        );
+      }
+      function placeAddressValid(data) {
+        return data.get('address', '') is string && data.get('address', '').size() <= 200
+          && data.get('city', '') is string && data.get('city', '').size() <= 80;
+      }
+      match /places/{place} {
+        allow read: if member(id);
+        allow create: if member(id) && request.resource.data.owner == request.auth.uid && placeAddressValid(request.resource.data);
+        allow update: if member(id) && request.resource.data.owner == resource.data.owner && placeAddressValid(request.resource.data)
+          && (resource.data.owner == request.auth.uid || admin(id));
+        allow delete: if member(id) && (resource.data.owner == request.auth.uid || admin(id));
+      }
+      match /events/{event} {
+        allow read: if member(id);
+        allow create: if member(id) && own(request.resource.data);
+      }
+      match /trips/{trip} {
+        allow read: if member(id);
+        allow create: if member(id) && own(request.resource.data);
+        allow update: if member(id) && own(resource.data) && changedOnly(['mode']);
+      }
+      match /visits/{visit} {
+        allow read: if member(id);
+        allow create: if member(id) && own(request.resource.data);
+        allow update: if member(id) && own(resource.data) && changedOnly(['end']);
+      }
+      match /improvementRequests/{requestId} {
+        allow read: if admin(id);
+        allow create: if admin(id) && own(request.resource.data)
+          && request.resource.data.keys().hasOnly(['uid','text','state','version','createdAt'])
+          && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+          && request.resource.data.state == 'received'
+          && request.resource.data.version is string && request.resource.data.version.size() <= 30
+          && request.resource.data.createdAt == request.time;
+      }
+      match /releaseReviews/{version} {
+        allow read: if admin(id);
+        allow create, update: if admin(id)
+          && request.resource.data.keys().hasOnly(['uid', 'state', 'notes', 'updatedAt'])
+          && own(request.resource.data) && request.resource.data.state in ['approved', 'changes_requested']
+          && request.resource.data.notes is string && request.resource.data.notes.size() <= 2000
+          && request.resource.data.updatedAt == request.time
+          && get(/databases/$(database)/documents/releases/$(version)).data.ready == true
+          && get(/databases/$(database)/documents/releases/$(version)).data.pairId == id
+          && (request.resource.data.state != 'approved' ||
+            get(/databases/$(database)/documents/pairs/$(id)/members/$(request.auth.uid)).data.appVersion == version);
+      }
+      match /journeys/{uid} {
+        allow read: if member(id) && feature(id, 'sharedTrips', 'admin');
+        allow delete: if member(id) && request.auth.uid == uid;
+        allow create, update: if member(id) && request.auth.uid == uid && feature(id, 'sharedTrips', 'admin')
+          && request.resource.data.keys().hasOnly(['name','lat','lng','etaAt','expiresAt','state','updatedAt'])
+          && request.resource.data.name is string && request.resource.data.name.size()>0 && request.resource.data.name.size()<=120
+          && request.resource.data.lat is number && request.resource.data.lat>=-90 && request.resource.data.lat<=90
+          && request.resource.data.lng is number && request.resource.data.lng>=-180 && request.resource.data.lng<=180
+          && request.resource.data.etaAt is int && request.resource.data.expiresAt is int
+          && request.resource.data.expiresAt>request.time.toMillis() && request.resource.data.expiresAt<=request.time.toMillis()+86400000
+          && request.resource.data.state in ['active','arrived'] && request.resource.data.updatedAt == request.time;
+      }
+      match /voiceNotes/{note} {
+        allow read: if member(id) && feature(id, 'voiceNotes', 'off');
+        allow create: if member(id) && feature(id, 'voiceNotes', 'off') && own(request.resource.data)
+          && request.resource.data.keys().hasOnly(['uid', 'audio', 'durationMs', 'createdAt'])
+          && request.resource.data.audio is bytes && request.resource.data.audio.size() <= 150000
+          && request.resource.data.audio.size() > 0
+          && request.resource.data.durationMs is int
+          && request.resource.data.durationMs >= 300 && request.resource.data.durationMs <= 30000
+          && request.resource.data.createdAt == request.time;
+        allow update: if member(id) && feature(id, 'voiceNotes', 'off') && !own(resource.data)
+          && changedOnly(['receivedBy', 'receivedAt']) && request.resource.data.receivedBy == request.auth.uid
+          && request.resource.data.receivedAt == request.time;
+        allow delete: if member(id) && (own(resource.data) || admin(id));
+      }
+      match /walkiePresence/{uid} {
+        allow read: if member(id) && feature(id, 'walkieRelay', 'off');
+        allow create, update: if member(id) && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['relay', 'protocol', 'updatedAt'])
+          && request.resource.data.relay is bool && request.resource.data.protocol == 'walkie-amrnb-v1'
+          && request.resource.data.updatedAt == request.time
+          && (!request.resource.data.relay || (feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off')));
+      }
+      match /walkiePackets/{packet} {
+        function participant() { return resource.data.uid == request.auth.uid || resource.data.to == request.auth.uid; }
+        function optedIn(uid) {
+          let consent = get(/databases/$(database)/documents/pairs/$(id)/walkiePresence/$(uid)).data;
+          return consent.relay == true && consent.protocol == 'walkie-amrnb-v1'
+            && consent.updatedAt.toMillis() >= request.time.toMillis() - 480000;
+        }
+        allow read: if member(id) && feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off') && participant();
+        allow delete: if member(id) && (!exists(/databases/$(database)/documents/pairs/$(id)/walkiePackets/$(packet)) || participant());
+        allow create: if member(id) && feature(id, 'walkie', 'off') && feature(id, 'walkieRelay', 'off')
+          && own(request.resource.data) && request.resource.data.to in pairData(id).members
+          && request.resource.data.to != request.auth.uid && targetFeature('walkieRelay', request.resource.data.to)
+          && targetFeature('walkie', request.resource.data.to)
+          && optedIn(request.auth.uid) && optedIn(request.resource.data.to)
+          && request.resource.data.keys().hasOnly(['uid', 'to', 'audio', 'createdAt', 'expiresAt'])
+          && request.resource.data.audio is bytes && request.resource.data.audio.size() > 0 && request.resource.data.audio.size() <= 4096
+          && request.resource.data.createdAt == request.time && request.resource.data.expiresAt is int
+          && request.resource.data.expiresAt > request.time.toMillis()
+          && request.resource.data.expiresAt <= request.time.toMillis() + 15000;
+      }
+      match /walkieCalls/{call} {
+        function participant() { return member(id) && request.auth.uid in [resource.data.uid, resource.data.to]; }
+        allow read: if member(id) && feature(id, 'walkie', 'off');
+        allow delete: if member(id) && (!exists(/databases/$(database)/documents/pairs/$(id)/walkieCalls/$(call)) || participant());
+        allow create: if member(id) && feature(id, 'walkie', 'off') && own(request.resource.data)
+          && request.resource.data.keys().hasOnly(['uid', 'to', 'offer', 'createdAt'])
+          && request.resource.data.to in pairData(id).members
+          && request.resource.data.to != request.auth.uid
+          && request.resource.data.offer is string && request.resource.data.offer.size() <= 32000
+          && request.resource.data.createdAt == request.time;
+        allow update: if participant() && feature(id, 'walkie', 'off') && request.auth.uid == resource.data.to
+          && !('answer' in resource.data) && changedOnly(['answer'])
+          && request.resource.data.answer is string && request.resource.data.answer.size() <= 32000;
+        match /candidates/{candidate} {
+          function callData() { return get(/databases/$(database)/documents/pairs/$(id)/walkieCalls/$(call)).data; }
+          function participant() { return member(id) && request.auth.uid in [callData().uid, callData().to]; }
+          allow read: if participant() && feature(id, 'walkie', 'off');
+          allow delete: if member(id) && (!exists(/databases/$(database)/documents/pairs/$(id)/walkieCalls/$(call)) || participant());
+          allow create: if participant() && feature(id, 'walkie', 'off') && own(request.resource.data)
+            && request.resource.data.keys().hasOnly(['uid', 'candidate', 'mid', 'line'])
+            && request.resource.data.candidate is string && request.resource.data.candidate.size() <= 4096
+            && request.resource.data.mid is string && request.resource.data.mid.size() <= 128
+            && request.resource.data.line is int && request.resource.data.line >= 0 && request.resource.data.line <= 32;
+        }
+      }
+      match /photos/{photo} {
+        allow read: if member(id);
+        allow create: if member(id) && own(request.resource.data);
+        allow delete: if member(id) && (own(resource.data) || admin(id));
+        match /full/{image} {
+          allow read: if member(id);
+          allow create: if member(id) && image == 'img'
+            && getAfter(/databases/$(database)/documents/pairs/$(id)/photos/$(photo)).data.uid == request.auth.uid;
+          allow delete: if member(id) && (
+            get(/databases/$(database)/documents/pairs/$(id)/photos/$(photo)).data.uid == request.auth.uid || admin(id));
+        }
+      }
+    }
+  }
+}
+)
               && request.resource.data.label is string && request.resource.data.label.size() <= 100));
       }
       match /sleepPresence/{uid} {

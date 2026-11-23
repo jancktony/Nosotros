@@ -32,6 +32,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val pairId = MutableStateFlow(prefs.pairId)
     val onboarded = MutableStateFlow(prefs.onboarded && prefs.pairId != null)
+    val dockStyle = MutableStateFlow(prefs.dockStyle)
+    val dockMotion = MutableStateFlow(prefs.dockMotion)
+    fun setDockStyle(value: String) { prefs.dockStyle = value; dockStyle.value = prefs.dockStyle }
+    fun setDockMotion(value: String) { prefs.dockMotion = value; dockMotion.value = prefs.dockMotion }
     val uid = MutableStateFlow<String?>(null)
     val error = MutableStateFlow<String?>(null)
 

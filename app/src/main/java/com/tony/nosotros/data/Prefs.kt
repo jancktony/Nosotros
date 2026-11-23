@@ -95,6 +95,12 @@ class Prefs(ctx: Context) {
     var favoritePhotos: Set<String>
         get() = p.getStringSet("favoritePhotos", emptySet())?.toSet().orEmpty()
         set(v) = p.edit().putStringSet("favoritePhotos", v).apply()
+    var dockStyle: String
+        get() = p.getString("dockStyle", "wave").orEmpty().takeIf { it in listOf("wave", "spotlight", "notch") } ?: "wave"
+        set(v) = p.edit().putString("dockStyle", v).apply()
+    var dockMotion: String
+        get() = p.getString("dockMotion", "slide").orEmpty().takeIf { it in listOf("slide", "spring", "fade", "none") } ?: "slide"
+        set(v) = p.edit().putString("dockMotion", v).apply()
     var theme: String
         get() = p.getString("theme", "pink") ?: "pink"
         set(v) = p.edit().putString("theme", v).apply()

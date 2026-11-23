@@ -200,7 +200,7 @@ class TrackingService : Service() {
             stillJob?.cancel()
             stillJob = scope.launch {
                 delay(3 * 60_000L)          // 3 min quieto = fin del trayecto
-                if (rawMode == Mode.STILL) finishTrip(engine.current?.name)
+                if (rawMode == Mode.STILL) finishTrip(engine.current?.displayName)
             }
         } else {
             stillJob?.cancel()
@@ -213,7 +213,7 @@ class TrackingService : Service() {
                 if (since > 0 && fix != null) engine.onStayEnded(since, now, fix.latitude, fix.longitude)
                 prefs.stillSince = 0L
             }
-            if (!trip.active && !isPaused()) trip.begin(engine.current?.name, now)
+            if (!trip.active && !isPaused()) trip.begin(engine.current?.displayName, now)
         }
         applyPolicy()
         uploadStatus(force = true)
@@ -369,7 +369,7 @@ class TrackingService : Service() {
             "charging" to bm.isCharging,
             "updatedAt" to now,
             "route" to if (trip.active) trip.tail() else "",
-            "placeName" to engine.current?.name,
+            "placeName" to engine.current?.displayName,
             "saving" to lowBattery, "findPhoneEnabled" to prefs.allowFindPhone,
         )
         lastFix?.let {
@@ -390,21 +390,21 @@ class TrackingService : Service() {
     private fun onArrive(p: Place) {
         stopHadRegisteredPlace = true
         val pid = pairId ?: return
-        finishTrip(p.name)
-        Repo.addEvent(pid, "arrive", p.name)
+        finishTrip(p.displayName)
+        Repo.addEvent(pid, "arrive", p.displayName)
         Repo.incrementVisits(pid, p.id)
-        prefs.currentVisitId = Repo.startVisit(pid, p.id, p.name, lastFix?.latitude ?: p.lat, lastFix?.longitude ?: p.lng)
+        prefs.currentVisitId = Repo.startVisit(pid, p.id, p.displayName, lastFix?.latitude ?: p.lat, lastFix?.longitude ?: p.lng)
         uploadStatus(force = true)
     }
 
     private fun onLeave(p: Place) {
         val pid = pairId ?: return
-        Repo.addEvent(pid, "leave", p.name)
+        Repo.addEvent(pid, "leave", p.displayName)
         prefs.currentVisitId?.let { Repo.endVisit(pid, it) }
         prefs.currentVisitId = null
         // Normalmente el trayecto ya empezó al moverse (con este lugar como origen)
         if (!trip.active) {
-            trip.begin(p.name)
+            trip.begin(p.displayName)
             trip.onRawMode(rawMode)
         }
         uploadStatus(force = true)
@@ -494,7 +494,7 @@ class TrackingService : Service() {
         scope.launch {
             Repo.placesFlow(pid).collect { all ->
                 engine.allPlaces = all
-                val mine = all.filter { it.owner == uid && !it.suggested && it.name.isNotBlank() }
+                val mine = all.filter { it.owner == uid && !it.suggested && it.displayName.isNotBlank() }
                 val changed = mine.map { listOf(it.id, it.radius, it.lat, it.lng) } != engine.places.map { listOf(it.id, it.radius, it.lat, it.lng) }
                 engine.places = mine
                 if (changed) registerGeofences(mine)

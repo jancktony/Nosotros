@@ -1,13 +1,13 @@
 name: Validar y publicar web privada
 on:
   push:
-    branches: [feature/experiencia-completa-1.16, main, feature/experiencia-1.15.8, feature/juntos-animado-1.15, feature/pruebas-web-walkie, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13, fix/reintento-directo-1.13.1]
+    branches: [feature/lugares-navegacion-1.17, feature/experiencia-completa-1.16, main, feature/experiencia-1.15.8, feature/juntos-animado-1.15, feature/pruebas-web-walkie, feature/actividad-sueno-globo, feature/ajustes-buscar-ios, fix/conexion-direcciones-1.13, fix/reintento-directo-1.13.1]
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: web-rules
-  cancel-in-progress: ${{ github.ref_name == 'feature/experiencia-completa-1.16' || github.ref_name == 'feature/experiencia-1.15.8' || github.ref_name == 'main' }}
+  cancel-in-progress: ${{ (github.ref_name == 'feature/lugares-navegacion-1.17' || github.ref_name == 'feature/experiencia-completa-1.16') || github.ref_name == 'feature/experiencia-1.15.8' || github.ref_name == 'main' }}
 jobs:
   deploy:
     runs-on: ubuntu-latest

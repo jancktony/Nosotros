@@ -89,6 +89,8 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
     val partner by vm.partner.collectAsState()
     val since by vm.since.collectAsState()
     val theme by vm.theme.collectAsState()
+    val dockStyle by vm.dockStyle.collectAsState()
+    val dockMotion by vm.dockMotion.collectAsState()
     val p = vm.prefs
     var name by remember { mutableStateOf(p.myName) }
     var vehicle by remember { mutableStateOf(p.vehicle) }
@@ -161,6 +163,16 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
         }
         // ---------- Apariencia ----------
         if (category == "General") {
+            Section(Ic.Layers, "Barra de navegación") {
+                Text("Solo cambia en este teléfono.", color = C.sub, fontSize = 13.sp)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("wave" to "Onda", "spotlight" to "Foco", "notch" to "Muesca").forEach { (id, label) -> Chip(label, dockStyle == id) { vm.setDockStyle(id) } }
+                }
+                Text("Animación", color = C.sub, fontSize = 14.sp)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("slide" to "Deslizamiento", "spring" to "Rebote suave", "fade" to "Fundido", "none" to "Sin animación").forEach { (id, label) -> Chip(label, dockMotion == id) { vm.setDockMotion(id) } }
+                }
+            }
             Section(Ic.Palette, "Apariencia") {
                 Text("Tema", color = C.sub, fontSize = 14.sp)
                 Text("Rosa original es el predeterminado. El tema se guarda solo en este teléfono.", color = C.sub, fontSize = 13.sp)

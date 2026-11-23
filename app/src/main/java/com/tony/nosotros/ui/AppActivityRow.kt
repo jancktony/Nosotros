@@ -1,5 +1,8 @@
 package com.tony.nosotros.ui
 
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import com.tony.nosotros.presence.AppIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,22 +22,17 @@ import com.tony.nosotros.presence.AppActivity
 @Composable
 internal fun AppActivityRow(subject: String, activity: AppActivity, accent: Color = C.partner) {
     var detail by remember { mutableStateOf(false) }
-    Column {
-        HorizontalDivider(color=C.line)
-        Row(Modifier.fillMaxWidth().heightIn(min=52.dp).clickable { detail=true }
-            .padding(vertical=8.dp), verticalAlignment=Alignment.CenterVertically,
-            horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha=.15f)),
-                contentAlignment=Alignment.Center) {
-                Text(activity.badge,color=accent,fontSize=12.sp,fontWeight=FontWeight.SemiBold)
-            }
-            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(3.dp)) {
-                Text(activity.title,color=if(activity.available)C.text else C.sub,fontSize=14.sp,
-                    fontWeight=FontWeight.SemiBold,maxLines=2,overflow=TextOverflow.Ellipsis)
-                Text(activity.subtitle,color=C.sub,fontSize=12.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
-            }
-            Text("›",color=C.sub,fontSize=23.sp)
-        }
+    val bitmap = remember(activity.icon) { AppIcons.decode(activity.icon) }
+    Row(Modifier.fillMaxWidth().height(44.dp).clickable { detail = true }
+        .padding(vertical = 5.dp).clip(RoundedCornerShape(12.dp)).background(C.surface2.copy(alpha = .8f))
+        .padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        if (bitmap != null && activity.available) Image(bitmap.asImageBitmap(), "Icono de ${activity.title}", Modifier.size(22.dp))
+        else Icon(if (activity.title == "Pantalla de inicio") Ic.Pin else Ic.Sparkle, null, tint = accent, modifier = Modifier.size(20.dp))
+        Text(activity.title, color = if (activity.available) C.text else C.sub, fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (activity.available) Text(activity.subtitle.removePrefix("Última detección · "), color = C.sub, fontSize = 11.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 115.dp))
     }
     if (detail) AlertDialog(onDismissRequest={detail=false},containerColor=C.surface,
         title={Text(if(subject=="Yo")"Mi actividad" else "Actividad de $subject")},

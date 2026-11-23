@@ -351,3 +351,22 @@ test('voice cleanup is idempotent after the peer already removed packets and cal
  await assertFails(deleteDoc(p(stranger(),'pairs/p/walkieCalls/old')));
  await assertFails(deleteDoc(p(stranger(),'pairs/p/walkieCalls/old/candidates/ice')));
 });
+
+test('iconos de actividad pequeños y direcciones: compatibilidad, consentimiento y límites',async()=>{
+ await assertSucceeds(updateDoc(p(alice()),{featureFlags:{appPresence:'all'}}));
+ const own=p(bob(),'pairs/p/appPresence/bob');
+ await assertSucceeds(setDoc(own,{sharing:true,label:'Instagram',updatedAt:serverTimestamp()}));
+ await assertSucceeds(setDoc(own,{sharing:true,label:'Instagram',icon:'iVBORw0KGgoAAA==',updatedAt:serverTimestamp()}));
+ await assertSucceeds(getDoc(p(alice(),'pairs/p/appPresence/bob')));
+ await assertFails(setDoc(own,{sharing:true,label:'Instagram',icon:'https://example.com/icon.png',updatedAt:serverTimestamp()}));
+ await assertFails(setDoc(own,{sharing:true,label:'Instagram',icon:'A'.repeat(8193),updatedAt:serverTimestamp()}));
+ await assertFails(setDoc(p(alice(),'pairs/p/appPresence/bob'),{sharing:true,label:'Instagram',icon:'',updatedAt:serverTimestamp()}));
+ await assertSucceeds(setDoc(own,{sharing:false,updatedAt:serverTimestamp()}));
+ assert.equal((await getDoc(own)).data().icon,undefined);
+ const place=p(bob(),'pairs/p/places/address');
+ await assertSucceeds(setDoc(place,{owner:'bob',name:'Casa',lat:11,lng:-74.8,radius:100}));
+ await assertSucceeds(updateDoc(place,{address:'Calle 56 #43-20',city:'Barranquilla'}));
+ await assertFails(updateDoc(place,{address:'A'.repeat(201)}));
+ await assertFails(updateDoc(place,{city:123}));
+ await assertFails(updateDoc(p(stranger(),'pairs/p/places/address'),{address:'Otra dirección'}));
+});

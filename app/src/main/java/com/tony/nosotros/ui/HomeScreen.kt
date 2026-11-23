@@ -349,7 +349,7 @@ private fun PlaceCard(p: Place, me: Member?, partner: Member?, uid: String?, onE
             IconTile(Ic.Pin, tint = if (mine) C.me else C.partner)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(p.name, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text(p.displayName, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Text("${if (mine) "Tu lugar" else "Lugar de ${partner?.name?.ifBlank { null } ?: "tu pareja"}"} · ${p.visits} visitas",
                     color = C.sub, fontSize = 14.sp)
                 me?.takeIf { it.hasLocation }?.let {
@@ -424,17 +424,14 @@ internal fun PartnerSheet(
             }
             if (partner != null && partner.battery >= 0) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val col = if (partner.battery < 20 && !partner.charging) C.danger else C.ok
-                    Icon(if (partner.charging) Ic.Bolt else Ic.Battery, null, tint = col, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("${partner.battery}%", color = col, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    IosBattery(partner.battery, partner.charging)
                 }
             }
         }
 
             if(quickPlaces.isNotEmpty())Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(9.dp)){
                 quickPlaces.forEach {place -> TextButton(onClick={onQuickPlace(place)},modifier=Modifier.weight(1f).glassPanel(18.dp)){
-                    Icon(Ic.Pin,null,tint=C.me,modifier=Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text(place.name,color=C.text,maxLines=1)
+                    Icon(Ic.Pin,null,tint=C.me,modifier=Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text(place.displayName,color=C.text,maxLines=1)
                 }}}
             appActivity?.let { AppActivityRow(name,it) }
             if(LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.BATTERY_ALERTS) && partner?.shareBatteryAlerts == true && partner.battery in 0..19 && !partner.charging && System.currentTimeMillis()-partner.updatedAt in 0..600_000)
@@ -447,7 +444,7 @@ internal fun PartnerSheet(
 
         if (eta != null && !paused) InfoBanner(Ic.Clock,
             (if (leftName != null) "Salió de $leftName a las ${TimeFmt.hour(leftAt)}. " else "") +
-                "Llega a ${eta.place.name} aprox. a las ${TimeFmt.hour(eta.arriveAt)} (en ${Eta.mins(eta.seconds)})", C.partner)
+                "Llega a ${eta.place.displayName} aprox. a las ${TimeFmt.hour(eta.arriveAt)} (en ${Eta.mins(eta.seconds)})", C.partner)
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MiniStat(if (together || distance == null || distance <= 40.0) "Estado" else "Distancia", com.tony.nosotros.util.PairProximity.distanceText(together, distance), C.me, Modifier.weight(1f))

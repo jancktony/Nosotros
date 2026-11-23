@@ -79,7 +79,10 @@ data class Place(
     val radius: Double = 100.0,
     val visits: Long = 0,
     val suggested: Boolean = false,
+    val address: String = "",
+    val city: String = "",
 ) {
+    val displayName: String get() = listOf(address.trim(), city.trim()).filter { it.isNotBlank() }.joinToString(", ").ifBlank { name }
     companion object {
         fun from(d: DocumentSnapshot) = Place(
             id = d.id,
@@ -90,6 +93,7 @@ data class Place(
             radius = d.getDouble("radius") ?: 100.0,
             visits = d.getLong("visits") ?: 0,
             suggested = d.getBoolean("suggested") ?: false,
+            address = d.getString("address").orEmpty(), city = d.getString("city").orEmpty(),
         )
     }
 }

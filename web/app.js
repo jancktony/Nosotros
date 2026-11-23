@@ -80,13 +80,23 @@ function watchActivity(){
   },()=>{delete S.activity[id];render()}));
  }
 }
+function safeAppIcon(raw){
+ if(typeof raw!=='string'||raw.length>8192||!/^iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(raw))return '';
+ try{const b=atob(raw.slice(0,44));if(b.length<24||b.slice(12,16)!=='IHDR')return '';
+  const n=i=>b.charCodeAt(i)*16777216+b.charCodeAt(i+1)*65536+b.charCodeAt(i+2)*256+b.charCodeAt(i+3);
+  return n(16)>0&&n(16)<=64&&n(20)>0&&n(20)<=64?raw:'';
+ }catch{return ''}
+}
 function activityText(member){
- const now=Date.now(),parts=[];
+ const now=Date.now(),parts=[];let compactApp="";
  for(const key of ['appPresence','sleepStatus']){
   if(!enabled(key,member.id))continue;
   const data=S.activity[`${member.id}:${key}`],age=now-(data?.updatedAt?.toMillis?.()||0);
   if(!data?.sharing||age<0||age>(key==='appPresence'?180000:720000))continue;
-  if(key==='appPresence'&&data.label)parts.push(`Última app detectada: ${data.label}`);
+  if(key==='appPresence'&&data.label){
+   const icon=safeAppIcon(data.icon);
+   compactApp=`<div class="app-activity-compact" title="Última aplicación detectada; puede haber cambiado">${icon?`<img width="22" height="22" alt="" src="data:image/png;base64,${icon}">`:'<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 5h4m-3 14h2"/></svg>'}<b>${esc(data.label)}</b><small>hace ${Math.floor(age/1000)<60?Math.floor(age/1000)+' s':Math.floor(age/60000)+' min'}</small></div>`;
+  }
   if(key==='sleepStatus'){
    const hours=Math.max(0,Math.floor((now-(data.since||now))/60000));
    const duration=`${Math.floor(hours/60)} h ${hours%60} min`;
@@ -95,7 +105,7 @@ function activityText(member){
    if(data.state==='overdue')parts.push(`Pasó su hora habitual de despertar · ${duration} estimados`);
   }
  }
- return parts.map(text=>`<p class="sub">${esc(text)}</p>`).join('');
+ return compactApp+parts.map(text=>`<p class="sub">${esc(text)}</p>`).join('');
 }
 function watchCommands(){
  const signature=JSON.stringify(S.pair.members);if(commandKey===signature)return;commandKey=signature;
@@ -114,17 +124,24 @@ function settingsPanel(me){
  const localDate=date&&!Number.isNaN(date.valueOf())?`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`:'';
  return `<section class="card"><span class="eyebrow">MI PERFIL</span><h2>Así te verá tu pareja</h2><label for="profile-name">Tu nombre</label><input id="profile-name" maxlength="40" autocomplete="nickname" value="${esc(drafts['profile-name']??me?.name??'')}"><button class="primary" data-act="save-profile">Guardar mi nombre</button><p class="sub">Para conservar el nombre sincronizado, tu teléfono debe usar Nosotros 1.11 o posterior. Solo editas tu propio perfil. Los permisos y el consentimiento de actividad se aceptan desde cada teléfono.</p></section>
  <section class="card"><span class="eyebrow">SU FECHA ESPECIAL</span><h2>Nuestro aniversario</h2><label for="anniversary-date">Fecha compartida</label><input id="anniversary-date" type="date" value="${esc(drafts['anniversary-date']??localDate)}"><button data-act="save-anniversary">Guardar fecha</button></section>
+ ${window.NosotrosDock?.settingsHTML()||''}
  <section class="card"><h2>Apariencia de esta web</h2><div class="toolbar">${[['pink','Rosa original · predeterminado'],['redblack','Rojo y negro'],['blackpink','Negro y rosa'],['fullpink','Rosa completo'],['night','Noche'],['light','Claro']].map(([value,title])=>`<button data-act="theme" data-mode="${value}">${title}</button>`).join('')}</div><p class="sub">Se guarda en este navegador. La apariencia de cada teléfono se elige en su app.</p></section>`;
 }
 function photosPanel(){return `<section class="card"><span class="eyebrow">SOLO USTEDES</span><h2>Sus recuerdos</h2><div class="photos">${S.photos.map(photo=>`<button class="photo-cell" data-act="photo" data-id="${esc(photo.id)}"><img alt="${esc(photo.caption||'Foto compartida')}" src="data:image/jpeg;base64,${esc(photo.thumb?.toBase64?.()||'')}"><span>${esc(photo.caption||'Un momento juntos')} · ${new Date(photo.at||0).toLocaleDateString('es-CO')}${favoritePhotos.has(photo.id)?' · Favorito':''}</span></button>${enabled('photoFavorites')?`<button data-act="favorite-photo" data-id="${esc(photo.id)}">${favoritePhotos.has(photo.id)?'Quitar favorito':'Guardar favorito'}</button>`:''}`).join('')||'<p class="sub">El primer recuerdo los está esperando.</p>'}</div></section>`}
 function viewer(){if(!photoViewer)return '';return `<dialog id="photo-viewer"><div class="viewer-toolbar"><span>${esc(photoViewer.caption||'Un momento juntos')}</span><button data-act="photo-close">Cerrar</button></div><img alt="Foto compartida ampliada" src="data:image/jpeg;base64,${esc(photoViewer.src)}"><p class="sub">${esc(photoViewer.status||'')}</p></dialog>`}
+
+function batteryHTML(level,charging,id){
+ const n=Math.max(0,Math.min(100,Math.round(Number(level)||0))),key='battery-'+String(id).replace(/[^a-zA-Z0-9_-]/g,'');
+ return `<svg class="ios-battery ${n<20&&!charging?'low':''}" viewBox="0 0 40 22" role="img" aria-label="Batería ${n} por ciento${charging?', cargando':''}"><defs><clipPath id="${key}"><rect x="2" y="4" width="${30*n/100}" height="14" rx="3"/></clipPath></defs><rect x="1" y="3" width="32" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M35 8v6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><rect x="2" y="4" width="${30*n/100}" height="14" rx="3" fill="currentColor"/><text x="17" y="15" text-anchor="middle" fill="var(--text)">${n}</text><text x="17" y="15" text-anchor="middle" fill="var(--dock-ink)" clip-path="url(#${key})">${n}</text></svg>`;
+}
+
 function person(member){
  if(!member)return '<p class="sub">Esperando la primera señal</p>';
  const available=canLocate(member),isPaused=paused(member),own=member.id===uid;
  return `<h2>${esc(member.name|| (own?'Mi teléfono':'Teléfono de mi pareja'))}</h2><p class="sub">${own?'Tu cuenta':'Cuenta de tu pareja'} · ${esc(member.appVersion||'Sin versión informada')}</p>
  <div class="row"><span class="grow sub">Última ubicación</span><b>${ago(member.locationAt)}</b></div>
  <p class="sub">Actualización: ${esc(({downloading:'Descargando',installing:'Instalación enviada a Android',confirmation:'Pendiente de confirmar en el teléfono',installed:'Instalada',failed:'No se pudo instalar'})[member.updateStatus]||'Sin solicitud reciente')} ${esc(member.updateTarget||'')}</p>
- <div class="row"><span class="grow sub">Batería</span>${member.battery>=0?`${member.battery}%${member.charging?' · Cargando':''}`:'Sin datos'}</div>
+ <div class="row"><span class="grow sub">Batería</span>${member.battery>=0?batteryHTML(member.battery,member.charging,member.id):'Sin datos'}</div>
  <p>${isPaused?'Ubicación pausada':esc(member.placeName||'Ubicación disponible según la última señal')}</p>
  ${activityText(member)}
  ${enabled('batteryAlerts')&&member.shareBatteryAlerts&&member.battery>=0&&member.battery<20&&!member.charging&&Date.now()-member.updatedAt<600000?`<p class="status">Batería baja: ${member.battery}% · aviso compartido voluntariamente</p>`:''}
@@ -178,7 +195,8 @@ function render(){
  if(webTab!=='phones')return;
  drawMap(live);
 }
-function placesHTML(){return S.places.filter(p=>!p.suggested&&p.name).map(p=>`<div class="row"><span class="grow">${esc(p.name)}</span><span class="sub">${Math.round(p.radius||100)} m</span></div>`).join('')||'<p class="sub">Todavía no hay lugares.</p>'}
+function placeLabel(p){return [p.address,p.city].filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim()).join(', ')||p.name||''}
+function placesHTML(){return S.places.filter(p=>!p.suggested&&placeLabel(p)).map(p=>`<div class="row"><span class="grow">${esc(placeLabel(p))}</span><span class="sub">${Math.round(p.radius||100)} m</span></div>`).join('')||'<p class="sub">Todavía no hay lugares.</p>'}
 function destroyMap(){for(const marker of markers.values())marker.remove();markers.clear();map?.remove();map=null;mapFeatures=''}
 function drawMap(live){
  const located=live.filter(canLocate);if(!located.length){destroyMap();document.getElementById('map').innerHTML='<p class="sub">No hay una ubicación recibida todavía.</p>';return}
@@ -200,12 +218,18 @@ function drawMap(live){
   });
   }
   const bounds=new maplibregl.LngLatBounds();
-  const ids=new Set(located.map(m=>m.id));
+  const savedPlaces=S.places.filter(p=>!p.suggested&&canLocate(p));
+  const ids=new Set([...located.map(m=>m.id),...savedPlaces.map(p=>'place:'+p.id)]);
   for(const [id,marker] of markers)if(!ids.has(id)){marker.remove();markers.delete(id)}
   for(const member of located){
    if(!markers.has(member.id))markers.set(member.id,new maplibregl.Marker({color:member.id===uid?'#5eead4':'#f9a8d4'}).setLngLat([member.lng,member.lat]).addTo(map));
    else markers.get(member.id).setLngLat([member.lng,member.lat]);
    bounds.extend([member.lng,member.lat]);
+  }
+  for(const place of savedPlaces){
+   const key='place:'+place.id;
+   if(!markers.has(key)){const el=document.createElement('div');el.className='saved-place-marker';el.textContent=placeLabel(place);markers.set(key,new maplibregl.Marker({element:el}).setLngLat([place.lng,place.lat]).addTo(map))}
+   else{const m=markers.get(key);m.setLngLat([place.lng,place.lat]);const el=m.getElement?.();if(el)el.textContent=placeLabel(place)}
   }
   if(created&&!savedCamera&&!selected&&located.length>1)map.fitBounds(bounds,{padding:55,maxZoom:15,animate:false});
   if(!created&&selected!==renderedSelection&&selected)map.easeTo({center:[focus.lng,focus.lat],zoom:16});
