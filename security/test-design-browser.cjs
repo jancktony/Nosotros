@@ -38,6 +38,28 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
     });
     assert.deepEqual(bad,[],'Clipped controls at width '+width+' on '+id+': '+bad.join(', '));
    }
+   for(const style of ['crystal','floating','raised']){
+    await page.evaluate(()=>document.querySelector('[data-go="settings"]').click());
+    await page.locator('[data-setting="General"]').click();
+    await page.locator('[data-nav-style-choice="'+style+'"]').click();
+    assert.equal(await page.locator('html').getAttribute('data-nav-style'),style);
+    assert.equal(await page.locator('[data-nav-style-choice][aria-pressed="true"]').count(),1);
+    await page.locator('.nav-try').click();
+    assert.equal(await page.locator('#bottom-nav [aria-current="page"]').getAttribute('data-go'),'map');
+    if(width===390){await page.waitForTimeout(300);await page.screenshot({path:'/tmp/nosotros-nav-'+style+'.png'})}
+   }
+   await page.evaluate(()=>document.querySelector('[data-go="settings"]').click());
+   for(const motion of ['slide','spring','fade','none']){
+    await page.locator('#nav-motion').selectOption(motion);
+    assert.equal(await page.locator('html').getAttribute('data-nav-motion'),motion);
+    await page.evaluate(()=>document.querySelector('[data-go="voice"]').click());
+    await page.evaluate(()=>document.querySelector('[data-go="settings"]').click());
+   }
+   await page.locator('#nav-motion').selectOption('spring');
+   await page.emulateMedia({reducedMotion:'reduce'});
+   assert.equal(await page.locator('#nav-selection').evaluate(e=>getComputedStyle(e).transitionDuration),'0s');
+   await page.emulateMedia({reducedMotion:'no-preference'});
+   await page.locator('#nav-motion').selectOption('slide');
    await page.evaluate(()=>document.querySelector('[data-go="places"]').click());
    await page.locator('#add-place').click();
    await page.locator('#address-city').fill('Barranquilla');
@@ -95,6 +117,8 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
    await page.locator('[data-theme-choice="redblack"]').click();await page.reload();
    await page.waitForFunction(()=>!document.getElementById('preview').hidden);
    assert.equal(await page.locator('html').getAttribute('data-theme'),'redblack','Choice survives reload');
+   assert.equal(await page.locator('html').getAttribute('data-nav-style'),'raised','Navigation style survives reload');
+   assert.equal(await page.locator('html').getAttribute('data-nav-motion'),'slide','Navigation motion survives reload');
    await page.evaluate(()=>document.querySelector('[data-go="settings"]').click());
    await page.locator('[data-theme-choice="pink"]').click();
    await page.locator('[data-accent="lilac"]').click();
