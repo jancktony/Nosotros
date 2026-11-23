@@ -163,11 +163,11 @@ private fun MainShell(vm: MainViewModel) {
     var picking by remember { mutableStateOf<Place?>(null) }
 
     picking?.let { pl ->
-        BackHandler { picking = null; editing = pl.takeIf { it.id.isNotEmpty() || it.name.isNotEmpty() } }
+        BackHandler { picking = null; editing = pl.takeIf { it.id.isNotEmpty() || it.name.isNotEmpty() || it.address.isNotEmpty() || it.city.isNotEmpty() } }
         PlacePickerScreen(
             vm, start = if (pl.lat != 0.0 || pl.lng != 0.0) Pt(pl.lat, pl.lng) else null, address = pl.displayName,
             onPick = { lat, lng -> editing = pl.copy(lat = lat, lng = lng); picking = null },
-            onCancel = { picking = null; editing = pl.takeIf { it.id.isNotEmpty() || it.name.isNotEmpty() } },
+            onCancel = { picking = null; editing = pl.takeIf { it.id.isNotEmpty() || it.name.isNotEmpty() || it.address.isNotEmpty() || it.city.isNotEmpty() } },
         )
         return
     }

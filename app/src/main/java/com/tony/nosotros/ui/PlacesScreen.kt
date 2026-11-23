@@ -130,7 +130,7 @@ fun PlaceDialog(initial: Place, title: String, onSave: (Place) -> Unit, onMove: 
     var message by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     fun draft(lat: Double = initial.lat, lng: Double = initial.lng) = initial.copy(
-        name = initial.name.ifBlank { address.trim() }, address = address.trim(), city = city.trim(),
+        name = if (address.isBlank()) initial.name else listOf(address.trim(), city.trim()).filter { it.isNotBlank() }.joinToString(", "), address = address.trim(), city = city.trim(),
         radius = radius.toDouble(), lat = lat, lng = lng)
     val legacy = address.isBlank() && city.isBlank() && initial.id.isNotBlank() && initial.name.isNotBlank()
     AlertDialog(onDismissRequest = onDismiss, containerColor = C.surface, title = { Text(title) },
