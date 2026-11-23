@@ -61,7 +61,7 @@ function updateNav(animate=false){
  if(animate&&navMotion==='fade'&&!matchMedia('(prefers-reduced-motion: reduce)').matches)navFade=navSelection.animate?.([{opacity:.15},{opacity:1}],{duration:200,easing:'ease-out'});
 }
 updateNav();
-if(typeof matchMedia==='function')matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change',()=>updateNav());
+if(typeof matchMedia==='function')matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change',e=>{if(e.matches)updateNav()});
 const titles={improvements:'Mejoras en prueba',map:'Más cerca, siempre.',find:'Encontrar',voice:'Walkie-talkie',history:'Su historia',places:'Sus lugares',photos:'Momentos',more:'Su espacio',settings:'Ajustes',admin:'Administración'};
 function page(id){if(!titles[id])return;if(id!=='map'&&current==='map')endRoute();stopMic();current=id;document.body.dataset.screen=id;document.querySelectorAll('.screen').forEach(e=>e.hidden=e.id!=='screen-'+id);$('page-title').textContent=titles[id];document.querySelectorAll('[data-go]').forEach(e=>e.classList.toggle('active',e.dataset.go===id||(e.closest('.bottom-nav')&&e.dataset.go==='more'&&!['map','find','voice'].includes(id))));updateNav(true);if(id==='map'&&!$('preview').hidden)requestAnimationFrame(()=>{initMap();map?.resize();syncMapInsets()})}
 function toast(text){clearTimeout(toastTimer);$('toast').textContent=text;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,4000)}
