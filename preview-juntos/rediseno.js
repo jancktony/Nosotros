@@ -187,7 +187,7 @@ function showAddressExample(i){
  let label=$('address-map-label');if(!label){label=document.createElement('div');label.id='address-map-label';label.className='glass address-map-label';$('screen-map').append(label)}
  label.replaceChildren();const title=document.createElement('b'),detail=document.createElement('small'),close=document.createElement('button');
  title.textContent=address;detail.textContent=city+' · punto ilustrativo';close.textContent='×';close.setAttribute('aria-label','Cerrar dirección');
- close.onclick=()=>{label.hidden=true;addressMarker?.remove();addressMarker=null};label.append(title,detail,close);label.hidden=false;
+ close.onclick=()=>{label.hidden=true;addressMarker?.remove();addressMarker=null;sheet('collapsed')};label.append(title,detail,close);label.hidden=false;
  addressMarker?.remove();addressMarker=null;
  if(mapReady){const el=document.createElement('div');el.className='address-pin';el.textContent='●';addressMarker=new window.maplibregl.Marker({element:el}).setLngLat(sampleCenter).addTo(map);map.easeTo({center:sampleCenter,zoom:16,duration:300})}
 }
