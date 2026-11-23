@@ -86,3 +86,15 @@ test('shared journeys escape destinations and label estimates honestly',async t=
  const card=dom.window.document.querySelector('.journey-card');assert.ok(card);assert.equal(card.querySelector('img'),null);assert.match(card.textContent,/Estimación al iniciar/);assert.match(card.textContent,/Dejar de compartir/);
  api.S.journeys[0].expiresAt=Date.now()-1000;api.render();assert.equal(dom.window.document.querySelector('.journey-card'),null);
 });
+
+test('addresses replace nicknames and compact activity respects freshness and payload limits',async t=>{
+ const {api,dom}=await fixture(t),d=dom.window.document;
+ api.S.pair.featureFlags={appPresence:'all'};api.S.places=[{id:'a',name:'Casa',address:'Calle 56 #43-20',city:'Barranquilla'}];
+ const icon='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aVTkAAAAASUVORK5CYII=';
+ api.S.activity['bob:appPresence']={sharing:true,label:'Instagram',icon,updatedAt:{toMillis:()=>Date.now()}};
+ api.render();assert.match(d.getElementById('places-list').textContent,/Calle 56 #43-20, Barranquilla/);
+ assert.equal(d.querySelector('.app-activity-compact img').getAttribute('src'),'data:image/png;base64,'+icon);
+ assert.equal(d.querySelectorAll('.ios-battery').length,2);
+ api.S.activity['bob:appPresence'].icon='https://example.invalid/icon.png';api.render();assert.equal(d.querySelector('.app-activity-compact img'),null);
+ api.S.activity['bob:appPresence'].sharing=false;api.render();assert.equal(d.querySelector('.app-activity-compact'),null);
+});

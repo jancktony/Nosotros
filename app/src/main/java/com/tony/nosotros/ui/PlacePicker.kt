@@ -40,7 +40,7 @@ import com.tony.nosotros.util.Pt
  * y el pin del centro marca la posición.
  */
 @Composable
-fun PlacePickerScreen(vm: MainViewModel, start: Pt?, onPick: (Double, Double) -> Unit, onCancel: () -> Unit) {
+fun PlacePickerScreen(vm: MainViewModel, start: Pt?, onPick: (Double, Double) -> Unit, onCancel: () -> Unit, address: String = "") {
     val me by vm.me.collectAsState()
     val places by vm.places.collectAsState()
     val satellite by vm.satellite.collectAsState()
@@ -74,7 +74,7 @@ fun PlacePickerScreen(vm: MainViewModel, start: Pt?, onPick: (Double, Double) ->
             IconButton(onClick = onCancel) { Icon(Ic.Close, "Cancelar", tint = C.text) }
             Column(Modifier.weight(1f)) {
                 Text("Elige el punto exacto", fontWeight = FontWeight.Bold, color = C.text, fontSize = 16.sp)
-                Text("Mueve el mapa; el pin marca el lugar", color = C.sub, fontSize = 13.sp)
+                Text(address.ifBlank { "Mueve el mapa; el pin marca el lugar" }, color = C.sub, fontSize = 13.sp)
             }
             IconButton(onClick = { vm.toggleSatellite() }) { Icon(Ic.Layers, "Satélite", tint = C.text) }
         }

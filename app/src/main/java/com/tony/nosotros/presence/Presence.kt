@@ -15,7 +15,7 @@ object UsagePermission {
 }
 
 data class Presence(val sharing: Boolean = false, val label: String = "", val state: String = "idle",
-                    val since: Long = 0, val updatedAt: Long = 0) {
+                    val since: Long = 0, val updatedAt: Long = 0, val icon: String = "") {
     fun fresh(now: Long, sleep: Boolean) = sharing && updatedAt > 0 && now - updatedAt in 0..(if (sleep) 12 * 60_000L else 3 * 60_000L)
     fun text(now: Long, sleep: Boolean): String? {
         if (!fresh(now, sleep)) return null
@@ -32,7 +32,7 @@ data class Presence(val sharing: Boolean = false, val label: String = "", val st
     companion object {
         fun from(s: DocumentSnapshot?) = Presence(s?.getBoolean("sharing") == true,
             s?.getString("label").orEmpty(), s?.getString("state") ?: "idle", s?.getLong("since") ?: 0,
-            s?.getTimestamp("updatedAt")?.toDate()?.time ?: 0)
+            s?.getTimestamp("updatedAt")?.toDate()?.time ?: 0, s?.getString("icon").orEmpty())
     }
 }
 
@@ -47,8 +47,8 @@ object PresenceRepo {
     }
     fun clear(pair: String, uid: String, sleep: Boolean) = ref(pair, uid, sleep)
         .set(mapOf("sharing" to false, "updatedAt" to FieldValue.serverTimestamp()))
-    fun publish(pair: String, uid: String, sleep: Boolean, label: String = "", state: String = "idle", since: Long = 0) =
+    fun publish(pair: String, uid: String, sleep: Boolean, label: String = "", state: String = "idle", since: Long = 0, icon: String = "") =
         ref(pair, uid, sleep).set(if (sleep) mapOf("sharing" to true, "state" to state,
             "since" to since, "updatedAt" to FieldValue.serverTimestamp()) else mapOf("sharing" to true,
-            "label" to label.take(100), "updatedAt" to FieldValue.serverTimestamp()))
+            "label" to label.take(100), "icon" to icon.take(8192), "updatedAt" to FieldValue.serverTimestamp()))
 }

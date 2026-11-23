@@ -150,6 +150,8 @@ private fun Root(vm: MainViewModel) {
 /** Contenedor con pestañas: Mapa · Historial · Lugares. */
 @Composable
 private fun MainShell(vm: MainViewModel) {
+    val dockStyle by vm.dockStyle.collectAsState()
+    val dockMotion by vm.dockMotion.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
     var settings by remember { mutableStateOf(false) }
     var navDestination by remember { mutableStateOf<com.tony.nosotros.data.Routing.Hit?>(null) }
@@ -161,11 +163,11 @@ private fun MainShell(vm: MainViewModel) {
     var picking by remember { mutableStateOf<Place?>(null) }
 
     picking?.let { pl ->
-        BackHandler { picking = null; editing = pl.takeIf { it.id.isNotEmpty() || it.name.isNotEmpty() } }
+        BackHandler { picking = null; editing = pl.takeIf { it.id.isNotEmpty() || it.name.isNotEmpty() || it.address.isNotEmpty() || it.city.isNotEmpty() } }
         PlacePickerScreen(
-            vm, start = if (pl.lat != 0.0 || pl.lng != 0.0) Pt(pl.lat, pl.lng) else null,
+            vm, start = if (pl.lat != 0.0 || pl.lng != 0.0) Pt(pl.lat, pl.lng) else null, address = pl.displayName,
             onPick = { lat, lng -> editing = pl.copy(lat = lat, lng = lng); picking = null },
-            onCancel = { picking = null; editing = pl.takeIf { it.id.isNotEmpty() || it.name.isNotEmpty() } },
+            onCancel = { picking = null; editing = pl.takeIf { it.id.isNotEmpty() || it.name.isNotEmpty() || it.address.isNotEmpty() || it.city.isNotEmpty() } },
         )
         return
     }
@@ -197,7 +199,7 @@ private fun MainShell(vm: MainViewModel) {
                     add(DockItem(5, "Encontrar", Ic.Locate))
                     if (voiceAvailable) add(DockItem(4, "Voz", Ic.Mic))
                     add(DockItem(6, "Más", Ic.More))
-                }) { tab = it }
+                }, style = dockStyle, motion = dockMotion) { tab = it }
             }
         },
     ) { pad ->
@@ -205,13 +207,13 @@ private fun MainShell(vm: MainViewModel) {
             when (tab) {
                 0 -> HomeScreen(vm, bottomInset = pad.calculateBottomPadding(), onSettings = { settings = true }, onNavigate = { navDestination = null; nav = true },
                     onAddPlace = { lat, lng -> editing = Place(lat = lat, lng = lng) },
-                    onEditPlace = { editing = it }, onNavigatePlace = {navDestination = com.tony.nosotros.data.Routing.Hit(it.name,it.lat,it.lng);nav=true})
+                    onEditPlace = { editing = it }, onNavigatePlace = {navDestination = com.tony.nosotros.data.Routing.Hit(it.displayName,it.lat,it.lng);nav=true})
                 1 -> HistoryScreen(vm)
                 3 -> PhotosScreen(vm)
                 4 -> VoiceScreen(vm)
                 5 -> FindScreen(vm, onSettings = { settings = true }, onDirections = { member -> navDestination = com.tony.nosotros.data.Routing.Hit(member.name,member.lat,member.lng); nav = true })
                 6 -> MoreScreen(onSettings = { settings = true }, onScreen = { tab = it })
-                else -> PlacesScreen(vm, onAdd = { picking = Place() }, onEdit = { editing = it })
+                else -> PlacesScreen(vm, onAdd = { editing = Place() }, onEdit = { editing = it })
             }
         }
     }

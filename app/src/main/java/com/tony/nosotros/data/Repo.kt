@@ -305,7 +305,7 @@ object Repo {
         val ref = if (place.id.isEmpty()) col.document() else col.document(place.id)
         ref.set(
             mapOf(
-                "owner" to place.owner, "name" to place.name, "lat" to place.lat, "lng" to place.lng,
+                "owner" to place.owner, "name" to place.name, "address" to place.address, "city" to place.city, "lat" to place.lat, "lng" to place.lng,
                 "radius" to place.radius, "visits" to place.visits, "suggested" to place.suggested,
             ), SetOptions.merge()
         )

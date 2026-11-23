@@ -1,7 +1,7 @@
 name: Verificar mapa y actualización en Android
 on:
   push:
-    branches: [fix/audio-bidireccional-1.16.1, feature/experiencia-completa-1.16, feature/fiabilidad-y-viajes, feature/calidad-1.15.9, feature/experiencia-1.15.8, feature/recepcion-retencion-1.15.6, feature/recuperacion-walkie-1.15.5, feature/actividad-ficha-1.15.4, feature/juntos-animacion-1.15.3, feature/correcciones-mapa-1.15.2]
+    branches: [feature/lugares-navegacion-1.17, fix/audio-bidireccional-1.16.1, feature/experiencia-completa-1.16, feature/fiabilidad-y-viajes, feature/calidad-1.15.9, feature/experiencia-1.15.8, feature/recepcion-retencion-1.15.6, feature/recuperacion-walkie-1.15.5, feature/actividad-ficha-1.15.4, feature/juntos-animacion-1.15.3, feature/correcciones-mapa-1.15.2]
     paths: ['app/**', 'firestore.rules', '.github/workflows/map-device.yml']
 concurrency:
   group: map-${{ github.ref_name }}
@@ -24,7 +24,7 @@ jobs:
           arch: x86_64
           target: default
           disable-animations: true
-          script: ./gradlew connectedDebugAndroidTest -PcodecTest=1 -Pandroid.testInstrumentationRunnerArguments.class=com.tony.nosotros.ui.ThemePaletteDeviceTest,com.tony.nosotros.ui.ExperienceDesignDeviceTest,com.tony.nosotros.ui.MapPanelDeviceTest,com.tony.nosotros.ui.TogetherAnimationDeviceTest,com.tony.nosotros.ui.InstallProgressDeviceTest
+          script: ./gradlew connectedDebugAndroidTest -PcodecTest=1 -Pandroid.testInstrumentationRunnerArguments.class=com.tony.nosotros.ui.NavigationPlacesDeviceTest,com.tony.nosotros.ui.ThemePaletteDeviceTest,com.tony.nosotros.ui.ExperienceDesignDeviceTest,com.tony.nosotros.ui.MapPanelDeviceTest,com.tony.nosotros.ui.TogetherAnimationDeviceTest,com.tony.nosotros.ui.InstallProgressDeviceTest
       - uses: actions/upload-artifact@v4
         if: always()
         with:

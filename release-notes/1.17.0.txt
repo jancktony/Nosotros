@@ -1,0 +1,6 @@
+Direcciones con ciudad, búsqueda y confirmación del pin; la dirección sustituye al apodo en mapa y lista, y se usa en los nuevos registros.
+Actividad más compacta con el icono instalado de la app compartida voluntariamente. Ambos teléfonos necesitan esta versión para enviar los iconos nuevos; las versiones anteriores conservan el nombre.
+Batería horizontal estilo iOS con porcentaje interior.
+Barra pequeña con Onda, Foco y Muesca, y animaciones personales en Ajustes → General. Conserva el rosa original y los temas elegidos.
+Web privada con las direcciones, actividad, batería y barra configurables.
+Candidata para tu prueba. No aprobada ni liberada automáticamente a Kelin.

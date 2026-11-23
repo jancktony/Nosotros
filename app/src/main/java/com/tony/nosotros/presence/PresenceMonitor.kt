@@ -21,6 +21,10 @@ class PresenceMonitor(private val context: Context, private val prefs: Prefs, pr
     private var cursor = 0L
     private val resumed = mutableMapOf<Pair<String, String>, Long>()
     private val labels = mutableMapOf<String, String>()
+    private var currentIcon = ""
+    private val icons = object : LinkedHashMap<String, String>(24, .75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 24
+    }
     private val homePackage by lazy { runCatching {
         context.packageManager.resolveActivity(android.content.Intent(android.content.Intent.ACTION_MAIN)
             .addCategory(android.content.Intent.CATEGORY_HOME),android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
@@ -47,7 +51,7 @@ class PresenceMonitor(private val context: Context, private val prefs: Prefs, pr
         val appEnabled = prefs.shareCurrentApp && prefs.featureEnabled(Feature.APP_PRESENCE) && UsagePermission.granted(context)
         val sleepEnabled = prefs.shareSleep && prefs.featureEnabled(Feature.SLEEP_STATUS)
         val label = if (appEnabled && interactive) currentLabel(now) else {
-            resumed.clear(); cursor = now; ""
+            resumed.clear(); cursor = now; currentIcon = ""; ""
         }
         send(false, appEnabled, label, "idle", 0, now)
         if (!sleepEnabled || interactive) inactiveSince = 0
@@ -62,12 +66,13 @@ class PresenceMonitor(private val context: Context, private val prefs: Prefs, pr
         val heartbeat = if (sleep || !enabled) 5 * 60_000L else 30_000L
         if (value == lastValue[i] && (value == "off" || now - sentAt[i] < heartbeat)) return
         // Await server acknowledgment, so an offline queued write is not shown as fresh data.
-        if (enabled) PresenceRepo.publish(pair, uid, sleep, label, state, since).await()
+        if (enabled) PresenceRepo.publish(pair, uid, sleep, label, state, since, if (sleep || label.isBlank()) "" else currentIcon).await()
         else PresenceRepo.clear(pair, uid, sleep).await()
         lastValue[i] = value; sentAt[i] = now
     }
 
     private fun currentLabel(now: Long): String {
+        currentIcon = ""
         val start = if (cursor in (now - 120_000)..now) cursor else now - 120_000
         val events = context.getSystemService(UsageStatsManager::class.java).queryEvents(start, now)
             ?: return ""
@@ -83,6 +88,7 @@ class PresenceMonitor(private val context: Context, private val prefs: Prefs, pr
         cursor = now
         val packageName = resumed.maxByOrNull { it.value }?.key?.first ?: return ""
         if (packageName == "com.android.systemui") return ""
+        currentIcon = icons.getOrPut(packageName) { AppIcons.capture(context, packageName) }
         if (packageName == homePackage || packageName == "com.sec.android.app.launcher") return "Pantalla de inicio"
         return labels.getOrPut(packageName) {
             runCatching { val pm = context.packageManager

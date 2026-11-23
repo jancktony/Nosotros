@@ -32,4 +32,11 @@ class AppActivityTest {
             AppActivity.from(Presence(true,"WhatsApp",updatedAt=now+2000),now).subtitle)
         assertEquals("Sin app detectada",AppActivity.from(Presence(true,"",updatedAt=now),now).title)
     }
+
+    @Test fun iconIsOnlyExposedWithFreshVoluntarilySharedActivity() {
+        val icon = "iVBORw0KGgoAAA=="
+        assertEquals(icon, AppActivity.from(Presence(true,"Instagram",updatedAt=now,icon=icon),now).icon)
+        assertEquals("", AppActivity.from(Presence(false,"Instagram",updatedAt=now,icon=icon),now).icon)
+        assertEquals("", AppActivity.from(Presence(true,"Instagram",updatedAt=now-180001,icon=icon),now).icon)
+    }
 }

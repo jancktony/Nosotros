@@ -161,7 +161,9 @@ service cloud.firestore {
           && request.resource.data.sharing is bool && request.resource.data.updatedAt == request.time
           && ((!request.resource.data.sharing && request.resource.data.keys().hasOnly(['sharing', 'updatedAt']))
             || (request.resource.data.sharing && targetFeature('appPresence', uid)
-              && request.resource.data.keys().hasOnly(['sharing', 'label', 'updatedAt'])
+              && request.resource.data.keys().hasOnly(['sharing', 'label', 'icon', 'updatedAt'])
+              && request.resource.data.get('icon', '') is string && request.resource.data.get('icon', '').size() <= 8192
+              && request.resource.data.get('icon', '').matches('^[A-Za-z0-9+/]*={0,2}$')
               && request.resource.data.label is string && request.resource.data.label.size() <= 100));
       }
       match /sleepPresence/{uid} {
@@ -205,10 +207,14 @@ service cloud.firestore {
             && request.resource.data.liveRequestedUntil >= request.time.toMillis())
         );
       }
+      function placeAddressValid(data) {
+        return data.get('address', '') is string && data.get('address', '').size() <= 200
+          && data.get('city', '') is string && data.get('city', '').size() <= 80;
+      }
       match /places/{place} {
         allow read: if member(id);
-        allow create: if member(id) && request.resource.data.owner == request.auth.uid;
-        allow update: if member(id) && request.resource.data.owner == resource.data.owner
+        allow create: if member(id) && request.resource.data.owner == request.auth.uid && placeAddressValid(request.resource.data);
+        allow update: if member(id) && request.resource.data.owner == resource.data.owner && placeAddressValid(request.resource.data)
           && (resource.data.owner == request.auth.uid || admin(id));
         allow delete: if member(id) && (resource.data.owner == request.auth.uid || admin(id));
       }

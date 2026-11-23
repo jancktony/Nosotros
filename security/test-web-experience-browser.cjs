@@ -15,6 +15,7 @@ const {chromium}=require('playwright'),fs=require('node:fs'),path=require('node:
   for(const width of [320,390,430,1024,1440]){
    const page=await browser.newPage({viewport:{width,height:1000}});
    await page.goto('http://127.0.0.1:'+server.address().port+'/');
+   await page.addScriptTag({path:path.join(root,'navigation.js')});
    await page.evaluate(async source=>{
     const run=Object.getPrototypeOf(async()=>{}).constructor;
     window.fixture=await new run(source+`\nreturn {S,render,tab(t){webTab=t},session(){uid='alice';pairId='demo'}};`)();
@@ -36,6 +37,20 @@ const {chromium}=require('playwright'),fs=require('node:fs'),path=require('node:
      if(process.env.QA_SCREENSHOT_DIR&&width===390&&tab==='phones')await page.screenshot({path:path.join(process.env.QA_SCREENSHOT_DIR,`web-${theme}.png`),fullPage:true});
     }
    }
+   await page.evaluate(()=>{fixture.tab('settings');fixture.render()});
+   for(const style of ['wave','spotlight','notch']){
+    await page.locator('button[data-dock-style="'+style+'"]').click();
+    assert.equal(await page.locator('.web-nav').getAttribute('data-dock-style'),style);
+    const size=await page.locator('.web-nav').boundingBox();assert.ok(size.width<=321&&size.height<=55);
+    await page.locator('.web-nav [data-mode="phones"]').click();
+    await page.locator('.web-nav [data-mode="settings"]').click();
+   }
+   await page.locator('#dock-motion').selectOption('none');
+   assert.equal(await page.locator('.dock-selection').evaluate(e=>getComputedStyle(e).transitionDuration),'0s');
+   await page.emulateMedia({reducedMotion:'reduce'});
+   await page.locator('#dock-motion').selectOption('spring');
+   assert.equal(await page.locator('.dock-selection').evaluate(e=>getComputedStyle(e).transitionDuration),'0s');
+   await page.emulateMedia({reducedMotion:'no-preference'});
    console.log('Web responsive and four themes verified at '+width+'px');await page.close();
   }
  }finally{await browser.close();await new Promise(r=>server.close(r))}
