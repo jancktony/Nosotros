@@ -1,9 +1,29 @@
-/* Movimiento interpretado del informe de inspección de TinyFish; tiempos estimados. */
-:root{--nav-duration:360ms}
-#nav-selection{background:transparent;box-shadow:none!important}
-.nav-liquid-core{position:absolute;inset:0;border-radius:inherit;background:linear-gradient(160deg,color-mix(in srgb,var(--nav-fill),white 18%),var(--nav-fill) 56%,color-mix(in srgb,var(--nav-fill),black 10%));box-shadow:inset 0 1px 1px #ffffffb3,inset 0 -1px 2px #00000026,0 3px 14px color-mix(in srgb,var(--nav-fill) 42%,transparent);overflow:hidden;transform-origin:center}
-.nav-liquid-core::before{content:"";position:absolute;inset:1px;border-radius:inherit;border:1px solid #ffffff3d;pointer-events:none}
-.nav-liquid-sheen{position:absolute;inset:0;opacity:0;background:linear-gradient(110deg,transparent 18%,#ffffff66 48%,transparent 76%);pointer-events:none}
-:root[data-nav-style=floating] .nav-liquid-core{box-shadow:inset 0 1px 2px #ffffffb3,0 5px 12px color-mix(in srgb,var(--nav-fill) 45%,transparent)}
-:root[data-nav-style=raised] .nav-liquid-core{box-shadow:inset 0 2px 2px #ffffffa0,inset 0 -3px 2px #00000033,0 3px 10px color-mix(in srgb,var(--nav-fill) 40%,transparent)}
-@media(hover:hover) and (prefers-reduced-motion:no-preference){:root:not([data-nav-motion=none]) .bottom-nav button:hover .icon{scale:1.08;transition:scale 160ms ease-out}}
+/* Onda, foco y muesca: geometrías observadas en los fotogramas del reel original. */
+:root{--nav-duration:320ms}
+.bottom-nav,.compact .bottom-nav{height:54px;overflow:visible}
+#nav-selection{background:none;box-shadow:none!important;overflow:visible}
+.bottom-nav button.active,.compact .bottom-nav button.active,:root[data-theme=redblack] .bottom-nav button.active{color:var(--ui)!important}
+.nav-liquid-core{position:absolute;inset:0;pointer-events:none;background:none}
+#nav-contour{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:0;fill:none}
+.nav-wave-line{stroke:var(--ui);stroke-width:2;filter:drop-shadow(0 1px 4px var(--ui));stroke-linecap:round}
+.nav-notch-line{display:none;stroke:color-mix(in srgb,var(--ink) 28%,white 30%);stroke-width:1.2}
+:root[data-nav-style=crystal] .nav-liquid-core{background:radial-gradient(ellipse at 50% 30%,color-mix(in srgb,var(--ui) 25%,transparent),transparent 70%)}
+/* Foco que cuelga del borde superior y se ensancha sobre el icono. */
+:root[data-nav-style=floating] #nav-selection{border-radius:0;transform:translateX(calc(var(--nav-index,0)*100%))}
+:root[data-nav-style=floating] .bottom-nav button.active{translate:0 0}
+:root[data-nav-style=floating] .nav-wave-line,:root[data-nav-style=raised] .nav-wave-line{display:none}
+:root[data-nav-style=floating] .nav-liquid-core{top:-4px;bottom:5px;clip-path:polygon(34% 0,66% 0,100% 100%,0 100%);background:linear-gradient(color-mix(in srgb,var(--ui) 55%,transparent),color-mix(in srgb,var(--ui) 10%,transparent) 75%,transparent)}
+:root[data-nav-style=floating] .nav-liquid-core::before{content:"";position:absolute;top:0;left:34%;right:34%;height:3px;background:var(--ui);border-radius:0 0 4px 4px;box-shadow:0 2px 7px var(--ui)}
+/* La superficie se recorta y el círculo permanece sobre la misma muesca móvil. */
+:root[data-nav-style=raised] .bottom-nav{background:transparent!important;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;padding:5px}
+:root[data-nav-style=raised] .bottom-nav::before{content:"";position:absolute;inset:0;border-radius:26px;background:color-mix(in srgb,var(--panel) 80%,transparent);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);clip-path:var(--nav-notch-clip);pointer-events:none}
+:root[data-nav-style=raised] #nav-contour .nav-notch-line{display:block}
+:root[data-nav-style=raised] #nav-selection{left:5px;top:5px;bottom:5px;width:calc((100% - 10px)/4);border-radius:50%}
+:root[data-nav-style=raised] .nav-liquid-core{width:34px;height:34px;left:calc(50% - 17px);top:-17px;bottom:auto;border:1px solid color-mix(in srgb,var(--ui) 70%,white 30%);border-radius:50%;background:color-mix(in srgb,var(--nav-fill) 32%,var(--surface));box-shadow:inset 0 1px 3px #ffffff70,0 3px 6px #00000026}
+:root[data-nav-style=raised] .bottom-nav button.active .icon{transform:translateY(-13px);color:var(--ink)}
+/* Las miniaturas conservan la forma de cada alternativa. */
+.sample-crystal span:first-child{border-radius:12px 12px 0 0;background:transparent;border:1.5px solid var(--ui);border-bottom:0}
+.sample-floating span:first-child{border-radius:0;clip-path:polygon(35% 0,65% 0,100% 100%,0 100%);transform:none;background:linear-gradient(var(--ui),transparent)}
+.sample-raised span:first-child{height:18px;border-radius:50%;transform:translateY(-6px);background:var(--soft);border:1px solid var(--ui)}
+@media(prefers-reduced-transparency:reduce){:root[data-nav-style=raised] .bottom-nav::before{background:var(--surface);backdrop-filter:none;-webkit-backdrop-filter:none}}
+@supports not(backdrop-filter:blur(1px)){:root[data-nav-style=raised] .bottom-nav::before{background:var(--surface)}}
