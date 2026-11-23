@@ -67,6 +67,11 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
      return document.getElementById('nav-selection').getAnimations().some(a=>a.transitionProperty==='transform');
     });
     assert.equal(sliding,true,'Changing tabs keeps the selected slide animation running');
+    assert.ok(await page.locator('.nav-liquid-core').evaluate(e=>e.getAnimations().length)>0,'Liquid deformation runs with tab selection');
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.evaluate(()=>document.querySelector('[data-go="find"]').click());
+    assert.equal(await page.locator('.nav-liquid-core').evaluate(e=>e.getAnimations({subtree:true}).length),0,'Reduced motion disables liquid and sheen effects');
+    await page.emulateMedia({reducedMotion:'no-preference'});
    }
    await page.evaluate(()=>document.querySelector('[data-go="places"]').click());
    await page.locator('#add-place').click();

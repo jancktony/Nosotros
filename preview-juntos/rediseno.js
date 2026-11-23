@@ -42,18 +42,26 @@ $('bottom-nav').innerHTML=[['map','Mapa','map'],['find','Encontrar','locate'],['
 const navStyles={crystal:'Cristal',floating:'Flotante',raised:'Relieve'};
 const navMotions={slide:'Deslizamiento',spring:'Rebote suave',fade:'Fundido',none:'Sin animación'};
 function navPreference(key,choices,fallback){try{const value=localStorage.getItem(key);return Object.hasOwn(choices,value)?value:fallback}catch{return fallback}}
-let navFade=null;
+let navFade=null,navEffects=[],previousNavIndex=-1;
 let navStyle=navPreference('nosotros-preview-nav-style',navStyles,'crystal'),navMotion=navPreference('nosotros-preview-nav-motion',navMotions,'slide');
-const navSelection=document.createElement('span');navSelection.id='nav-selection';navSelection.setAttribute('aria-hidden','true');$('bottom-nav').prepend(navSelection);
+const navSelection=document.createElement('span');navSelection.id='nav-selection';navSelection.setAttribute('aria-hidden','true');navSelection.innerHTML='<i class="nav-liquid-core"><i class="nav-liquid-sheen"></i></i>';$('bottom-nav').prepend(navSelection);
 function updateNav(animate=false){
  const nav=$('bottom-nav'),buttons=[...nav.querySelectorAll('button')],index=Math.max(0,buttons.findIndex(b=>b.classList.contains('active')));
  document.documentElement.dataset.navStyle=navStyle;document.documentElement.dataset.navMotion=navMotion;nav.style.setProperty('--nav-index',index);
  buttons.forEach((b,i)=>{if(i===index)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
  document.querySelectorAll('[data-nav-style-choice]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.navStyleChoice===navStyle)));
- navFade?.cancel();navFade=null;
+ navFade?.cancel();navFade=null;navEffects.forEach(a=>a?.cancel());navEffects=[];
+ const changed=previousNavIndex!==index;previousNavIndex=index;
+ if(animate&&changed&&navMotion!=='none'&&!(typeof matchMedia==='function'&&matchMedia('(prefers-reduced-motion: reduce)').matches)){
+  const core=navSelection.querySelector('.nav-liquid-core'),sheen=navSelection.querySelector('.nav-liquid-sheen'),glyph=buttons[index].querySelector('.icon');
+  if(navMotion!=='fade')navEffects.push(core.animate?.([{transform:'scale(1)'},{transform:'scale(1.13,.91)',offset:.32},{transform:'scale(1)'}],{duration:navMotion==='spring'?480:360,easing:'cubic-bezier(.22,1,.36,1)'}));
+  navEffects.push(sheen.animate?.([{transform:'translateX(-120%)',opacity:0},{opacity:.65,offset:.35},{transform:'translateX(130%)',opacity:0}],{duration:420,easing:'ease-out'}));
+  navEffects.push(glyph?.animate?.([{transform:'translateY(0) scale(1)'},{transform:'translateY(-3px) scale(1.12)',offset:.4},{transform:'translateY(0) scale(1)'}],{duration:360,easing:'cubic-bezier(.22,1,.36,1)'}));
+ }
  if(animate&&navMotion==='fade'&&!matchMedia('(prefers-reduced-motion: reduce)').matches)navFade=navSelection.animate?.([{opacity:.15},{opacity:1}],{duration:200,easing:'ease-out'});
 }
 updateNav();
+if(typeof matchMedia==='function')matchMedia('(prefers-reduced-motion: reduce)').addEventListener?.('change',()=>updateNav());
 const titles={improvements:'Mejoras en prueba',map:'Más cerca, siempre.',find:'Encontrar',voice:'Walkie-talkie',history:'Su historia',places:'Sus lugares',photos:'Momentos',more:'Su espacio',settings:'Ajustes',admin:'Administración'};
 function page(id){if(!titles[id])return;if(id!=='map'&&current==='map')endRoute();stopMic();current=id;document.body.dataset.screen=id;document.querySelectorAll('.screen').forEach(e=>e.hidden=e.id!=='screen-'+id);$('page-title').textContent=titles[id];document.querySelectorAll('[data-go]').forEach(e=>e.classList.toggle('active',e.dataset.go===id||(e.closest('.bottom-nav')&&e.dataset.go==='more'&&!['map','find','voice'].includes(id))));updateNav(true);if(id==='map'&&!$('preview').hidden)requestAnimationFrame(()=>{initMap();map?.resize();syncMapInsets()})}
 function toast(text){clearTimeout(toastTimer);$('toast').textContent=text;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,4000)}
