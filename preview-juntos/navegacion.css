@@ -1,9 +1,9 @@
 /* Cristal inspirado en la referencia; geometría independiente del mapa. */
 :root{--nav-fill:var(--ui);--nav-duration:280ms;--nav-easing:cubic-bezier(.22,1,.36,1)}
 :root[data-theme=redblack]{--nav-fill:#e6002e}
-.bottom-nav,.compact .bottom-nav{isolation:isolate;background:color-mix(in srgb,var(--panel) 80%,transparent);border:1px solid color-mix(in srgb,var(--ink) 18%,transparent);box-shadow:inset 0 1px 1px #ffffff85,0 8px 24px #0000001a;gap:0;padding:7px}
-#nav-selection{position:absolute;z-index:0;pointer-events:none;left:7px;top:7px;bottom:7px;width:calc((100% - 14px)/4);border-radius:24px;background:var(--nav-fill);box-shadow:inset 0 1px 2px #ffffff85,0 4px 10px color-mix(in srgb,var(--nav-fill) 25%,transparent);transform:translateX(calc(var(--nav-index,0)*100%));transition:transform var(--nav-duration) var(--nav-easing),border-radius 180ms ease-out}
-.bottom-nav button,.compact .bottom-nav button{position:relative;z-index:1;background:transparent!important;box-shadow:none;transition:color 180ms ease-out;min-height:54px}
+.bottom-nav,.compact .bottom-nav{isolation:isolate;background:color-mix(in srgb,var(--panel) 80%,transparent);border:1px solid color-mix(in srgb,var(--ink) 18%,transparent);box-shadow:inset 0 1px 1px #ffffff85,0 8px 24px #0000001a;gap:0;padding:4px;left:50%;right:auto;width:calc(100% - 40px);max-width:320px;transform:translateX(-50%);border-radius:26px}
+#nav-selection{position:absolute;z-index:0;pointer-events:none;left:4px;top:4px;bottom:4px;width:calc((100% - 8px)/4);border-radius:20px;background:var(--nav-fill);box-shadow:inset 0 1px 2px #ffffff85,0 4px 10px color-mix(in srgb,var(--nav-fill) 25%,transparent);transform:translateX(calc(var(--nav-index,0)*100%));transition:transform var(--nav-duration) var(--nav-easing),border-radius 180ms ease-out}
+.bottom-nav button,.compact .bottom-nav button{position:relative;z-index:1;background:transparent!important;box-shadow:none;transition:color 180ms ease-out;min-height:44px;padding:4px 2px;gap:2px;font-size:11px}
 .bottom-nav button.active,.compact .bottom-nav button.active,:root[data-theme=redblack] .bottom-nav button.active{background:transparent!important;color:var(--on-ui);box-shadow:none}
 .bottom-nav button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 :root[data-nav-style=floating] .bottom-nav{border-radius:24px}
@@ -18,3 +18,5 @@
 @media(prefers-reduced-motion:reduce){#nav-selection,.bottom-nav button,.compact .bottom-nav button{transition:none!important;animation:none!important}}
 @media(prefers-reduced-transparency:reduce){.bottom-nav,.compact .bottom-nav{background:var(--surface);backdrop-filter:none;-webkit-backdrop-filter:none}}
 @supports not(backdrop-filter:blur(1px)){.bottom-nav,.compact .bottom-nav{background:var(--surface)}}
+
+.bottom-nav .icon{width:18px;height:18px}
