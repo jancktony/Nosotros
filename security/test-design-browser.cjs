@@ -33,6 +33,18 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
     });
     assert.deepEqual(bad,[],'Clipped controls at width '+width+' on '+id+': '+bad.join(', '));
    }
+   await page.evaluate(()=>document.querySelector('[data-go="places"]').click());
+   await page.locator('#add-place').click();
+   await page.locator('#address-city').fill('Barranquilla');
+   await page.locator('#address-street').fill('Calle 56 #43-20');
+   assert.equal(await page.locator('#address-save').isDisabled(),true);
+   await page.locator('#address-locate').click();
+   assert.equal(await page.locator('#address-summary').textContent(),'Calle 56 #43-20');
+   const addressFit=await page.locator('#detail-dialog').evaluate(e=>e.scrollWidth<=e.clientWidth+1&&e.getBoundingClientRect().right<=innerWidth);
+   assert.equal(addressFit,true,'Address form fits at width '+width);
+   await page.locator('#address-save').click();
+   assert.match(await page.locator('#address-map-label').textContent(),/Calle 56 #43-20/);
+   await page.locator('#address-map-label button').click();
    await page.evaluate(()=>document.querySelector('[data-go="map"]').click());
    await page.locator('#route').click();await page.locator('#end-route').click();
    const handle=page.locator('#sheet-toggle'),grip=await handle.boundingBox();
