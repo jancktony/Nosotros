@@ -60,6 +60,14 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
    assert.equal(await page.locator('#nav-selection').evaluate(e=>getComputedStyle(e).transitionDuration),'0s');
    await page.emulateMedia({reducedMotion:'no-preference'});
    await page.locator('#nav-motion').selectOption('slide');
+   if(width===390){
+    const sliding=await page.evaluate(async()=>{
+     document.querySelector('[data-go="voice"]').click();
+     await new Promise(requestAnimationFrame);
+     return document.getElementById('nav-selection').getAnimations().some(a=>a.transitionProperty==='transform');
+    });
+    assert.equal(sliding,true,'Changing tabs keeps the selected slide animation running');
+   }
    await page.evaluate(()=>document.querySelector('[data-go="places"]').click());
    await page.locator('#add-place').click();
    await page.locator('#address-city').fill('Barranquilla');
