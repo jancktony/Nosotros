@@ -132,7 +132,7 @@ function viewer(){if(!photoViewer)return '';return `<dialog id="photo-viewer"><d
 
 function batteryHTML(level,charging,id){
  const n=Math.max(0,Math.min(100,Math.round(Number(level)||0))),key='battery-'+String(id).replace(/[^a-zA-Z0-9_-]/g,'');
- return `<svg class="ios-battery ${n<20&&!charging?'low':''}" viewBox="0 0 40 22" role="img" aria-label="Batería ${n} por ciento${charging?', cargando':''}"><defs><clipPath id="${key}"><rect x="2" y="4" width="${30*n/100}" height="14" rx="3"/></clipPath></defs><rect x="1" y="3" width="32" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M35 8v6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><rect x="2" y="4" width="${30*n/100}" height="14" rx="3" fill="currentColor"/><text x="17" y="15" text-anchor="middle" fill="var(--text)">${n}</text><text x="17" y="15" text-anchor="middle" fill="var(--dock-ink)" clip-path="url(#${key})">${n}</text></svg>`;
+ return `<svg class="ios-battery ${n<20&&!charging?'low':''}" viewBox="0 0 40 22" role="img" aria-label="Batería ${n} por ciento${charging?', cargando':''}"><defs><clipPath id="${key}"><rect x="2" y="4" width="${30*n/100}" height="14" rx="3"/></clipPath></defs><rect x="1" y="3" width="32" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="1.4"/>${charging?'<path d="m38 3-4 8h3l-2 8 5-10h-3Z" fill="currentColor"/>':'<path d="M35 8v6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>'}<rect x="2" y="4" width="${30*n/100}" height="14" rx="3" fill="currentColor"/><text x="17" y="15" text-anchor="middle" fill="var(--text)">${n}</text><text x="17" y="15" text-anchor="middle" fill="var(--dock-ink)" clip-path="url(#${key})">${n}</text></svg>`;
 }
 
 function person(member){

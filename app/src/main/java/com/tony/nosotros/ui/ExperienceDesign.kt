@@ -57,7 +57,8 @@ data class DockItem(val id: Int, val label: String, val icon: ImageVector)
 @Composable
 fun FloatingDock(selected: Int, items: List<DockItem>, style: String = "wave", motion: String = "slide", onSelect: (Int) -> Unit) {
     if (items.isEmpty()) return
-    val index = items.indexOfFirst { it.id == selected }.coerceAtLeast(0)
+    val activeId = selected.takeIf { id -> items.any { it.id == id } } ?: items.last().id
+    val index = items.indexOfFirst { it.id == activeId }
     val enabled = android.animation.ValueAnimator.areAnimatorsEnabled() && motion != "none"
     val position by animateFloatAsState(index.toFloat(), animationSpec =
         if (!enabled || motion == "fade") snap() else tween(if (motion == "spring") 480 else 320,
@@ -120,7 +121,7 @@ fun FloatingDock(selected: Int, items: List<DockItem>, style: String = "wave", m
         }
         Row(Modifier.fillMaxSize().padding(5.dp), verticalAlignment=Alignment.CenterVertically) {
             items.forEach { item ->
-                val active = selected == item.id
+                val active = activeId == item.id
                 Column(Modifier.weight(1f).heightIn(min=44.dp)
                     .semantics { this.selected = active }.clickable(role=Role.Tab) { onSelect(item.id) }.padding(horizontal=1.dp,vertical=3.dp),
                     horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp)) {

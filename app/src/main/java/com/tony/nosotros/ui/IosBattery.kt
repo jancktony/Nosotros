@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -26,7 +27,13 @@ fun IosBattery(level: Int, charging: Boolean = false, modifier: Modifier = Modif
     Canvas(modifier.size(40.dp, 22.dp).semantics { contentDescription = "Batería $pct por ciento" + if (charging) ", cargando" else "" }) {
         val unit = size.width / 40f
         drawRoundRect(tint.copy(alpha = .65f), Offset(unit, 3 * unit), Size(32 * unit, 16 * unit), CornerRadius(4 * unit), style = Stroke(1.3f * unit))
-        drawRoundRect(tint, Offset(35 * unit, 8 * unit), Size(2 * unit, 6 * unit), CornerRadius(unit))
+        if (charging) {
+            val bolt = Path().apply {
+                moveTo(38*unit,3*unit);lineTo(34*unit,11*unit);lineTo(37*unit,11*unit)
+                lineTo(35*unit,19*unit);lineTo(40*unit,9*unit);lineTo(37*unit,9*unit);close()
+            }
+            drawPath(bolt,tint)
+        } else drawRoundRect(tint, Offset(35 * unit, 8 * unit), Size(2 * unit, 6 * unit), CornerRadius(unit))
         if (pct > 0) drawRoundRect(tint, Offset(2 * unit, 4 * unit), Size(30 * unit * pct / 100f, 14 * unit), CornerRadius(3 * unit))
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ink.toArgb(); textSize = 11 * unit; typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER }
         val baseline = 11 * unit - (paint.ascent() + paint.descent()) / 2
