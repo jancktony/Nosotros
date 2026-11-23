@@ -8,3 +8,8 @@
 .activity-line small{font-size:11px;line-height:18px;white-space:nowrap;flex-shrink:0;color:var(--sub)}
 .activity-line .live-dot{display:none}
 @media(min-width:701px){.activity-line{max-width:360px}}
+
+/* Batería horizontal con porcentaje interno, inspirada en iOS. */
+.person-head .battery{display:inline-flex;align-items:center;width:40px;height:22px;flex:0 0 40px;color:var(--ui)}
+.person-head .battery svg{display:block;width:40px;height:22px;overflow:visible}
+.person-head .battery text{font-family:inherit;font-size:11px;font-weight:750;font-variant-numeric:tabular-nums}
