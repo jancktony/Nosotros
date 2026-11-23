@@ -1,0 +1,3 @@
+Instagram: recurso SVG público de Wikimedia Commons, descargado sin modificar de https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg el 23-11-2026. Marca de su titular; se usa únicamente para identificar la aplicación en esta propuesta privada. El archivo se sirve localmente, sin consultas externas por actividad del usuario.
+
+La pantalla de inicio usa el icono genérico de casa del sistema SVG existente de la propuesta, no un supuesto icono oficial de Samsung. La integración nativa queda pendiente: actualmente se comparte el nombre detectado, no el paquete ni su icono. No confundir este recurso de ejemplo con una detección real.

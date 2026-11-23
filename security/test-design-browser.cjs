@@ -6,7 +6,7 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
   if(name==='/config.js'){res.setHeader('Content-Type','text/javascript');return res.end('window.FB={projectId:"demo-preview"};')}
   const file=path.resolve(root,'.'+name);
   if(!file.startsWith(root+path.sep)||!fs.existsSync(file)){res.statusCode=404;return res.end();}
-  res.setHeader('Content-Type',file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'text/html');
+  res.setHeader('Content-Type',file.endsWith('.svg')?'image/svg+xml':file.endsWith('.css')?'text/css':file.endsWith('.js')?'text/javascript':'text/html');
   res.end(fs.readFileSync(file));
  });
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
@@ -19,6 +19,11 @@ const {chromium}=require('playwright'),http=require('node:http'),fs=require('nod
    await page.goto('http://127.0.0.1:'+server.address().port+'/rediseno.html');
    await page.waitForFunction(()=>!document.getElementById('preview').hidden);
    assert.equal(await page.locator('html').getAttribute('data-theme'),'pink');
+   await page.locator('.activity-line img').waitFor();
+   assert.equal(await page.locator('.activity-line img').evaluate(e=>e.complete&&e.naturalWidth>0),true,'Bundled Instagram icon loads');
+   const activity=await page.locator('.activity-line').evaluate(e=>({height:e.getBoundingClientRect().height,fits:e.scrollWidth<=e.clientWidth+1}));
+   assert.ok(activity.height<=36&&activity.fits,'Compact activity fits at '+width);
+   if(width===390)await page.screenshot({path:'/tmp/nosotros-actividad-compacta.png'});
    for(const id of ['map','voice','find','history','places','photos','more','settings','admin','improvements']){
     await page.evaluate(id=>document.querySelector('[data-go="'+id+'"]').click(),id);
     await page.waitForTimeout(300);

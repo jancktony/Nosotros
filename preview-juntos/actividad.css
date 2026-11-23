@@ -1,0 +1,10 @@
+/* Actividad secundaria: marca reconocible, lectura breve y sin otro panel grande. */
+.activity-line{gap:8px;margin-top:8px;padding:6px 8px;border:0;border-radius:12px;background:var(--soft);min-width:0}
+.activity-line .app-badge{width:22px;height:22px;flex:0 0 22px;border-radius:6px;background:transparent;overflow:hidden}
+.activity-line .app-badge img{display:block;width:22px;height:22px;object-fit:contain}
+.activity-line .app-badge .icon{width:19px;height:19px;color:var(--sub)}
+.activity-line>div{display:flex;align-items:baseline;gap:8px;min-width:0;flex:1}
+.activity-line b{font-size:12px;line-height:18px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.activity-line small{font-size:11px;line-height:18px;white-space:nowrap;flex-shrink:0;color:var(--sub)}
+.activity-line .live-dot{display:none}
+@media(min-width:701px){.activity-line{max-width:360px}}

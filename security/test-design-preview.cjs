@@ -53,6 +53,7 @@ try {
  click('[data-feature="map3d"] .switch');
  click('[data-go="map"]');click('#select-me');assert.equal(d.querySelector('.activity-line b').textContent,'Inicio de One UI');
  click('#select-kelin');assert.equal(d.querySelector('.activity-line b').textContent,'Instagram');
+ assert.equal(d.querySelector('.app-badge img').getAttribute('src'),'icons/instagram.svg');
  click('#sheet-toggle');assert.equal(d.querySelector('.sheet-details').hidden,false);
  click('#mobile');assert.ok(d.body.classList.contains('compact'));click('#wide');assert.ok(!d.body.classList.contains('compact'));
  click('[data-go="settings"]');click('[data-setting="General"]');
