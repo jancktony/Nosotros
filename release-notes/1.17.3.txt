@@ -1,0 +1,1 @@
+Corrige el parpadeo del teclado al navegar desde Más: el menú no solicita entrada de texto, limpia el foco anterior y espera a terminar de cerrarse antes de abrir Historial, Lugares, Fotos o Perfil. Conserva sus animaciones, accesibilidad, cierre con Atrás y temas. Candidata privada para prueba del dueño; la liberación a Kelin sigue siendo manual.

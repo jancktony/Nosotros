@@ -1,6 +1,7 @@
 package com.tony.nosotros.ui
 
 import android.animation.ValueAnimator
+import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.snap
@@ -25,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -40,6 +43,17 @@ import androidx.compose.ui.window.PopupProperties
 fun FloatingNavigation(selected: Int, voiceAvailable: Boolean, style: String, motion: String,
     onProfile: () -> Unit, onSelect: (Int) -> Unit) {
     val expanded = remember { MutableTransitionState(false) }
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    var pendingDestination by remember { mutableStateOf<Int?>(null) }
+    fun dismissInput() { focus.clearFocus(force = true); keyboard?.hide() }
+    // Remove the popup before composing a destination containing editable fields.
+    LaunchedEffect(expanded.currentState, expanded.targetState, pendingDestination) {
+        if (!expanded.currentState && !expanded.targetState) pendingDestination?.let { id ->
+            pendingDestination = null
+            if (id == 7) onProfile() else onSelect(id)
+        }
+    }
     LaunchedEffect(selected, voiceAvailable) { expanded.targetState = false }
     val animate = ValueAnimator.areAnimatorsEnabled() && motion != "none"
     val secondary = listOf(DockItem(1, "Historial", Ic.Clock), DockItem(2, "Lugares", Ic.Pin),
@@ -63,12 +77,16 @@ fun FloatingNavigation(selected: Int, voiceAvailable: Boolean, style: String, mo
             add(DockItem(6, if (expanded.targetState) "Cerrar" else activeLabel,
                 if (expanded.targetState) Ic.Close else Ic.Menu))
         }, style, motion, moreExpanded = expanded.targetState) { id ->
+            dismissInput()
             if (id == 6) expanded.targetState = !expanded.targetState
             else { expanded.targetState = false; onSelect(id) }
         }
         if (expanded.currentState || expanded.targetState) {
             Popup(popupPositionProvider = provider, onDismissRequest = { expanded.targetState = false },
-                properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true)) {
+                // Keep keyboard/Back accessibility, but never make this non-editable window an IME target.
+                properties = PopupProperties(flags = WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                    WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
+                    dismissOnBackPress = true, dismissOnClickOutside = true)) {
                 AnimatedVisibility(visibleState = expanded,
                     enter = fadeIn(if (animate) tween(180) else snap()) +
                         scaleIn(if (animate) tween(300) else snap(), initialScale = .15f, transformOrigin = TransformOrigin(.88f, 1f)) +
@@ -86,8 +104,9 @@ fun FloatingNavigation(selected: Int, voiceAvailable: Boolean, style: String, mo
                                 .background(if (active) C.me.copy(alpha = .16f) else androidx.compose.ui.graphics.Color.Transparent)
                                 .testTag("more-option-${item.id}").semantics { this.selected = active }
                                 .clickable(role = Role.Button) {
+                                    dismissInput()
+                                    pendingDestination = item.id
                                     expanded.targetState = false
-                                    if (item.id == 7) onProfile() else onSelect(item.id)
                                 }.heightIn(min = 48.dp).padding(horizontal = 13.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(13.dp)) {
                                 Icon(item.icon, null, tint = if (active) C.me else C.sub, modifier = Modifier.size(21.dp))
