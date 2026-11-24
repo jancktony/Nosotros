@@ -268,13 +268,17 @@ class TrackingService : Service() {
 
     private var oneFix: LocationCallback? = null
     private var oneFixTimeout: Job? = null
+    private var oneFixInitialElapsed = 0L
     private var lastOneFixAt = -30_000L
 
-    private fun stopOneFix() {
+    private fun stopOneFix(publishBest: Boolean = false) {
         val callback = oneFix
+        val improved = (lastFix?.elapsedRealtimeNanos ?: 0L) > oneFixInitialElapsed
         oneFix = null
         oneFixTimeout?.cancel(); oneFixTimeout = null
         if (callback != null) fused.removeLocationUpdates(callback)
+        // A good final sample may have arrived inside the normal 10 s upload throttle.
+        if (callback != null && publishBest && improved && hasLocationPermission() && !isPaused()) uploadStatus(force = true)
     }
 
     /** Fresh high-accuracy samples for at most 20 s; stop early at 15 m accuracy. */
@@ -284,13 +288,14 @@ class TrackingService : Service() {
         val elapsed = SystemClock.elapsedRealtime()
         if (elapsed-lastOneFixAt < 30_000L) return
         lastOneFixAt = elapsed
+        oneFixInitialElapsed = lastFix?.elapsedRealtimeNanos ?: 0L
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 if (oneFix !== this) return
                 result.locations.sortedBy { it.elapsedRealtimeNanos }.forEach { onLocation(it) }
                 val accepted = lastFix
                 if (accepted != null && accepted.accuracy <= 15f &&
-                    SystemClock.elapsedRealtime() - accepted.elapsedRealtimeNanos / 1_000_000 in 0..15_000L) stopOneFix()
+                    SystemClock.elapsedRealtime() - accepted.elapsedRealtimeNanos / 1_000_000 in 0..15_000L) stopOneFix(publishBest = true)
             }
         }
         oneFix = callback
@@ -299,7 +304,7 @@ class TrackingService : Service() {
             fused.requestLocationUpdates(request, callback, Looper.getMainLooper()).addOnFailureListener {
                 if (oneFix === callback) stopOneFix()
             }
-            oneFixTimeout = scope.launch { delay(20_000L); if (oneFix === callback) stopOneFix() }
+            oneFixTimeout = scope.launch { delay(20_000L); if (oneFix === callback) stopOneFix(publishBest = true) }
         } catch (_: SecurityException) { stopOneFix() }
     }
 
