@@ -310,6 +310,11 @@ class TrackingService : Service() {
 
     private fun onLocation(loc: Location) {
         if (isPaused() || !hasLocationPermission()) return
+        val bm = getSystemService(BatteryManager::class.java)
+        val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        val low = prefs.extremeSaving && level in 1..19 && !bm.isCharging
+        if (low != lowBattery) { lowBattery = low; applyPolicy() }
+
         val prevFix = lastFix
         val nowElapsed = SystemClock.elapsedRealtime()
         val fixElapsed = loc.elapsedRealtimeNanos / 1_000_000
@@ -336,11 +341,6 @@ class TrackingService : Service() {
         val displacement = previous?.let { Geo.dist(it.latitude, it.longitude, loc.latitude, loc.longitude) }
         val uncertainty = (loc.accuracy + (previous?.accuracy ?: loc.accuracy)).toDouble()
         setRawMode(motion.fix(fixElapsed, loc.accuracy, reliableSpeed, displacement, interval, uncertainty))
-
-        val bm = getSystemService(BatteryManager::class.java)
-        val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-        val low = prefs.extremeSaving && level in 1..19 && !bm.isCharging
-        if (low != lowBattery) { lowBattery = low; applyPolicy() }
 
         prefs.myLat = loc.latitude; prefs.myLng = loc.longitude; prefs.myLocationAt = loc.time
         if (System.currentTimeMillis() - lastWidgetUpdate > 60_000) {
