@@ -56,7 +56,7 @@ import org.maplibre.geojson.Point
  * high native zooms (confirmed in Riohacha). Overzoom available imagery instead. */
 private const val SATELLITE_STYLE = """{"version":8,"sources":{"sat":{"type":"raster","tileSize":256,"maxzoom":17,"attribution":"Esri, Maxar, Earthstar Geographics","tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]},"roads":{"type":"raster","tileSize":256,"maxzoom":19,"tiles":["https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}"]}},"layers":[{"id":"sat","type":"raster","source":"sat"},{"id":"roads","type":"raster","source":"roads","paint":{"raster-opacity":0.7}}]}"""
 
-private val OUR_LAYERS = setOf("route-glow", "route-line", "place-area", "place-label", "people-halo", "people-icon", "nosotros-poi", "nosotros-campus", "together-halo", "together-icon", "together-heart-0", "together-heart-1", "together-heart-2", "together-heart-3")
+private val OUR_LAYERS = setOf("route-glow", "route-line", "place-area", "place-label", "place-point", "people-halo", "people-icon", "nosotros-poi", "nosotros-campus", "together-halo", "together-icon", "together-heart-0", "together-heart-1", "together-heart-2", "together-heart-3")
 
 data class MapPerson(
     val uid: String, val initial: String, val color: Int, val ink: Int,
@@ -164,7 +164,7 @@ fun LiveMap(
                 }
                 val person = m.queryRenderedFeatures(box, "people-icon").firstOrNull()?.getStringProperty("uid")
                 if (person != null) { personTap?.invoke(person); return@addOnMapClickListener true }
-                val place = m.queryRenderedFeatures(box, "place-label").firstOrNull()?.getStringProperty("pid")
+                val place = m.queryRenderedFeatures(box, "place-label", "place-point").firstOrNull()?.getStringProperty("pid")
                 if (place != null) { placeTap?.invoke(place); return@addOnMapClickListener true }
                 if (currentPublicPlaces) {
                     val poi = m.queryRenderedFeatures(box, "nosotros-campus", "nosotros-poi").firstOrNull()
@@ -410,27 +410,41 @@ private fun setupLayers(s: Style) {
             ),
         )
     )
-    s.addLayer(
-        SymbolLayer("place-label", "places").withProperties(
-            PropertyFactory.iconImage(Expression.get("icon")), PropertyFactory.iconAllowOverlap(false),
-            PropertyFactory.iconIgnorePlacement(false), PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM), PropertyFactory.iconPadding(8f),
-        )
-    )
+    s.addLayer(placePointLayer())
+    s.addLayer(placeLabelLayer())
     s.addLayer(
         CircleLayer("people-halo", "people").withProperties(
             PropertyFactory.circleColor(color), PropertyFactory.circleOpacity(0.22f), PropertyFactory.circleRadius(32f),
+            PropertyFactory.circlePitchAlignment(Property.CIRCLE_PITCH_ALIGNMENT_VIEWPORT),
+            PropertyFactory.circlePitchScale(Property.CIRCLE_PITCH_SCALE_VIEWPORT),
         )
     )
-    s.addLayer(
-        SymbolLayer("people-icon", "people").withProperties(
-            PropertyFactory.iconImage(Expression.get("icon")), PropertyFactory.iconAllowOverlap(true),
-            PropertyFactory.iconIgnorePlacement(true),
-        )
-    )
+    s.addLayer(peopleIconLayer())
     s.addLayer(togetherHaloLayer())
     s.addLayer(togetherPortraitLayer())
     repeat(TogetherMotion.HEARTS) { s.addLayer(togetherHeartLayer(it)) }
 }
+
+/** The ground point is separate from the label bitmap, so its centre is the exact coordinate. */
+internal fun placePointLayer() = CircleLayer("place-point", "places").withProperties(
+    PropertyFactory.circleRadius(4f), PropertyFactory.circleStrokeWidth(3f),
+    PropertyFactory.circleColor(Expression.toColor(Expression.get("surface"))),
+    PropertyFactory.circleStrokeColor(Expression.toColor(Expression.get("color"))),
+    PropertyFactory.circlePitchAlignment(Property.CIRCLE_PITCH_ALIGNMENT_VIEWPORT),
+    PropertyFactory.circlePitchScale(Property.CIRCLE_PITCH_SCALE_VIEWPORT))
+
+internal fun placeLabelLayer() = SymbolLayer("place-label", "places").withProperties(
+    PropertyFactory.iconImage(Expression.get("icon")), PropertyFactory.iconAllowOverlap(false),
+    PropertyFactory.iconIgnorePlacement(false), PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+    PropertyFactory.iconOffset(arrayOf(0f, -10f)), PropertyFactory.iconPadding(8f),
+    PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_VIEWPORT),
+    PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_VIEWPORT))
+
+internal fun peopleIconLayer() = SymbolLayer("people-icon", "people").withProperties(
+    PropertyFactory.iconImage(Expression.get("icon")), PropertyFactory.iconAllowOverlap(true),
+    PropertyFactory.iconIgnorePlacement(true), PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER),
+    PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_VIEWPORT),
+    PropertyFactory.iconPitchAlignment(Property.ICON_PITCH_ALIGNMENT_VIEWPORT))
 
 internal fun togetherHaloLayer() = CircleLayer("together-halo", "together").withProperties(
     PropertyFactory.circleColor("#BE91F0"), PropertyFactory.circleRadius(76f),
@@ -482,6 +496,7 @@ private fun updateData(ctx: Context, s: Style, pal: Palette, people: List<MapPer
             Feature.fromGeometry(Point.fromLngLat(p.lng, p.lat)).apply {
                 addStringProperty("icon", id)
                 addStringProperty("pid", p.id)
+                addStringProperty("surface", hex(pal.surface.toArgb()))
                 addStringProperty("color", hex(pal.me.toArgb()))
                 addNumberProperty("r", p.radius)
                 addBooleanProperty("containsPair", pairCenter?.let {
@@ -583,7 +598,7 @@ private fun avatarBitmap(ctx: Context, pal: Palette, p: MapPerson): Bitmap {
     return bmp
 }
 
-/** Etiqueta tipo "píldora" con el nombre del lugar y un punto debajo. */
+/** Label only; place-point draws the ground coordinate independently. */
 private fun labelBitmap(ctx: Context, pal: Palette, text: String): Bitmap {
     val d = ctx.resources.displayMetrics.density
     val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -593,7 +608,7 @@ private fun labelBitmap(ctx: Context, pal: Palette, text: String): Bitmap {
     val shown = android.text.TextUtils.ellipsize(text, android.text.TextPaint(tp), 240 * d, android.text.TextUtils.TruncateAt.END).toString()
     val tw = tp.measureText(shown)
     val w = (tw + 24 * d).toInt()
-    val h = (44 * d).toInt()
+    val h = (28 * d).toInt()
     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     bmp.density = ctx.resources.displayMetrics.densityDpi
     val c = Canvas(bmp)
@@ -603,10 +618,6 @@ private fun labelBitmap(ctx: Context, pal: Palette, text: String): Bitmap {
     p.style = Paint.Style.STROKE; p.strokeWidth = 1.5f * d; p.color = pal.me.toArgb()
     c.drawRoundRect(pill, 9 * d, 9 * d, p)
     c.drawText(shown, 12 * d, 14 * d - (tp.descent() + tp.ascent()) / 2, tp)
-    p.style = Paint.Style.FILL; p.color = pal.surface.toArgb()
-    c.drawCircle(w / 2f, h - 8 * d, 6.5f * d, p)
-    p.style = Paint.Style.STROKE; p.strokeWidth = 3f * d; p.color = pal.me.toArgb()
-    c.drawCircle(w / 2f, h - 8 * d, 5.5f * d, p)
     return bmp
 }
 

@@ -106,7 +106,7 @@ class TrackingService : Service() {
 
     private val callback = object : LocationCallback() {
         override fun onLocationResult(r: LocationResult) {
-            r.locations.forEach { onLocation(it) }
+            r.locations.sortedBy { it.elapsedRealtimeNanos }.forEach { onLocation(it) }
         }
     }
 
@@ -148,7 +148,7 @@ class TrackingService : Service() {
         presence?.stop()
         com.tony.nosotros.find.PhoneFinder.close()
         fused.removeLocationUpdates(callback)
-        oneFix?.cancel(); oneFix = null
+        stopOneFix()
         scope.cancel()
         super.onDestroy()
     }
@@ -225,14 +225,15 @@ class TrackingService : Service() {
 
     @SuppressLint("MissingPermission")
     private fun applyPolicy(force: Boolean = false) {
-        if (!hasLocationPermission()) return
-        if (isPaused()) { oneFix?.cancel(); oneFix = null }
+        if (!hasLocationPermission()) { stopOneFix(); fused.removeLocationUpdates(callback); return }
+        if (isPaused()) stopOneFix()
         val now = System.currentTimeMillis()
         val live = liveUntil > now
+        if (live) stopOneFix()
         val (key, req) = when {
             isPaused() -> "paused" to null
             live -> "live" to LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3_000)
-                .setMinUpdateIntervalMillis(2_000).build()
+                .setMinUpdateIntervalMillis(2_000).setWaitForAccurateLocation(true).setMaxUpdateAgeMillis(0L).build()
             rawMode == Mode.STILL -> "still" to LocationRequest.Builder(Priority.PRIORITY_PASSIVE, 300_000)
                 .setMinUpdateIntervalMillis(60_000).build()
             rawMode.isVehicle -> if (lowBattery)
@@ -265,24 +266,41 @@ class TrackingService : Service() {
         updateNotification()
     }
 
-    private var oneFix: com.google.android.gms.tasks.CancellationTokenSource? = null
+    private var oneFix: LocationCallback? = null
+    private var oneFixTimeout: Job? = null
     private var lastOneFixAt = -30_000L
 
+    private fun stopOneFix() {
+        val callback = oneFix
+        oneFix = null
+        oneFixTimeout?.cancel(); oneFixTimeout = null
+        if (callback != null) fused.removeLocationUpdates(callback)
+    }
+
+    /** Fresh high-accuracy samples for at most 20 s; stop early at 15 m accuracy. */
     @SuppressLint("MissingPermission")
     private fun requestOneFix() {
-        if (!hasLocationPermission() || isPaused() || oneFix != null) return
+        if (!hasLocationPermission() || isPaused() || oneFix != null || liveUntil > System.currentTimeMillis()) return
         val elapsed = SystemClock.elapsedRealtime()
         if (elapsed-lastOneFixAt < 30_000L) return
         lastOneFixAt = elapsed
-        val token = com.google.android.gms.tasks.CancellationTokenSource()
-        oneFix = token
-        val request = com.google.android.gms.location.CurrentLocationRequest.Builder()
-            .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
-            .setMaxUpdateAgeMillis(15_000L).setDurationMillis(12_000L).build()
-        try { fused.getCurrentLocation(request, token.token)
-            .addOnSuccessListener { loc -> if (oneFix === token) loc?.let { onLocation(it) } }
-            .addOnCompleteListener { if (oneFix === token) oneFix = null }
-        } catch (_: SecurityException) { oneFix = null; token.cancel() }
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                if (oneFix !== this) return
+                result.locations.sortedBy { it.elapsedRealtimeNanos }.forEach { onLocation(it) }
+                val accepted = lastFix
+                if (accepted != null && accepted.accuracy <= 15f &&
+                    SystemClock.elapsedRealtime() - accepted.elapsedRealtimeNanos / 1_000_000 in 0..15_000L) stopOneFix()
+            }
+        }
+        oneFix = callback
+        val request = precisionLocationRequest()
+        try {
+            fused.requestLocationUpdates(request, callback, Looper.getMainLooper()).addOnFailureListener {
+                if (oneFix === callback) stopOneFix()
+            }
+            oneFixTimeout = scope.launch { delay(20_000L); if (oneFix === callback) stopOneFix() }
+        } catch (_: SecurityException) { stopOneFix() }
     }
 
     private fun hasLocationPermission() =
@@ -291,13 +309,15 @@ class TrackingService : Service() {
     // ---------------- Cada lectura de ubicación ----------------
 
     private fun onLocation(loc: Location) {
-        if (isPaused()) return
+        if (isPaused() || !hasLocationPermission()) return
         val prevFix = lastFix
-        if (prevFix != null && loc.time <= prevFix.time) return
         val nowElapsed = SystemClock.elapsedRealtime()
         val fixElapsed = loc.elapsedRealtimeNanos / 1_000_000
-        if (nowElapsed - fixElapsed !in 0..30_000 || !loc.hasAccuracy() || !loc.accuracy.isFinite()) return
-        lastFix = loc
+        if (!loc.hasAccuracy()) return
+        fun measured(value: Location) = com.tony.nosotros.util.MeasuredFix(
+            value.latitude, value.longitude, value.accuracy, value.elapsedRealtimeNanos / 1_000_000)
+        if (!com.tony.nosotros.util.LocationQuality.shouldUse(measured(loc), prevFix?.let { measured(it) }, nowElapsed)) return
+        lastFix = Location(loc)
         val journey=activeJourney
         if(journey!=null && journey.state=="active" && journey.expiresAt>System.currentTimeMillis() && prefs.featureEnabled(com.tony.nosotros.data.Feature.SHARED_TRIPS)) {
             val distance=com.tony.nosotros.util.Geo.dist(loc.latitude,loc.longitude,journey.lat,journey.lng)
@@ -662,3 +682,8 @@ class TrackingService : Service() {
         }
     }
 }
+
+/** A short foreground/map refresh, never an indefinite tracking policy. */
+internal fun precisionLocationRequest(): LocationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2_000L)
+    .setMinUpdateIntervalMillis(1_000L).setMaxUpdateAgeMillis(0L)
+    .setWaitForAccurateLocation(true).setDurationMillis(20_000L).build()
