@@ -22,3 +22,5 @@ Alcance: implementación nativa Android. El compañero iOS continúa abriendo el
 - SHA-256: `809ebfbc143e736c00fd04c54070ad4f8a9e6420d6c63239be8a501c5cdf1dae`.
 
 Las comprobaciones son automáticas; queda pendiente la prueba física del dueño. No se aprueba esa prueba, no se modifica `testVersion`/`relVersion` y no se libera a Kelin. La candidata permanece privada y su liberación se decide desde Administración.
+
+Publicación terminada correctamente: el registro de Actions confirmó `Candidata privada 1.17.2 verificada: 74394211 bytes en 142 fragmentos` el 24-11-2026 a las 16:42:40 de Colombia. El IPA 1.17.2 sin firma también se generó correctamente en Actions `45492913348` y se adjuntó a la misma candidata privada. Ambos artefactos permanecen en el borrador v1.17.2; no se modificó la liberación a la pareja.
