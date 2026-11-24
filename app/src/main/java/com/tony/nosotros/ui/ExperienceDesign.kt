@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -55,7 +56,7 @@ fun Modifier.glassPanel(radius: Dp = 24.dp): Modifier {
 data class DockItem(val id: Int, val label: String, val icon: ImageVector)
 
 @Composable
-fun FloatingDock(selected: Int, items: List<DockItem>, style: String = "wave", motion: String = "slide", onSelect: (Int) -> Unit) {
+fun FloatingDock(selected: Int, items: List<DockItem>, style: String = "wave", motion: String = "slide", moreExpanded: Boolean? = null, onSelect: (Int) -> Unit) {
     if (items.isEmpty()) return
     val activeId = selected.takeIf { id -> items.any { it.id == id } } ?: items.last().id
     val index = items.indexOfFirst { it.id == activeId }
@@ -123,7 +124,7 @@ fun FloatingDock(selected: Int, items: List<DockItem>, style: String = "wave", m
             items.forEach { item ->
                 val active = activeId == item.id
                 Column(Modifier.weight(1f).heightIn(min=44.dp)
-                    .semantics { this.selected = active }.clickable(role=Role.Tab) { onSelect(item.id) }.padding(horizontal=1.dp,vertical=3.dp),
+                    .testTag("dock-item-${item.id}").semantics { this.selected = active; if (item.id == 6 && moreExpanded != null) stateDescription = if (moreExpanded) "Menú abierto" else "Menú cerrado" }.clickable(role=Role.Tab) { onSelect(item.id) }.padding(horizontal=1.dp,vertical=3.dp),
                     horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp)) {
                     Icon(item.icon,null,tint=if(active && style=="notch") C.text else if(active) C.me else C.sub,
                         modifier=Modifier.size(18.dp).offset(y=if(active && style=="notch")(-13).dp else 0.dp))

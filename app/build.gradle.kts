@@ -37,8 +37,8 @@ android {
         minSdk = 29
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
-        versionCode = 36
-        versionName = "1.17.1"
+        versionCode = 37
+        versionName = "1.17.2"
         buildConfigField("String", "GH_REPO", "\"${(project.findProperty("ghRepo") as String?) ?: ""}\"")
         ndk { abiFilters += if (project.hasProperty("codecTest")) listOf("x86_64") else listOf("arm64-v8a", "armeabi-v7a") }
         buildConfigField("String", "FB_API_KEY", "\"${fb.apiKey}\"")
