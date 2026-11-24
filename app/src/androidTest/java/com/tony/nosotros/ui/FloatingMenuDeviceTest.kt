@@ -10,7 +10,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
-import androidx.test.espresso.Espresso
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -32,7 +32,9 @@ class FloatingMenuDeviceTest {
         ui.runOnIdle { assertEquals(1, selected.value) }
         ui.onNodeWithTag("dock-item-6").assertIsSelected()
         ui.onNodeWithTag("dock-item-6").performClick()
-        Espresso.pressBack()
+        InstrumentationRegistry.getInstrumentation().uiAutomation
+            .executeShellCommand("input keyevent KEYCODE_BACK").close()
+        ui.waitForIdle()
         ui.onNodeWithTag("floating-more-menu").assertDoesNotExist()
         ui.runOnIdle { assertEquals(1, selected.value) }
     }
