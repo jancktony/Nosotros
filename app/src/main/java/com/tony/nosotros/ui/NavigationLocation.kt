@@ -21,12 +21,18 @@ internal fun navigationLocation(enabled: Boolean): Location? {
     DisposableEffect(enabled,lifecycle) {
         val client=LocationServices.getFusedLocationProviderClient(context)
         var listening=false
-        val callback=object:LocationCallback(){override fun onLocationResult(result:LocationResult){if(enabled)fix=result.lastLocation}}
+        val callback=object:LocationCallback(){override fun onLocationResult(result:LocationResult){
+            if(!enabled)return
+            fun sample(loc: Location)=com.tony.nosotros.util.MeasuredFix(loc.latitude,loc.longitude,loc.accuracy,loc.elapsedRealtimeNanos/1_000_000)
+            result.locations.sortedBy{it.elapsedRealtimeNanos}.forEach { next ->
+                if(next.hasAccuracy()&&com.tony.nosotros.util.LocationQuality.shouldUse(sample(next),fix?.let{sample(it)},android.os.SystemClock.elapsedRealtime()))fix=Location(next)
+            }
+        }}
         fun stop(){client.removeLocationUpdates(callback);listening=false;fix=null}
         fun start(){
             if(!enabled||listening||ContextCompat.checkSelfPermission(context,Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)return
             try {
-                client.requestLocationUpdates(LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY,2000).setMinUpdateIntervalMillis(1000).setMaxUpdateDelayMillis(2000).build(),callback,Looper.getMainLooper())
+                client.requestLocationUpdates(LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY,2000).setMinUpdateIntervalMillis(1000).setMaxUpdateDelayMillis(2000).setMaxUpdateAgeMillis(0L).setWaitForAccurateLocation(true).build(),callback,Looper.getMainLooper())
                 listening=true
             }catch(_:SecurityException){stop()}
         }

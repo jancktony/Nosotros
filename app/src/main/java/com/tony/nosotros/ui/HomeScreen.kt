@@ -144,7 +144,7 @@ fun HomeScreen(vm: MainViewModel, bottomInset: androidx.compose.ui.unit.Dp = 0.d
     androidx.compose.runtime.LaunchedEffect(lifecycle) {
         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
             val current = vm.me.filterNotNull().first()
-            if (!current.paused && (current.locationAt <= 0 || System.currentTimeMillis()-current.locationAt > 60_000))
+            if (!current.paused && (current.locationAt <= 0 || System.currentTimeMillis()-current.locationAt > 60_000 || !current.acc.isFinite() || current.acc <= 0f || current.acc > 35f))
                 com.tony.nosotros.tracking.TrackingService.deliver(context,
                     android.content.Intent().putExtra(com.tony.nosotros.tracking.TrackingService.EXTRA_REFRESH, true))
             kotlinx.coroutines.awaitCancellation()
@@ -376,8 +376,10 @@ private fun statusLine(m: Member): String {
     if (m.locationAt <= 0) return "Ubicación por confirmar"
     if (System.currentTimeMillis()-m.updatedAt > 600_000) return "Sin señal reciente · último GPS ${TimeFmt.ago(m.locationAt)}"
     if (System.currentTimeMillis()-m.locationAt > 360_000) return "Ubicación antigua · GPS ${TimeFmt.ago(m.locationAt)}"
-    if (!m.acc.isFinite() || m.acc<=0 || m.acc>80) return "Ubicación sin precisión suficiente"
-    val freshness = if (m.locationAt > 0) "GPS ${TimeFmt.ago(m.locationAt)}" else "Ubicación por confirmar"
+    if (!m.acc.isFinite() || m.acc<=0) return "Ubicación sin precisión suficiente"
+    val margin = kotlin.math.ceil(m.acc.toDouble()).toInt()
+    if (m.acc>80) return "Ubicación aproximada · GPS ±$margin m"
+    val freshness = "GPS ${TimeFmt.ago(m.locationAt)} · precisión ±$margin m"
     val activity = when {
         m.mode.moving && m.speedKmh >= 3 -> "${m.mode.label} · ${m.speedKmh.toInt()} km/h"
         m.placeName != null -> "En ${m.placeName}"

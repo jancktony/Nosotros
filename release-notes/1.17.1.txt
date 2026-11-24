@@ -1,0 +1,5 @@
+Mejora de precisión: una lectura más imprecisa ya no reemplaza una lectura reciente más fiable cuando ambas son compatibles con la misma posición. Se rechazan lecturas inválidas, antiguas y fuera de orden.
+Actualizar ubicación busca muestras nuevas de alta precisión durante un máximo de 20 segundos y finaliza antes si mejora lo suficiente. Respeta pausa y permisos.
+El punto de cada lugar se dibuja en su coordenada real, separado de la etiqueta. Se corrige su desplazamiento visual en 2D/3D.
+La ficha muestra el margen de precisión GPS reportado. La foto conserva la posición medida; la precisión dentro de edificios depende de la señal disponible.
+Candidata privada para tu prueba; tú decides cuándo liberarla a Kelin.
