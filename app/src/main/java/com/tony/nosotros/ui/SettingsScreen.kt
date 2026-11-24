@@ -80,7 +80,7 @@ const val INDEFINITE = 4_102_444_800_000L  // año 2100 = "hasta que la reanude"
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
+fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, initialCategory: String? = null, onBack: () -> Unit) {
     val isAdmin by vm.isAdmin.collectAsState()
     val creatorInfo by vm.pairInfo.collectAsState()
     var autoUpdate by remember { mutableStateOf(vm.prefs.autoUpdate) }
@@ -101,7 +101,7 @@ fun SettingsScreen(vm: MainViewModel, onAdmin: () -> Unit, onBack: () -> Unit) {
     var extreme by remember { mutableStateOf(p.extremeSaving) }
     var confirmUnlink by remember { mutableStateOf(false) }
     var confirmSignOut by remember { mutableStateOf(false) }
-    var category by rememberSaveable { mutableStateOf<String?>(null) }
+    var category by rememberSaveable { mutableStateOf(initialCategory) }
     var allowFind by remember { mutableStateOf(p.allowFindPhone) }
     var confirmFind by remember { mutableStateOf(false) }
     var lockDetails by remember { mutableStateOf(p.lockDetails) }

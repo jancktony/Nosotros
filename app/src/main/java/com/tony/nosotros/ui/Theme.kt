@@ -153,6 +153,7 @@ object Ic {
     val Home get() = icon("home", listOf("M3 10.5 12 3l9 7.5V21H3z", "M9 21v-6h6v6"))
     val Clock get() = icon("clock", listOf(circle(12f, 12f, 9f), "M12 7v5l3 2"))
     val Map get() = icon("map", listOf("M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z", "M9 4v14M15 6v14"))
+    val Menu get() = icon("menu", listOf("M5 6h14M5 12h14M5 18h14"))
     val More get() = icon("more", listOf(circle(5f,12f,1f),circle(12f,12f,1f),circle(19f,12f,1f)))
     val Gear get() = icon("gear", listOf("M9.5 2h5l.6 2.4 2 .9 2.1-.7 2.5 4.3-1.6 1.7v2.8l1.6 1.7-2.5 4.3-2.1-.7-2 .9-.6 2.4h-5l-.6-2.4-2-.9-2.1.7-2.5-4.3 1.6-1.7v-2.8L2.3 8.9l2.5-4.3 2.1.7 2-.9.6-2.4", circle(12f,12f,4f)))
     val Live get() = icon("live", listOf(circle(12f, 12f, 2f), "M16.2 7.8a6 6 0 0 1 0 8.5M7.8 16.2a6 6 0 0 1 0-8.5M19.1 4.9a10 10 0 0 1 0 14.1M4.9 19.1a10 10 0 0 1 0-14.1"))

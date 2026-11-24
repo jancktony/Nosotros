@@ -154,6 +154,7 @@ private fun MainShell(vm: MainViewModel) {
     val dockMotion by vm.dockMotion.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
     var settings by remember { mutableStateOf(false) }
+    var settingsCategory by remember { mutableStateOf<String?>(null) }
     var navDestination by remember { mutableStateOf<com.tony.nosotros.data.Routing.Hit?>(null) }
     var nav by remember { mutableStateOf(false) }
     var admin by remember { mutableStateOf(false) }
@@ -183,7 +184,7 @@ private fun MainShell(vm: MainViewModel) {
     }
     if (settings) {
         BackHandler { settings = false }
-        SettingsScreen(vm, onAdmin = { admin = true }) { settings = false }
+        SettingsScreen(vm, onAdmin = { admin = true }, initialCategory = settingsCategory) { settings = false; settingsCategory = null }
         return
     }
     BackHandler(enabled = tab != 0) { tab = 0 }
@@ -194,12 +195,8 @@ private fun MainShell(vm: MainViewModel) {
             Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
                 val voiceAvailable = LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.WALKIE) ||
                     LocalFeatures.current.enabled(com.tony.nosotros.data.Feature.VOICE_NOTES)
-                FloatingDock(tab, buildList {
-                    add(DockItem(0, "Mapa", Ic.Map))
-                    add(DockItem(5, "Encontrar", Ic.Locate))
-                    if (voiceAvailable) add(DockItem(4, "Voz", Ic.Mic))
-                    add(DockItem(6, "Más", Ic.More))
-                }, style = dockStyle, motion = dockMotion) { tab = it }
+                FloatingNavigation(tab, voiceAvailable, dockStyle, dockMotion,
+                    onProfile = { settingsCategory = "Perfil"; settings = true }, onSelect = { tab = it })
             }
         },
     ) { pad ->
