@@ -1,35 +1,77 @@
 name: Compilar compañero iOS sin firma
 on:
   push:
-    branches: [feature/ajustes-buscar-ios]
-    paths: ['ios/**', '.github/workflows/ios.yml']
+    branches: [main, ci/ios-automatico]
+    paths: ['ios/**', 'app/build.gradle.kts', '.github/workflows/ios.yml']
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: ios-candidatas
+  cancel-in-progress: false
 jobs:
   ios:
     runs-on: macos-15
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Sincronizar versión con Android
+        id: version
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, plistlib, re
+          source = pathlib.Path('app/build.gradle.kts').read_text()
+          version = re.search(r'versionName\s*=\s*"(\d+\.\d+\.\d+)"', source).group(1)
+          build = re.search(r'versionCode\s*=\s*(\d+)', source).group(1)
+          path = pathlib.Path('ios/Nosotros/Info.plist')
+          info = plistlib.loads(path.read_bytes())
+          info['CFBundleShortVersionString'] = version
+          info['CFBundleVersion'] = build
+          path.write_bytes(plistlib.dumps(info))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'name={version}\nbuild={build}\nasset=Nosotros-iOS-{version}-sin-firma\n')
+          PY
       - name: Compilar para iPhone sin certificados
         working-directory: ios
         run: xcodebuild -project Nosotros.xcodeproj -scheme Nosotros -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' build
-      - name: Empaquetar IPA sin firma
+      - name: Verificar y empaquetar IPA sin firma
         working-directory: ios
+        env:
+          VERSION: ${{ steps.version.outputs.name }}
+          BUILD: ${{ steps.version.outputs.build }}
+          ASSET: ${{ steps.version.outputs.asset }}
         run: |
+          set -euo pipefail
+          app=build/Build/Products/Release-iphoneos/Nosotros.app
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Info.plist")" = "$VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$app/Info.plist")" = "$BUILD"
+          lipo "$app/Nosotros" -verify_arch arm64
+          test ! -e "$app/embedded.mobileprovision"
+          test ! -d "$app/_CodeSignature"
           mkdir -p build/package/Payload
-          cp -R build/Build/Products/Release-iphoneos/Nosotros.app build/package/Payload/
+          cp -R "$app" build/package/Payload/
           cd build/package
-          zip -qry Nosotros-iOS-1.12.0-sin-firma.ipa Payload
+          zip -qry "$ASSET.ipa" Payload
+          unzip -t "$ASSET.ipa"
+          shasum -a 256 "$ASSET.ipa" > "$ASSET.ipa.sha256"
       - uses: actions/upload-artifact@v4
         with:
-          name: Nosotros-iOS-1.12.0-sin-firma
-          path: ios/build/package/Nosotros-iOS-1.12.0-sin-firma.ipa
-          retention-days: 14
+          name: ${{ steps.version.outputs.asset }}
+          path: ios/build/package/*.ipa*
+          retention-days: 30
       - name: Guardar en candidata privada de GitHub
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.name }}
+          ASSET: ${{ steps.version.outputs.asset }}
         run: |
-          gh release view v1.12.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create v1.12.0 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title 'Nosotros 1.12.0 · pruebas privadas' --notes 'Candidata del dueño. El IPA iOS es un compañero del panel web, SIN FIRMA. No incluye ubicación ni walkie en segundo plano para iOS. Requiere firma/provisión válida para instalarse; no se garantiza compatibilidad con Scarlet.'
-          gh release upload v1.12.0 ios/build/package/Nosotros-iOS-1.12.0-sin-firma.ipa --repo "$GITHUB_REPOSITORY" --clobber
+          set -euo pipefail
+          tag="v$VERSION"
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title "Nosotros $VERSION · pruebas privadas" --notes 'Candidata del dueño. IPA compañero del panel web SIN FIRMA; requiere firma y provisión válidas para instalarse. Sin ubicación ni walkie en segundo plano en iOS.' || gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null
+          fi
+          if [ "$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')" != true ]; then
+            echo 'Versión ya publicada: IPA disponible en artefactos; publicación conservada.'
+            exit 0
+          fi
+          gh release upload "$tag" "ios/build/package/$ASSET.ipa" "ios/build/package/$ASSET.ipa.sha256" --repo "$GITHUB_REPOSITORY" --clobber
